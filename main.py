@@ -1,8 +1,8 @@
-from hadi import gui
+from hadi import Gui
 
 def main():
     print("Launching GUI from folder...")
-    gui.run_gui()
+    Gui.ft.run()
 
 if __name__ == "__main__":
     main()
