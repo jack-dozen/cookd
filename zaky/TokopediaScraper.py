@@ -11,6 +11,7 @@ import datetime
 import time
 import re
 from urllib.parse import urlparse
+from tinydb import TinyDB
 
 driver = wb.Chrome()
 driver.get('https://www.tokopedia.com/')
@@ -46,7 +47,6 @@ def get_price_from_detail(url):
         price_text = wait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, '//div[@data-testid="lblPDPDetailProductPrice"]'))
         ).text
-        # Bersihkan jadi angka: "Rp 25.000" -> 25000
         price_clean = re.sub(r'[^\d]', '', price_text)
         return int(price_clean)
     except:
@@ -96,10 +96,9 @@ print(df[['name', 'price']])
 
 prices = df['price'].dropna().tolist()
 prices_sorted = sorted(prices)
-median = prices_sorted[len(prices_sorted) // 2]  # median sederhana
+median = prices_sorted[len(prices_sorted) // 2]
 print(f"\nMedian harga: Rp {median:,}")
 
-# Ambil 1 produk dengan harga paling mendekati median
 df['selisih'] = (df['price'] - median).abs()
 hasil = df.loc[df['selisih'].idxmin()]
 print(f"\nProduk terpilih:")
@@ -107,13 +106,24 @@ print(f"  Nama  : {hasil['name']}")
 print(f"  Harga : Rp {hasil['price']:,}")
 print(f"  URL   : {hasil['url']}")
 
-# ── Step 4: Simpan ──
+# ── Step 4: Simpan ke CSV ──
+# Sementara, nantinya tidak akan di save ke CSV
 now = datetime.datetime.today().strftime('%d-%m-%Y')
 df.drop(columns=['selisih']).to_csv(f'sample_data_{now}.csv', index=False)
 
-hasil_df = pd.DataFrame([hasil[['name', 'price', 'url']]])
-hasil_df.to_csv(f'hasil_median_{now}.csv', index=False)
+# ── Step 5: Simpan ke TinyDB ──
+db = TinyDB('PLACEHOLDER.json') # Ganti jadi nama .json nantinya
+tokped_ingredients = db.table('tokped_ingredients')
 
-print(f"\nDone! Tersimpan ke sample_data_{now}.csv dan hasil_median_{now}.csv")
+tokped_ingredients.insert({
+    'name': hasil['name'],
+    'price': int(hasil['price']),
+    'url': hasil['url'],
+    'timestamp': datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S') # Sementara
+})
+
+print(f"\nDone! Data tersimpan ke:")
+print(f"  - sample_data_{now}.csv")
+print(f"  - scraping_data.json (tabel tokped_ingredients)")
 
 driver.quit()
