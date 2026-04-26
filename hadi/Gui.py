@@ -12,7 +12,7 @@ TEXT   = "#F0F0EC"
 TEXT2  = "#B0B0AB"
 TEXT3  = "#707070"
 ORANGE = "#E8440A"
-BORDER = "#383838"
+BORDER = "#000000"
 GREEN  = "#2E9E5B"
 AMBER  = "#E09020"
 BLUE   = "#1A6FBF"
@@ -26,16 +26,20 @@ def main(page: ft.Page):
     page.title            = "CookD"
     page.bgcolor          = BG
     page.padding          = 0
-    page.window_width     = 1200
+    page.window_height    = 1200
     page.window_height    = 720
+    page.window.min_width = 400
+    page.window.min_height = 300
     page.window_resizable = True
     page.theme_mode       = ft.ThemeMode.DARK
     page.scroll           = ft.ScrollMode.HIDDEN
     page.window_resizable = True
     page.fonts = {
-        "Jakarta": "https://fonts.gstatic.com/s/plusjakartasans/v8/LDIoaomQNQcsA88c7O9yZ4KMCoOg.woff2",
+        "Font": "fonts/Poppins-Regular.ttf",
     }
 
+    page.theme = ft.Theme(font_family="Font")
+    page.update()
     # ══════════════════════════════════════════════════════════════════
     #  NAVIGATION
     # ══════════════════════════════════════════════════════════════════
@@ -111,17 +115,59 @@ def main(page: ft.Page):
 
 
     # ── ft.NavigationRail ─────────────────────────────────────────────
-    nav = ft.NavigationRail(
-        #width=220,                
+    def toggle_sidebar(e):
+        if sidebar.visible == True:
+            sidebar.visible = False
+            sidebarOff.visible = True
+        else :
+            sidebar.visible = True
+            sidebarOff.visible = False
+        page.update()
+    
+    def nav_handle(e):
+        index = e.control.selected_index
+        if e.control.selected_index == 0:
+            toggle_sidebar(e)
+            e.control.selected_index = 1 
+        else:
+            paths = ["menu", "home", "finder", "my-recipes", "for-you", "info"]
+            navigate(paths[index])
+    
+        e.control.update()
+        
+    navOff = ft.NavigationRail(
+        width=75,                
         height=page.window_height,
-        selected_index     = 0,
+        selected_index     = None,
         extended           = True,
-        min_extended_width = 200,
         bgcolor            = BG2,
         label_type         = ft.NavigationRailLabelType.ALL,
+        indicator_color=ft.Colors.TRANSPARENT,
+        destinations=[
+            ft.NavigationRailDestination(
+                icon=ft.Icons.MENU,
+                label=""
+            ),
+        ],
+        on_change=toggle_sidebar,
+    )
+    
+    nav = ft.NavigationRail(
+        width=200,                
+        height=page.window_height,
+        extended           = True,
+        selected_index     = 1,
+        bgcolor            = BG2,
+        label_type         = ft.NavigationRailLabelType.ALL,
+        indicator_color    = ORANGE,
         selected_label_text_style=ft.TextStyle(color=ORANGE),
         unselected_label_text_style=ft.TextStyle(color=TEXT2),
         destinations=[
+            ft.NavigationRailDestination(
+                icon=ft.Icons.MENU_OUTLINED,
+                selected_icon=ft.Icons.MENU,
+                label=""
+            ),
             ft.NavigationRailDestination(
                 icon=ft.Icons.HOME_OUTLINED,
                 selected_icon=ft.Icons.HOME,
@@ -148,20 +194,22 @@ def main(page: ft.Page):
                 label="Info"
             ),
         ],
-        on_change = lambda e: navigate(
-            ["home", "finder", "my-recipes", "for-you", "info"][e.control.selected_index]
-        ),
+        
+        on_change=nav_handle,
         
     )
     
     sidebar = ft.Container(
-    content=nav,
-    width=200,
-    height=page.window_height,
-    bgcolor=BG2,
+        content=nav,
+        animate_size=300,
+    )
+    sidebarOff = ft.Container(
+        content=navOff,
+        visible=False,
+        animate_size=300,
     )
 
-    
+
 
 
     # ── ft.SnackBar ───────────────────────────────────────────────────
@@ -175,19 +223,34 @@ def main(page: ft.Page):
     # ── PAGES ─────────────────────────────────────────────────────────
     def make_page(label: str) -> ft.Container:
         return ft.Container(
+            animate_size=300,
             expand  = True,
             bgcolor = BG,
             visible = False,
             content = ft.Column(
                 controls=[
                     ft.Container(
-                        content = ft.Text(label, size=20, color=TEXT),
+                        content = ft.Column(
+                            controls = [
+                            ft.Text(label, size=20, color=TEXT, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.LEFT, expand=True,font_family="Font"),
+                            ft.Text(f"Cari resep dari bahan yang kamu punya", size=10,opacity = 0.5, color=TEXT, text_align=ft.TextAlign.LEFT, expand=True),
+                            ],
+                            spacing=0,
+                        ),
+                        
+                        alignment=ft.Alignment.CENTER_LEFT,
                         bgcolor = BG2,
-                        padding = ft.Padding.symmetric(horizontal=24, vertical=16),
+                        padding = ft.Padding.symmetric(horizontal=40 , vertical=14),
                         border  = ft.Border.only(bottom=ft.BorderSide(1, BORDER)),
                     ),
                     ft.Container(
-                        content = ft.Text(f"Build your {label} content here.", color=TEXT2),
+                        content = ft.Column(
+                            controls =[
+                            ft.Text(f"Work In Progress", color=TEXT2,font_family="Font",weight=ft.FontWeight.BOLD),
+                            ft.Text(f"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras condimentum, lorem nec porttitor tincidunt, felis lorem egestas odio, ac dignissim velit justo sed sapien. Donec bibendum odio ac ex facilisis, eget interdum justo mollis. Maecenas vestibulum, ipsum quis faucibus hendrerit, nulla orci varius magna, quis efficitur odio neque eget purus. Nunc dolor velit, volutpat vulputate erat vel, mattis tempus ipsum. Vivamus nec interdum neque. Praesent eleifend nunc enim, quis molestie ante ornare non. Duis in tellus diam. Aenean eleifend varius felis in volutpat. Aliquam a urna felis.", color=TEXT2,font_family="Font"),
+                            ],
+                            spacing=10,
+                        ),
                         padding = ft.Padding.all(24),
                     ),
                 ],
@@ -204,12 +267,13 @@ def main(page: ft.Page):
     pages["home"].visible = True
 
 
-    # ── ROOT ──────────────────────────────────────────────────────────
+    # ── ROOT / Main ──────────────────────────────────────────────────────────
     root = ft.Row(
         expand=True,
         spacing=0,
         controls=[
             sidebar,
+            sidebarOff,
             ft.VerticalDivider(width=1, color=BORDER),
             ft.Container(
                 expand=True,
@@ -221,25 +285,25 @@ def main(page: ft.Page):
 
     page.add(root)
     
-    def on_resize(e):
+    def window_resized(e):
         width = e.width
 
-        print("WIDTH:", width)  
+        #print("WIDTH:", width)  
 
         if width < 800:
             sidebar.visible = False
-            ft.VerticalDivider.visible = False
+            sidebarOff.visible = True
         else:
-            sidebar.visible = True
-            ft.VerticalDivider.visible = True
-            sidebar.width = 200
+            if sidebar.visible != True:
+                sidebar.visible = True
+                sidebarOff.visible = False
 
         page.update()
 
-    page.on_resize = on_resize
+    page.on_resize = window_resized
 
     # run once at start
     #on_resize(None)
 
 
-ft.run(main)
+ft.run(main, assets_dir=".")
