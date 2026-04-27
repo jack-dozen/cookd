@@ -12,6 +12,7 @@ import time
 import re
 import threading
 from urllib.parse import urlparse
+import os
 
 
 MAX_ITEMS = 5
@@ -155,7 +156,7 @@ def tokpedia_scraper(keywords: list[str]):
         keywords: List keyword yang mau di-scrape, contoh: ['bawang putih', 'gula pasir']
         db_path:  Path ke file TinyDB, contoh: './data/scraping_data.json'
     """
-    db_path = 'scraping_data.json'
+    db_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'base.json')
     threads = []
     for keyword in keywords:
         status = _is_data_fresh(db_path, keyword)
@@ -184,5 +185,5 @@ def tokpedia_scraper(keywords: list[str]):
 
 
 # ── untuk testing ──
-#if __name__ == '__main__':
-#    tokpedia_scraper(keywords=['bawang putih', 'gula pasir', 'tempe', 'garam'])
+if __name__ == '__main__':
+    tokpedia_scraper(keywords=['bawang putih', 'gula pasir', 'tempe', 'garam'])
