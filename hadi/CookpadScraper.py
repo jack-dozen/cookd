@@ -1,6 +1,7 @@
 import json
 import logging
 import hashlib
+import sys
 import os
 from datetime import datetime
 from scrapling.fetchers import StealthyFetcher
@@ -22,8 +23,8 @@ log = logging.getLogger(__name__)
 # ── Config ─────────────────────────────────────────────────────────────────────
 BASE_URL         = "https://cookpad.com"
 SEARCH_URL       = "https://cookpad.com/id/cari/{keyword}"
-OUTPUT_FILE      = "recipes.json"
-MAX_RECIPES      = 30   # max relevant recipes to keep
+OUTPUT_FILE      = "../data/recipes.json"
+MAX_RECIPES      = 5   # max relevant recipes to keep
 MIN_MATCH_SCORE  = 0  # discard recipes where user has <x% of ingredients
 
 # ── Fetcher setup ──────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ SKIP_WORDS = {
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 def make_id(url: str) -> str:
     return hashlib.md5(url.encode()).hexdigest()[:12]
 
@@ -104,7 +106,7 @@ def ingredient_score(recipe_ingredients: list[str], user_ingredients: list[str])
 
 
 # ── Scraping ───────────────────────────────────────────────────────────────────
-def _fetch_stubs_for_keyword(keyword: str) -> list[dict]:
+def search_recipe(keyword: str) -> list[dict]:
     """Return recipe stubs (id, name, url) from one Cookpad search page."""
     url = SEARCH_URL.format(keyword=keyword.replace(" ", "%20"))
     log.info(f"  → Searching: '{keyword}'")
@@ -220,7 +222,7 @@ def scrape_recipe_detail(stub: dict) -> dict | None:
     }
 
 
-def collect_relevant_recipes(user_ingredients: list[str]) -> list[dict]:
+def find_recipe(user_ingredients: list[str]) -> list[dict]:
     """
     Walk through search stubs ingredient-by-ingredient, scrape each detail
     page, and immediately score it. Only keep recipes where the user already
@@ -235,7 +237,7 @@ def collect_relevant_recipes(user_ingredients: list[str]) -> list[dict]:
     seen_ids: set[str] = set()
     stub_queue: list[dict] = []
     for ingredient in user_ingredients:
-        for stub in _fetch_stubs_for_keyword(ingredient):
+        for stub in search_recipe(ingredient):
             if stub["recipe_id"] not in seen_ids:
                 seen_ids.add(stub["recipe_id"])
                 stub_queue.append(stub)
@@ -285,14 +287,14 @@ def main():
     print("  Cookpad Recipe Scraper")
     print("=" * 50)
 
-    raw = input("\nMasukkan bahan yang kamu punya (pisahkan dengan koma): ").strip()
+    raw = sys.argv[1]
     if not raw:
         print("Tidak ada bahan yang diinput. Keluar.")
         return
 
     user_ingredients = [k.strip() for k in raw.split(",") if k.strip()]
 
-    detailed = collect_relevant_recipes(user_ingredients)
+    detailed = find_recipe(user_ingredients)
     if not detailed:
         print("\nTidak ada resep yang cocok ditemukan.")
         return
@@ -332,7 +334,6 @@ def main():
 
     print(f"\nSelesai! {len(detailed)} resep disimpan ke {OUTPUT_FILE}")
     print("=" * 50)
-
 
 if __name__ == "__main__":
     main()
