@@ -5,125 +5,142 @@ from selenium.webdriver.common.by import By
 from selenium import webdriver as wb
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait as wait
-import pandas as pd
 from selenium.webdriver.common.keys import Keys
+from tinydb import TinyDB
 import datetime
 import time
 import re
+import threading
 from urllib.parse import urlparse
-from tinydb import TinyDB
 
-driver = wb.Chrome()
-driver.get('https://www.tokopedia.com/')
-driver.implicitly_wait(5)
-
-keywords = input("Keywords: ")
-
-search = driver.find_element(By.XPATH, '//*[@id="header-main-wrapper"]/div[2]/div[2]/div/div/div/div/input')
-search.send_keys(keywords)
-search.send_keys(Keys.ENTER)
-driver.implicitly_wait(5)
 
 MAX_ITEMS = 5
+_db_lock = threading.Lock()  # Cegah TinyDB ditulis bersamaan
 
-def scrolling():
+
+def _scrolling(driver):
     scheight = .1
     while scheight < 9.9:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight/%s);" % scheight)
         scheight += .01
 
-def extract_name_from_url(url):
+
+def _extract_name_from_url(url):
     path = urlparse(url).path
     slug = path.split('/')[-1]
     slug = re.sub(r'-\d{15,}-\d{15,}$', '', slug)
     slug = re.sub(r'-\d{15,}$', '', slug)
-    name = slug.replace('-', ' ').title()
-    return name
+    return slug.replace('-', ' ').title()
 
-def get_price_from_detail(url):
+
+def _get_price_from_detail(driver, url):
     driver.get(url)
     time.sleep(3)
     try:
         price_text = wait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, '//div[@data-testid="lblPDPDetailProductPrice"]'))
         ).text
-        price_clean = re.sub(r'[^\d]', '', price_text)
-        return int(price_clean)
+        return int(re.sub(r'[^\d]', '', price_text))
     except:
         return None
 
-# ── Step 1: Ambil 5 link dari halaman search ──
-driver.implicitly_wait(20)
-driver.refresh()
-scrolling()
 
-wait(driver, 30).until(
-    EC.presence_of_element_located((By.XPATH, '//div[@data-testid="divSRPContentProducts"]'))
-)
-time.sleep(3)
+def _scrape_keyword(keyword, db_path):
+    """Scrape satu keyword dan simpan hasilnya ke TinyDB."""
+    print(f"[{keyword}] Memulai scraping...")
+    driver = wb.Chrome()
 
-container = driver.find_element(By.XPATH, '//div[@data-testid="divSRPContentProducts"]')
-data_item = container.find_elements(By.XPATH, './div')[:MAX_ITEMS]
-
-links = []
-for item in data_item:
     try:
-        href = item.find_element(By.XPATH, './/a').get_attribute('href')
-        if href:
-            links.append(href)
-    except:
-        continue
+        driver.get('https://www.tokopedia.com/')
+        driver.implicitly_wait(5)
 
-print(f"Berhasil ambil {len(links)} link")
+        search = driver.find_element(By.XPATH, '//*[@id="header-main-wrapper"]/div[2]/div[2]/div/div/div/div/input')
+        search.send_keys(keyword)
+        search.send_keys(Keys.ENTER)
 
-# ── Step 2: Buka tiap link, ambil harga ──
-product_data = []
-for i, url in enumerate(links):
-    print(f"Scraping produk {i+1}/{len(links)}...")
-    name = extract_name_from_url(url)
-    price = get_price_from_detail(url)
-    product_data.append({
-        'name': name,
-        'price': price,
-        'url': url
-    })
-    print(f"  {name} -> Rp {price:,}" if price else f"  {name} -> harga tidak ditemukan")
+        # ── Step 1: Ambil link ──
+        driver.implicitly_wait(20)
+        driver.refresh()
+        _scrolling(driver)
 
-# ── Step 3: Hitung median & filter ──
-df = pd.DataFrame(product_data)
-print("\nData sebelum filter:")
-print(df[['name', 'price']])
+        wait(driver, 30).until(
+            EC.presence_of_element_located((By.XPATH, '//div[@data-testid="divSRPContentProducts"]'))
+        )
+        time.sleep(3)
 
-prices = df['price'].dropna().tolist()
-prices_sorted = sorted(prices)
-median = prices_sorted[len(prices_sorted) // 2]
-print(f"\nMedian harga: Rp {median:,}")
+        container = driver.find_element(By.XPATH, '//div[@data-testid="divSRPContentProducts"]')
+        data_item = container.find_elements(By.XPATH, './div')[:MAX_ITEMS]
 
-df['selisih'] = (df['price'] - median).abs()
-hasil = df.loc[df['selisih'].idxmin()]
-print(f"\nProduk terpilih:")
-print(f"  Nama  : {hasil['name']}")
-print(f"  Harga : Rp {hasil['price']:,}")
-print(f"  URL   : {hasil['url']}")
+        links = []
+        for item in data_item:
+            try:
+                href = item.find_element(By.XPATH, './/a').get_attribute('href')
+                if href:
+                    links.append(href)
+            except:
+                continue
 
-# ── Step 4: Simpan ke CSV ──
-# Sementara, nantinya tidak akan di save ke CSV
-now = datetime.datetime.today().strftime('%d-%m-%Y')
-df.drop(columns=['selisih']).to_csv(f'sample_data_{now}.csv', index=False)
+        print(f"[{keyword}] Berhasil ambil {len(links)} link")
 
-# ── Step 5: Simpan ke TinyDB ──
-db = TinyDB('PLACEHOLDER.json') # Ganti jadi nama .json nantinya
-tokped_ingredients = db.table('tokped_ingredients')
+        # ── Step 2: Ambil harga tiap link ──
+        product_data = []
+        for i, url in enumerate(links):
+            print(f"[{keyword}] Scraping produk {i+1}/{len(links)}...")
+            name = _extract_name_from_url(url)
+            price = _get_price_from_detail(driver, url)
+            product_data.append({'name': name, 'price': price, 'url': url})
+            print(f"[{keyword}]   {name} -> Rp {price:,}" if price else f"[{keyword}]   {name} -> harga tidak ditemukan")
 
-tokped_ingredients.insert({
-    'name': hasil['name'],
-    'price': int(hasil['price']),
-    'url': hasil['url'],
-    'timestamp': datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S') # Sementara
-})
+        # ── Step 3: Hitung median ──
+        prices = sorted([p['price'] for p in product_data if p['price'] is not None])
+        if not prices:
+            print(f"[{keyword}] Tidak ada harga yang berhasil diambil, skip.")
+            return
 
-print(f"\nDone! Data tersimpan ke:")
-print(f"  - sample_data_{now}.csv")
-print(f"  - scraping_data.json (tabel tokped_ingredients)")
+        median = prices[len(prices) // 2]
+        hasil = min(product_data, key=lambda x: abs((x['price'] or 0) - median))
 
-driver.quit()
+        print(f"[{keyword}] Produk terpilih: {hasil['name']} -> Rp {hasil['price']:,}")
+
+        # ── Step 4: Simpan ke TinyDB ──
+        with _db_lock:
+            db = TinyDB(db_path)
+            tokped_ingredients = db.table('tokped_ingredients')
+            tokped_ingredients.insert({
+                'keyword': keyword,
+                'name': hasil['name'],
+                'price': int(hasil['price']),
+                'url': hasil['url'],
+                'timestamp': datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+            })
+            print(f"[{keyword}] Tersimpan ke TinyDB.")
+
+    except Exception as e:
+        print(f"[{keyword}] ERROR: {e}")
+
+    finally:
+        driver.quit()
+
+
+def tokped_scraper(keywords: list[str]):
+    """
+    Entry point utama.
+
+    Args:
+        keywords: List keyword yang mau di-scrape, contoh: ['bawang putih', 'gula pasir']
+        db_path:  Path ke file TinyDB, contoh: './data/scraping_data.json'
+    """
+    threads = []
+    for keyword in keywords:
+        t = threading.Thread(target=_scrape_keyword, args=(keyword, 'scraping_data.json'))
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+# ── Jalankan langsung (opsional, untuk testing) ──
+if __name__ == '__main__':
+    tokped_scraper(
+        keywords=['bawang putih', 'gula pasir']
+    )
