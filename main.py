@@ -1,5 +1,6 @@
-from hadi import Gui
+import flet as ft
+from hadi.Gui import main as gui_main
 
-def main():
+if __name__ == "__main__":
     print("Launching GUI from folder...")
-    Gui.ft.run()
+    ft.run(gui_main, assets_dir="hadi")
