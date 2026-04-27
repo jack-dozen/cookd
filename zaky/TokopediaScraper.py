@@ -6,7 +6,7 @@ from selenium import webdriver as wb
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait as wait
 from selenium.webdriver.common.keys import Keys
-from tinydb import TinyDB
+from tinydb import TinyDB, Query
 import datetime
 import time
 import re
@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 
 MAX_ITEMS = 5
-_db_lock = threading.Lock()  # Cegah TinyDB ditulis bersamaan
+_db_lock = threading.Lock()
 
 
 def _scrolling(driver):
@@ -45,8 +45,31 @@ def _get_price_from_detail(driver, url):
         return None
 
 
+def _is_data_fresh(db_path: str, keyword: str) -> bool | None:
+    """
+    Cek apakah data keyword sudah ada di TinyDB dan masih fresh (< 7 hari).
+
+    Returns:
+        True  -> data ada dan masih fresh, skip scraping
+        False -> data ada tapi sudah > 7 hari, perlu scraping ulang
+        None  -> data tidak ada, perlu scraping
+    """
+    with _db_lock:
+        db = TinyDB(db_path)
+        tokped_ingredients = db.table('tokped_ingredients')
+        Item = Query()
+        result = tokped_ingredients.get(Item.keyword == keyword)
+
+    if result is None:
+        return None
+
+    timestamp = datetime.datetime.strptime(result['timestamp'], '%Y-%m-%d %H:%M:%S')
+    selisih_hari = (datetime.datetime.today() - timestamp).days
+
+    return selisih_hari <= 7
+
+
 def _scrape_keyword(keyword, db_path):
-    """Scrape satu keyword dan simpan hasilnya ke TinyDB."""
     print(f"[{keyword}] Memulai scraping...")
     driver = wb.Chrome()
 
@@ -106,6 +129,8 @@ def _scrape_keyword(keyword, db_path):
         with _db_lock:
             db = TinyDB(db_path)
             tokped_ingredients = db.table('tokped_ingredients')
+            Item = Query()
+            tokped_ingredients.remove(Item.keyword == keyword)  # hapus data lama jika ada
             tokped_ingredients.insert({
                 'keyword': keyword,
                 'name': hasil['name'],
@@ -122,7 +147,7 @@ def _scrape_keyword(keyword, db_path):
         driver.quit()
 
 
-def tokped_scraper(keywords: list[str]):
+def tokpedia_scraper(keywords: list[str]):
     """
     Entry point utama.
 
@@ -130,17 +155,34 @@ def tokped_scraper(keywords: list[str]):
         keywords: List keyword yang mau di-scrape, contoh: ['bawang putih', 'gula pasir']
         db_path:  Path ke file TinyDB, contoh: './data/scraping_data.json'
     """
+    db_path = 'scraping_data.json'
     threads = []
     for keyword in keywords:
-        t = threading.Thread(target=_scrape_keyword, args=(keyword, 'scraping_data.json'))
+        status = _is_data_fresh(db_path, keyword)
+
+        if status is True:
+            print(f"[{keyword}] Data masih fresh, skip scraping.")
+            continue
+        elif status is False:
+            print(f"[{keyword}] Data sudah > 7 hari, scraping ulang...")
+            with _db_lock:
+                db = TinyDB(db_path)
+                tokped_ingredients = db.table('tokped_ingredients')
+                Item = Query()
+                tokped_ingredients.remove(Item.keyword == keyword)
+        else:
+            print(f"[{keyword}] Data tidak ada, mulai scraping...")
+
+        t = threading.Thread(target=_scrape_keyword, args=(keyword, db_path))
         threads.append(t)
         t.start()
 
     for t in threads:
         t.join()
 
-# ── Jalankan langsung (opsional, untuk testing) ──
-if __name__ == '__main__':
-    tokped_scraper(
-        keywords=['bawang putih', 'gula pasir']
-    )
+    print("\nSemua scraping selesai!")
+
+
+# ── untuk testing ──
+#if __name__ == '__main__':
+#    tokpedia_scraper(keywords=['bawang putih', 'gula pasir', 'tempe', 'garam'])
