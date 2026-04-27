@@ -209,6 +209,38 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
         border_color=BORDER, focused_border_color=ORANGE,
         content_padding=ft.Padding.all(12),
     )
+    portion_field = ft.TextField(
+        label="Porsi (cth: 4 servings)", bgcolor=BG3, color=TEXT,
+        label_style=ft.TextStyle(color=TEXT2),
+        border_color=BORDER, focused_border_color=ORANGE,
+        content_padding=ft.Padding.all(12),
+    )
+    cook_time_field = ft.TextField(
+        label="Waktu Masak (cth: 30 menit)", bgcolor=BG3, color=TEXT,
+        label_style=ft.TextStyle(color=TEXT2),
+        border_color=BORDER, focused_border_color=ORANGE,
+        content_padding=ft.Padding.all(12),
+    )
+    ingredients_field = ft.TextField(
+        label="Bahan-bahan (satu baris = satu bahan)",
+        multiline=True, min_lines=4, max_lines=8,
+        bgcolor=BG3, color=TEXT,
+        label_style=ft.TextStyle(color=TEXT2),
+        hint_text="cth:\n2 butir telur\n1 sdt garam\n3 sdm kecap manis",
+        hint_style=ft.TextStyle(color=TEXT3),
+        border_color=BORDER, focused_border_color=ORANGE,
+        content_padding=ft.Padding.all(12),
+    )
+    steps_field = ft.TextField(
+        label="Langkah-langkah (satu baris = satu langkah)",
+        multiline=True, min_lines=4, max_lines=8,
+        bgcolor=BG3, color=TEXT,
+        label_style=ft.TextStyle(color=TEXT2),
+        hint_text="cth:\nCincang bawang putih\nTumis hingga harum\nSajikan",
+        hint_style=ft.TextStyle(color=TEXT3),
+        border_color=BORDER, focused_border_color=ORANGE,
+        content_padding=ft.Padding.all(12),
+    )
     notes_field = ft.TextField(
         label="Catatan (opsional)", multiline=True,
         min_lines=2, max_lines=4,
@@ -223,16 +255,57 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
         border_color=BORDER, focused_border_color=ORANGE,
         content_padding=ft.Padding.all(12),
     )
+    image_url_field = ft.TextField(
+        label="URL Gambar (opsional)", bgcolor=BG3, color=TEXT,
+        label_style=ft.TextStyle(color=TEXT2),
+        border_color=BORDER, focused_border_color=ORANGE,
+        content_padding=ft.Padding.all(12),
+    )
     error_text = ft.Text("", color=RED, size=11)
 
     def on_save(e):
-        row, err = SavedController.do_save(
-            name_field.value or "", notes_field.value or "", url_field.value or ""
-        )
+        recipe_name = name_field.value or ""
+        err = SavedController.validate_add(recipe_name)
         if err:
             error_text.value = err
             error_text.update()
             return
+        notes = notes_field.value or ""
+        err = SavedController.validate_notes(notes)
+        if err:
+            error_text.value = err
+            error_text.update()
+            return
+
+        # Parse bahan dan langkah dari textarea
+        ingredients = [
+            line.strip() for line in (ingredients_field.value or "").splitlines()
+            if line.strip()
+        ]
+        steps = [
+            line.strip() for line in (steps_field.value or "").splitlines()
+            if line.strip()
+        ]
+
+        recipe_id = _make_id(recipe_name + _now())
+        row = save_recipe(
+            recipe_id        = recipe_id,
+            recipe_name      = recipe_name.strip(),
+            notes            = notes.strip(),
+            ingredients_all  = ingredients,
+            source_url       = url_field.value.strip(),
+            image_url        = image_url_field.value.strip(),
+            cook_time        = cook_time_field.value.strip(),
+            portion          = portion_field.value.strip(),
+            source           = "Manual",
+        )
+        # Simpan steps ke dalam row (tinydb tidak punya field steps by default, kita tambahkan)
+        if row:
+            table = _table()
+            R = Query()
+            table.update({"steps": steps}, R.saved_id == row["saved_id"])
+            row["steps"] = steps
+
         dialog.open = False
         page.update()
         if row:
@@ -248,10 +321,21 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
         bgcolor=BG2,
         content=ft.Container(
             content=ft.Column(
-                controls=[name_field, notes_field, url_field, error_text],
+                controls=[
+                    name_field,
+                    ft.Row(controls=[portion_field, cook_time_field], spacing=10),
+                    ingredients_field,
+                    steps_field,
+                    notes_field,
+                    url_field,
+                    image_url_field,
+                    error_text,
+                ],
                 spacing=10, tight=True,
+                scroll=ft.ScrollMode.AUTO,
             ),
-            width=400,
+            width=500,
+            height=500,
         ),
         actions=[
             ft.TextButton("Batal", style=ft.ButtonStyle(color=TEXT3), on_click=on_cancel),
@@ -581,7 +665,7 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
             "recipe_id":   saved.get("recipe_id", ""),
             "name":        saved.get("recipe_name", ""),
             "ingredients": saved.get("ingredients_all", []),
-            "steps":       [],
+            "steps":       saved.get("steps", []),
             "image_url":   saved.get("image_url", ""),
             "cook_time":   saved.get("cook_time", ""),
             "portion":     saved.get("portion", ""),
