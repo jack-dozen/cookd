@@ -7,20 +7,20 @@ import subprocess
 # ─────────────────────────────────────────────────────────────────────
 # COLORS  (mirrors CSS :root variables)
 # ─────────────────────────────────────────────────────────────────────
-BG     = "#141414"
-BG2    = "#303030"
-BG3    = "#252525"
-BG4    = "#363636"
-TEXT   = "#F0F0EC"
-TEXT2  = "#B0B0AB"
-TEXT3  = "#707070"
-ORANGE = "#E8440A"
-BORDER = "#000000"
-GREEN  = "#2E9E5B"
-AMBER  = "#E09020"
-BLUE   = "#1A6FBF"
-BLACK  = "#000000"
-WHITE  = "#FFFFFF"
+BG     = "#141414" #background utama
+BG2    = "#303030" #sidebar, topbar
+BG3    = "#252525" #card, input, highlight
+BG4    = "#363636" #hover highlight
+TEXT   = "#F0F0EC" #primary text
+TEXT2  = "#B0B0AB" #secondary text, placeholder
+TEXT3  = "#707070" #disabled text
+ORANGE = "#E8440A" #accent, highlights, buttons
+BORDER = "#000000" #border, dividers, shadows
+GREEN  = "#2E9E5B" #success messages, positive indicators
+AMBER  = "#E09020" #warnings, cautions
+BLUE   = "#1A6FBF" #info messages, links
+BLACK  = "#000000" #black
+WHITE  = "#FFFFFF" #white
 
 
 def main(page: ft.Page):
@@ -32,7 +32,7 @@ def main(page: ft.Page):
     page.bgcolor          = BG
     page.padding          = 0
     page.window_height    = 1200
-    page.window_height    = 720
+    page.window_width    = 720
     page.window.min_width = 400
     page.window.min_height = 300
     page.window_resizable = True
@@ -518,7 +518,7 @@ def main(page: ft.Page):
                     )
                 page.update()
 
-            # THIS REPLACES threading.Thread
+            
             page.run_task(run_search)
 
     search_field = ft.TextField(
@@ -548,11 +548,6 @@ def main(page: ft.Page):
             expand=True,
         ),
     )
-
-
-
-
-
 
 
 
