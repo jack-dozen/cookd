@@ -346,7 +346,7 @@ def delete_by_keyword(keyword, db_path=DB_PATH):
 # ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    keywords = ["gula pasir", "tepung terigu"]
+    keywords = ["wortel", "tepung tapioka"]
 
     db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
     driver = init_driver()
