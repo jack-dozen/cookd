@@ -3,6 +3,9 @@ import json
 from hadi import CookpadScraper  
 import threading
 import subprocess
+from fadhil.my_recipes import MyRecipesPage
+
+
 
 # ─────────────────────────────────────────────────────────────────────
 # COLORS  (mirrors CSS :root variables)
@@ -50,9 +53,42 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════
     pages: dict[str, ft.Container] = {}
 
-    def navigate(name: str):
+    def show_detail(recipe: dict):
+        """Fill detail page with this recipe's data then navigate to it."""
+        detail_content.controls.clear()
+
+        # Title
+        detail_content.controls.append(
+            ft.Text(recipe["name"], size=24, weight=ft.FontWeight.BOLD, color=TEXT)
+        )
+
+        # Steps — assumes json has "steps": ["step1", "step2", ...]
+        for i, step in enumerate(recipe["steps"], start=1):
+            detail_content.controls.append(
+                ft.Row(
+                    controls=[
+                        ft.Container(
+                            content=ft.Text(str(i), color="#fff", size=12, weight=ft.FontWeight.BOLD),
+                            width=26, height=26,
+                            bgcolor=ORANGE,
+                            border_radius=ft.BorderRadius.all(13),
+                            alignment=ft.Alignment(0, 0),
+                        ),
+                        ft.Text(step, color=TEXT2, expand=True),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                )
+            )
+
+        detail_content.update()
+        navigate("detail")
+
+    def navigate(name: str, recipe: dict = None):
         for key, container in pages.items():
             container.visible = (key == name)
+        if name == "detail" and recipe:
+            show_detail(recipe)
         page.update()
 
 
@@ -242,7 +278,7 @@ def main(page: ft.Page):
         )
 
     pages["home"] = make_page("Home")
-    pages["my-recipes"] = make_page("My Recipes")
+    pages["my-recipes"] = MyRecipesPage(page, navigate)
     pages["for-you"] = make_page("For You")
     pages["info"] = make_page("Info")
 
@@ -285,36 +321,6 @@ def main(page: ft.Page):
         ),
     )
 
-    def show_detail(recipe: dict):
-        """Fill detail page with this recipe's data then navigate to it."""
-        detail_content.controls.clear()
-
-        # Title
-        detail_content.controls.append(
-            ft.Text(recipe["name"], size=24, weight=ft.FontWeight.BOLD, color=TEXT)
-        )
-
-        # Steps — assumes json has "steps": ["step1", "step2", ...]
-        for i, step in enumerate(recipe["steps"], start=1):
-            detail_content.controls.append(
-                ft.Row(
-                    controls=[
-                        ft.Container(
-                            content=ft.Text(str(i), color="#fff", size=12, weight=ft.FontWeight.BOLD),
-                            width=26, height=26,
-                            bgcolor=ORANGE,
-                            border_radius=ft.BorderRadius.all(13),
-                            alignment=ft.Alignment(0, 0),
-                        ),
-                        ft.Text(step, color=TEXT2, expand=True),
-                    ],
-                    spacing=12,
-                    vertical_alignment=ft.CrossAxisAlignment.START,
-                )
-            )
-
-        detail_content.update()
-        navigate("detail")
 
     def on_search(e):
         def run():
@@ -451,6 +457,8 @@ def main(page: ft.Page):
     )
 
     page.add(root)
+
+    pages["my-recipes"].refresh()
     
     def window_resized(e):
         width = e.width
