@@ -286,94 +286,240 @@ def main(page: ft.Page):
     )
 
     def show_detail(recipe: dict):
-        """Fill detail page with this recipe's data then navigate to it."""
         detail_content.controls.clear()
 
-        # Title
+        # ── Hero section (image + title overlay) ──
         detail_content.controls.append(
-            ft.Text(recipe["name"], size=24, weight=ft.FontWeight.BOLD, color=TEXT)
+            ft.Container(
+                height=500,
+                content=ft.Stack(
+                    controls=[
+                        # background image
+                        ft.Image(
+                            src=recipe.get("image_url", ""),
+                            width=float("inf"),
+                            height=500,
+                            fit="cover",
+                        ),
+                        # dark gradient overlay
+                        ft.Container(
+                            width=float("inf"),
+                            height=500,
+                            gradient=ft.LinearGradient(
+                                begin=ft.Alignment(0, 1),
+                                end=ft.Alignment(0, -1),
+                                colors=["#EE000000", "#44000000"],
+                            ),
+                        ),
+                        # title + author pinned to bottom
+                        ft.Container(
+                            bottom=0, left=0, right=0,
+                            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+                            content=ft.Column(
+                                controls=[
+                                    ft.Text(recipe.get("name", ""), size=28, weight=ft.FontWeight.BOLD, color=WHITE),
+                                    ft.Text(f"oleh {recipe.get('author', '')}", size=13, color=TEXT2),
+                                ],
+                                spacing=4,
+                            ),
+                        ),
+                    ],
+                ),
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            )
         )
 
-        # Steps — assumes json has "steps": ["step1", "step2", ...]
-        for i, step in enumerate(recipe["steps"], start=1):
-            detail_content.controls.append(
-                ft.Row(
+        # ── Meta bar (portion, cook_time, tags) ──
+        def meta_pill(icon, text):
+            return ft.Container(
+                content=ft.Row(
                     controls=[
-                        ft.Container(
-                            content=ft.Text(str(i), color="#fff", size=12, weight=ft.FontWeight.BOLD),
-                            width=26, height=26,
-                            bgcolor=ORANGE,
-                            border_radius=ft.BorderRadius.all(13),
-                            alignment=ft.Alignment(0, 0),
-                        ),
-                        ft.Text(step, color=TEXT2, expand=True),
+                        ft.Icon(icon, color=ORANGE, size=16),
+                        ft.Text(text, color=TEXT, size=13),
                     ],
-                    spacing=12,
-                    vertical_alignment=ft.CrossAxisAlignment.START,
-                )
+                    spacing=6,
+                    tight=True,
+                ),
+                bgcolor=BG3,
+                border=ft.Border.all(1, ORANGE),
+                border_radius=ft.BorderRadius.all(20),
+                padding=ft.padding.symmetric(horizontal=14, vertical=8),
             )
+
+        detail_content.controls.append(
+            ft.Container(
+                content=ft.Row(
+                    controls=[
+                        meta_pill(ft.Icons.PEOPLE_OUTLINE, recipe.get("portion", "")),
+                        meta_pill(ft.Icons.TIMER_OUTLINED, recipe.get("cook_time", "")),
+                        ft.Row(expand=True),  # spacer
+                    ],
+                    spacing=8,
+                ),
+                padding=ft.padding.symmetric(horizontal=30, vertical=16),
+                border=ft.Border.only(bottom=ft.BorderSide(1, BORDER)),
+            )
+        )
+
+        # ── Bahan-bahan + Cara Membuat side by side ──
+        def ingredient_card(ingredients: list) -> ft.Container:
+            items = []
+            for ing in ingredients:
+                name = ing.get("name", ing) if isinstance(ing, dict) else ing
+                items.append(
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Row(
+                                    controls=[
+                                        ft.Container(width=10, height=10, bgcolor=ORANGE, border_radius=ft.BorderRadius.all(5)),
+                                        ft.Column(
+                                            controls=[
+                                                ft.Text(name, color=TEXT, weight=ft.FontWeight.BOLD, size=14),
+                                            ],
+                                            spacing=2,
+                                            expand=True,
+                                        ),
+                                    ],
+                                    spacing=12,
+                                    expand=True,
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        padding=ft.padding.symmetric(horizontal=5, vertical=12),
+                        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER)),
+                    )
+                )
+            return ft.Container(
+                content=ft.Column(controls=items, spacing=0),
+                bgcolor=BG3,
+                border_radius=ft.BorderRadius.all(10),
+            )
+
+        def steps_card(steps: list) -> ft.Container:
+            items = []
+            for i, step in enumerate(steps, start=1):
+                text = step.get("text", step) if isinstance(step, dict) else step
+                items.append(
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Container(
+                                    content=ft.Text(str(i), color=WHITE, size=13, weight=ft.FontWeight.BOLD),
+                                    width=32, height=32,
+                                    bgcolor=ORANGE,
+                                    border_radius=ft.BorderRadius.all(16),
+                                    alignment=ft.Alignment(0, 0),
+                                ),
+                                ft.Text(text, color=TEXT, size=14, expand=True),
+                            ],
+                            spacing=16,
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                        ),
+                        padding=ft.padding.symmetric(horizontal=16, vertical=14),
+                        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER)),
+                    )
+                )
+            return ft.Container(
+                content=ft.Column(controls=items, spacing=0),
+                bgcolor=BG3,
+                border_radius=ft.BorderRadius.all(10),
+            )
+
+        detail_content.controls.append(
+            ft.Container(
+                content=ft.Row(
+                    controls=[
+                        # Left — Bahan-bahan
+                        ft.Column(
+                            controls=[
+                                ft.Text("Bahan-bahan", size=22, weight=ft.FontWeight.BOLD, color=TEXT),
+                                ingredient_card(recipe.get("ingredients", [])),
+                            ],
+                            spacing=16,
+                            expand=1,
+                        ),
+                        ft.Container(width=30),  # gap
+                        # Right — Cara Membuat
+                        ft.Column(
+                            controls=[
+                                ft.Text("Cara Membuat", size=22, weight=ft.FontWeight.BOLD, color=TEXT),
+                                steps_card(recipe.get("steps", [])),
+                            ],
+                            spacing=16,
+                            expand=2,
+                        ),
+                    ],
+                    spacing=0,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    expand=True,
+                ),
+                padding=ft.padding.symmetric(horizontal=30, vertical=24),
+                expand=True,
+            )
+        )
 
         detail_content.update()
         navigate("detail")
 
     def on_search(e):
-        def run():
-            ingredients = search_field.value.strip()
-            if not ingredients:
-                return
+            async def run_search(): # Change to async for the task runner
+                ingredients = search_field.value.strip()
+                if not ingredients:
+                    return
 
-            # show loading
-            results_column.controls.clear()
-            results_column.controls.append(ft.ProgressRing(color=ORANGE))
-            results_column.update()
-
-            # run scraper as separate process, pass ingredients as argument
-            subprocess.run(["python", "./hadi/CookpadScraper.py", ingredients], cwd=".")
-
-            # read the json it produced
-            try:
-                with open(CookpadScraper.OUTPUT_FILE, "r", encoding="utf-8") as f:
-                    results = json.load(f)
-            except FileNotFoundError:
                 results_column.controls.clear()
-                results_column.controls.append(ft.Text("File not found", color="red"))
-                results_column.update()
-                return
+                results_column.controls.append(ft.ProgressRing(color=ORANGE))
+                page.update()
 
-            # build cards
-            results_column.controls.clear()
-            for r in results:
-                def make_click(recipe):
-                    return lambda e: show_detail(recipe)
-                results_column.controls.append(
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Text(r["name"], color=TEXT, weight=ft.FontWeight.BOLD, size=15),
-                                ft.Text(r.get("portion", ""), color=TEXT2, size=12),
-                                ft.Text(r.get("author", ""), color=TEXT2, size=12),
-                                ft.Text(r.get("cook_time", ""), color=TEXT2, size=12),
-                                ft.Image(
-                                    src=r["image_url"],
-                                    width=float("inf"),
-                                    height=150,
-                                    fit="cover",
-                                    border_radius=ft.BorderRadius.all(8),
-                                ),
-                            ],
-                            spacing=4,
-                        ),
-                        bgcolor=BG3,
-                        border_radius=10,
-                        padding=ft.padding.all(14),
-                        border=ft.Border.all(1, BORDER),
-                        ink=True,
-                        on_click=make_click(r),
-                    )
+                # Runs in background but stays connected to Flet
+                process = subprocess.Popen(
+                    ["python", "./hadi/CookpadScraper.py", ingredients],
+                    cwd=".",
                 )
-            results_column.update()
+                process.wait() 
 
-        threading.Thread(target=run).start()
+                try:
+                    with open("../data/recipes.json", "r", encoding="utf-8") as f:
+                        results = json.load(f)
+                except Exception as ex:
+                    results_column.controls.clear()
+                    results_column.controls.append(ft.Text(f"Error: {ex}", color="red"))
+                    page.update()
+                    return
+
+                results_column.controls.clear()
+                for r in results:
+                    def make_click(recipe):
+                        return lambda e: show_detail(recipe)
+                    
+                    results_column.controls.append(
+                        ft.Container(
+                            content=ft.Column(
+                                controls=[
+                                    ft.Text(r["name"], color=TEXT, weight=ft.FontWeight.BOLD, size=15),
+                                    ft.Text(r.get("portion", ""), color=TEXT2, size=12),
+                                    ft.Image(
+                                        src=r["image_url"],
+                                        width=float("inf"),
+                                        height=300,
+                                        fit="cover",
+                                        border_radius=8,
+                                    ),
+                                ],
+                                spacing=4,
+                            ),
+                            bgcolor=BG3,
+                            border_radius=10,
+                            padding=14,
+                            on_click=make_click(r),
+                        )
+                    )
+                page.update()
+
+            # THIS REPLACES threading.Thread
+            page.run_task(run_search)
 
     search_field = ft.TextField(
         hint_text="cth: bawang putih, tomat...",
@@ -392,7 +538,7 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Row(controls=[
                         search_field,
-                        ft.ElevatedButton("Cari", bgcolor=ORANGE, color="#fff", on_click=on_search),
+                        ft.ElevatedButton("Cari", bgcolor=ORANGE, color="WHITE", on_click=on_search),
                     ]),
                     padding=ft.padding.all(20),
                 ),

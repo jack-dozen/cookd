@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 # ── Config ─────────────────────────────────────────────────────────────────────
 BASE_URL         = "https://cookpad.com"
 SEARCH_URL       = "https://cookpad.com/id/cari/{keyword}"
-OUTPUT_FILE      = "recipes.json"
+OUTPUT_FILE      = "../data/recipes.json"
 MAX_RECIPES      = 5   # max relevant recipes to keep
 MIN_MATCH_SCORE  = 0  # discard recipes where user has <x% of ingredients
 
@@ -39,6 +39,7 @@ SKIP_WORDS = {
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 def make_id(url: str) -> str:
     return hashlib.md5(url.encode()).hexdigest()[:12]
 
