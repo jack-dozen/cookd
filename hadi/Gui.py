@@ -1,6 +1,6 @@
 import flet as ft
 import json
-from hadi import CookpadScraper  
+from hadi import CookpadScraper
 import threading
 import subprocess
 
@@ -124,23 +124,23 @@ def main(page: ft.Page):
     def build_nav_item(icon, label, index):
         icon_obj = ft.Icon(icon, color=ORANGE if state["active_index"] == index else TEXT2, size=24)
         text_obj = ft.Text(value=label, color=ORANGE if state["active_index"] == index else TEXT2, size=15, weight="w500")
-        
+
         def on_hover(e):
             if state["active_index"] == index:
                 return
-            
+
             is_hovered = e.data
             icon_obj.color = ORANGE if is_hovered else TEXT2
             text_obj.color = ORANGE if is_hovered else TEXT2
             e.control.bgcolor = BG3 if is_hovered else ft.Colors.TRANSPARENT
-            
+
             icon_obj.update()
             text_obj.update()
             e.control.update()
 
         def on_click(e):
             state["active_index"] = index
-            update_highlights() 
+            update_highlights()
             navigate(["home", "finder", "my-recipes", "for-you", "info"][index - 1])
 
         container = ft.Container(
@@ -152,28 +152,28 @@ def main(page: ft.Page):
             on_click=on_click,
         )
         return container
-            
+
     def update_highlights():
         for i in range(2, len(sidebar.content.controls)):
             item = sidebar.content.controls[i]
             if isinstance(item, ft.Container) and isinstance(item.content, ft.Row):
-                btn_index = i - 1 
+                btn_index = i - 1
                 is_active = state["active_index"] == btn_index
-                
+
                 item.bgcolor = BG3 if is_active else ft.Colors.TRANSPARENT
-                item.content.controls[0].color = ORANGE if is_active else TEXT2 
-                item.content.controls[1].color = ORANGE if is_active else TEXT2 
+                item.content.controls[0].color = ORANGE if is_active else TEXT2
+                item.content.controls[1].color = ORANGE if is_active else TEXT2
         sidebar.update()
-        
-    
+
+
     def toggle_sidebar(e):
             is_collapsing = sidebar.width == 200
             sidebar.width = 60 if is_collapsing else 200
-            
+
             for item in sidebar.content.controls:
                 if isinstance(item, ft.Container) and isinstance(item.content, ft.Row):
                     item.content.controls[1].visible = not is_collapsing
-            
+
             page.update()
 
     sidebar = ft.Container(
@@ -451,11 +451,11 @@ def main(page: ft.Page):
     )
 
     page.add(root)
-    
+
     def window_resized(e):
         width = e.width
 
-        #print("WIDTH:", width)  
+        #print("WIDTH:", width)
 
         if width < 800:
             toggle_sidebar(e)
