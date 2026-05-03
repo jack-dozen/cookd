@@ -1,0 +1,665 @@
+import flet as ft
+import json
+from hadi import CookpadScraper
+import threading
+import subprocess
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from rafy.theme import theme_mgr, build_theme_toggle, ORANGE, GREEN, AMBER, BLUE, WHITE, BLACK
+
+# ─────────────────────────────────────────────────────────────────────
+# COLORS — dibaca live dari theme_mgr agar responsif saat toggle
+# ─────────────────────────────────────────────────────────────────────
+def BG()     -> str: return theme_mgr.get("BG")
+def BG2()    -> str: return theme_mgr.get("BG2")
+def BG3()    -> str: return theme_mgr.get("BG3")
+def BG4()    -> str: return theme_mgr.get("BG4")
+def TEXT()   -> str: return theme_mgr.get("TEXT")
+def TEXT2()  -> str: return theme_mgr.get("TEXT2")
+def TEXT3()  -> str: return theme_mgr.get("TEXT3")
+def BORDER() -> str: return theme_mgr.get("BORDER")
+
+
+def main(page: ft.Page):
+
+    # ══════════════════════════════════════════════════════════════════
+    #  PAGE
+    # ══════════════════════════════════════════════════════════════════
+    page.title             = "CookD"
+    page.bgcolor           = BG()
+    page.padding           = 0
+    page.window_height     = 720
+    page.window.min_width  = 400
+    page.window.min_height = 300
+    page.window_resizable  = True
+    page.theme_mode        = ft.ThemeMode.DARK
+    page.scroll            = None
+    page.fonts             = {"Font": "fonts/Poppins-Regular.ttf"}
+    page.theme             = ft.Theme(font_family="Font")
+    page.update()
+    # ══════════════════════════════════════════════════════════════════
+    #  NAVIGATION
+    # ══════════════════════════════════════════════════════════════════
+    pages: dict[str, ft.Container] = {}
+
+    def navigate(name: str):
+        for key, container in pages.items():
+            container.visible = (key == name)
+        page.update()
+
+
+    # ── ft.Container ──────────────────────────────────────────────────
+    _ = ft.Container(
+        content       = ft.Text("inside"),
+        width         = 300,
+        height        = 80,
+        expand        = True,
+        padding       = ft.Padding.all(16),
+        margin        = ft.Margin.only(bottom=8),
+        bgcolor       = BG3(),
+        border        = ft.Border.all(1, BORDER()),
+        border_radius = ft.BorderRadius.all(10),
+        gradient      = ft.LinearGradient(
+            begin  = ft.Alignment(0, 1),
+            end    = ft.Alignment(0, -1),
+            colors = ["#CC000000", "#00000000"],
+        ),
+    )
+
+
+    # ── ft.Stack ──────────────────────────────────────────────────────
+    _ = ft.Stack(
+        controls = [
+            ft.Image(
+                src="https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=70",
+                fit="cover", width=600, height=220,
+            ),
+            ft.Container(bgcolor="#88000000", width=600, height=220),
+            ft.Container(
+                content = ft.Text("Rendang", color="#fff", size=22),
+                bottom  = 0,
+                left    = 0,
+                right   = 0,
+                padding = ft.Padding.all(20),
+            ),
+        ],
+        width=600, height=220,
+    )
+
+
+    # ── ft.TextField ──────────────────────────────────────────────────
+    _ = ft.TextField(
+        hint_text            = "cth: bawang putih, tomat, garam...",
+        bgcolor              = BG3(),
+        color                = TEXT(),
+        border_color         = BORDER(),
+        focused_border_color = ORANGE,
+        content_padding      = ft.Padding.symmetric(horizontal=16, vertical=0),
+    )
+
+
+    # ── ft.ElevatedButton ─────────────────────────────────────────────
+    _ = ft.Button(
+        content  = "Cari Resep",
+        icon     = "search",
+        bgcolor  = ORANGE,
+        color    = "#FFFFFF",
+        style    = ft.ButtonStyle(
+            shape   = ft.RoundedRectangleBorder(radius=24),
+            padding = ft.Padding.symmetric(horizontal=20, vertical=12),
+        ),
+    )
+
+
+    # ── Sidebar ─────────────────────────────────────────────
+    state = {"active_index": 1}
+
+    def build_nav_item(icon, label, index):
+        is_active = state["active_index"] == index
+        icon_obj = ft.Icon(icon, color=ORANGE if is_active else TEXT2(), size=24)
+        text_obj = ft.Text(value=label, color=ORANGE if is_active else TEXT2(), size=15, weight="w500")
+
+        def on_hover(e):
+            if state["active_index"] == index:
+                return
+            is_hovered = e.data
+            icon_obj.color    = ORANGE if is_hovered else TEXT2()
+            text_obj.color    = ORANGE if is_hovered else TEXT2()
+            e.control.bgcolor = BG3() if is_hovered else ft.Colors.TRANSPARENT
+            icon_obj.update()
+            text_obj.update()
+            e.control.update()
+
+        def on_click(e):
+            state["active_index"] = index
+            update_highlights()
+            navigate(["home", "finder", "my-recipes", "for-you", "info"][index - 1])
+
+        container = ft.Container(
+            content=ft.Row(controls=[icon_obj, text_obj], spacing=15),
+            padding=ft.padding.symmetric(horizontal=15, vertical=12),
+            border_radius=10,
+            bgcolor=BG3() if is_active else ft.Colors.TRANSPARENT,
+            on_hover=on_hover,
+            on_click=on_click,
+        )
+        return container
+
+    def update_highlights():
+        # Nav items mulai dari index 2 (0=menu btn, 1=divider)
+        nav_controls = sidebar.content.controls
+        for i in range(2, len(nav_controls)):
+            item = nav_controls[i]
+            if isinstance(item, ft.Container) and isinstance(item.content, ft.Row):
+                btn_index = i - 1
+                is_active = state["active_index"] == btn_index
+                item.bgcolor                       = BG3() if is_active else ft.Colors.TRANSPARENT
+                item.content.controls[0].color     = ORANGE if is_active else TEXT2()
+                item.content.controls[1].color     = ORANGE if is_active else TEXT2()
+        sidebar.update()
+
+    def toggle_sidebar(e):
+        is_collapsing = sidebar.width == 200
+        sidebar.width = 60 if is_collapsing else 200
+        for item in sidebar.content.controls:
+            if isinstance(item, ft.Container) and isinstance(item.content, ft.Row):
+                item.content.controls[1].visible = not is_collapsing
+        page.update()
+
+    # ── Buat toggle widget dari rafy.theme ──────────────────────────
+    theme_toggle_widget = build_theme_toggle(page, show_label=True)
+
+    sidebar = ft.Container(
+        width=200,
+        bgcolor=BG2(),
+        animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
+        content=ft.Column(
+            controls=[
+                # ── Hamburger / menu ──
+                ft.Container(
+                    content=ft.Icon(ft.Icons.MENU, color=TEXT2()),
+                    padding=15,
+                    border_radius=10,
+                    bgcolor=ft.Colors.TRANSPARENT,
+                    on_hover=lambda e: (
+                        setattr(e.control, "bgcolor", BG3() if e.data else ft.Colors.TRANSPARENT),
+                        e.control.update()
+                    ),
+                    on_click=toggle_sidebar,
+                ),
+                ft.Divider(height=1, color="transparent"),
+                build_nav_item(ft.Icons.HOME_OUTLINED,   "Home",       1),
+                build_nav_item(ft.Icons.SEARCH_OUTLINED, "Finder",     2),
+                build_nav_item(ft.Icons.BOOK_OUTLINED,   "My Recipes", 3),
+                build_nav_item(ft.Icons.STAR_OUTLINE,    "For You",    4),
+                build_nav_item(ft.Icons.INFO_OUTLINE,    "Info",       5),
+                # ── Spacer ──────────────────────────────────────────
+                ft.Container(expand=True),
+                # ── Import/Export placeholder ────────────────────────
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.UPLOAD_OUTLINED, color=TEXT2(), size=18),
+                            ft.Text("Import / Export", color=TEXT2(), size=13),
+                        ],
+                        spacing=10,
+                    ),
+                    padding=ft.padding.symmetric(horizontal=14, vertical=10),
+                    border_radius=10,
+                    bgcolor=ft.Colors.TRANSPARENT,
+                    on_hover=lambda e: (
+                        setattr(e.control, "bgcolor", BG3() if e.data else ft.Colors.TRANSPARENT),
+                        e.control.update()
+                    ),
+                ),
+                # ── Theme toggle ─────────────────────────────────────
+                theme_toggle_widget,
+                ft.Container(height=8),   # bottom padding
+            ],
+            spacing=5,
+            expand=True,
+        ),
+    )
+
+
+
+
+
+    # ── ft.SnackBar ───────────────────────────────────────────────────
+    snack = ft.SnackBar(
+        content  = ft.Text("Saved", color=GREEN),
+        bgcolor  = BG3(),
+        duration = 3000,
+    )
+
+
+    # ── PAGES ─────────────────────────────────────────────────────────
+    def make_page(label: str) -> ft.Container:
+        return ft.Container(
+            animate_size=300,
+            expand  = True,
+            bgcolor = BG(),
+            visible = False,
+            content = ft.Column(
+                controls=[
+                    ft.Container(
+                        content = ft.Column(
+                            controls=[
+                                ft.Text("Work In Progress", color=TEXT2(), font_family="Font", weight=ft.FontWeight.BOLD),
+                                ft.Text(
+                                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+                                    "Cras condimentum, lorem nec porttitor tincidunt, felis lorem egestas odio.",
+                                    color=TEXT2(), font_family="Font",
+                                ),
+                            ],
+                            spacing=0,
+                        ),
+                        padding=ft.Padding.all(24),
+                    ),
+                ],
+                spacing=0,
+                scroll=ft.ScrollMode.AUTO,
+            ),
+        )
+
+    pages["home"]       = make_page("Home")
+    pages["my-recipes"] = make_page("My Recipes")
+    pages["for-you"]    = make_page("For You")
+    pages["info"]       = make_page("Info")
+
+    pages["home"].visible = True
+
+
+    # ── Result cards ──
+    results_column = ft.Column(
+        controls=[],
+        spacing=8,
+        scroll=ft.ScrollMode.AUTO,
+        expand=True,
+    )
+
+    # ── Detail page content (reuse pages["detail"]) ──
+    detail_content = ft.Column(
+        controls=[],
+        spacing=10,
+        scroll=ft.ScrollMode.AUTO,
+        expand=True,
+    )
+
+    pages["detail"] = ft.Container(
+        expand=True,
+        bgcolor=BG(),
+        visible=False,
+        content=ft.Column(
+            controls=[
+                # back button
+                ft.TextButton(
+                    "← Back",
+                    on_click=lambda e: navigate("finder"),
+                    style=ft.ButtonStyle(color=ORANGE),
+                ),
+                detail_content,  # filled dynamically on card click
+            ],
+            spacing=0,
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+        ),
+    )
+
+    def show_detail(recipe: dict):
+        detail_content.controls.clear()
+
+        # ── Hero section (image + title overlay) ──
+        detail_content.controls.append(
+            ft.Container(
+                height=500,
+                content=ft.Stack(
+                    controls=[
+                        # background image
+                        ft.Image(
+                            src=recipe.get("image_url", ""),
+                            width=float("inf"),
+                            height=500,
+                            fit="cover",
+                        ),
+                        # dark gradient overlay
+                        ft.Container(
+                            width=float("inf"),
+                            height=500,
+                            gradient=ft.LinearGradient(
+                                begin=ft.Alignment(0, 1),
+                                end=ft.Alignment(0, -1),
+                                colors=["#EE000000", "#44000000"],
+                            ),
+                        ),
+                        # title + author pinned to bottom
+                        ft.Container(
+                            bottom=0, left=0, right=0,
+                            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+                            content=ft.Column(
+                                controls=[
+                                    ft.Text(recipe.get("name", ""), size=28, weight=ft.FontWeight.BOLD, color=WHITE),
+                                    ft.Text(f"oleh {recipe.get('author', '')}", size=13, color=TEXT2()),
+                                ],
+                                spacing=4,
+                            ),
+                        ),
+                    ],
+                ),
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            )
+        )
+
+        # ── Meta bar (portion, cook_time, tags) ──
+        def meta_pill(icon, text):
+            return ft.Container(
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(icon, color=ORANGE, size=16),
+                        ft.Text(text, color=TEXT(), size=13),
+                    ],
+                    spacing=6,
+                    tight=True,
+                ),
+                bgcolor=BG3(),
+                border=ft.Border.all(1, ORANGE),
+                border_radius=ft.BorderRadius.all(20),
+                padding=ft.padding.symmetric(horizontal=14, vertical=8),
+            )
+
+        detail_content.controls.append(
+            ft.Container(
+                content=ft.Row(
+                    controls=[
+                        meta_pill(ft.Icons.PEOPLE_OUTLINE, recipe.get("portion", "")),
+                        meta_pill(ft.Icons.TIMER_OUTLINED, recipe.get("cook_time", "")),
+                        ft.Row(expand=True),  # spacer
+                    ],
+                    spacing=8,
+                ),
+                padding=ft.padding.symmetric(horizontal=30, vertical=16),
+                border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
+            )
+        )
+
+        # ── Bahan-bahan + Cara Membuat side by side ──
+        def ingredient_card(ingredients: list) -> ft.Container:
+            items = []
+            for ing in ingredients:
+                name = ing.get("name", ing) if isinstance(ing, dict) else ing
+                items.append(
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Row(
+                                    controls=[
+                                        ft.Container(width=10, height=10, bgcolor=ORANGE, border_radius=ft.BorderRadius.all(5)),
+                                        ft.Column(
+                                            controls=[
+                                                ft.Text(name, color=TEXT(), weight=ft.FontWeight.BOLD, size=14),
+                                            ],
+                                            spacing=2,
+                                            expand=True,
+                                        ),
+                                    ],
+                                    spacing=12,
+                                    expand=True,
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        ),
+                        padding=ft.padding.symmetric(horizontal=5, vertical=12),
+                        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
+                    )
+                )
+            return ft.Container(
+                content=ft.Column(controls=items, spacing=0),
+                bgcolor=BG3(),
+                border_radius=ft.BorderRadius.all(10),
+            )
+
+        def steps_card(steps: list) -> ft.Container:
+            items = []
+            for i, step in enumerate(steps, start=1):
+                text = step.get("text", step) if isinstance(step, dict) else step
+                items.append(
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Container(
+                                    content=ft.Text(str(i), color=WHITE, size=13, weight=ft.FontWeight.BOLD),
+                                    width=32, height=32,
+                                    bgcolor=ORANGE,
+                                    border_radius=ft.BorderRadius.all(16),
+                                    alignment=ft.Alignment(0, 0),
+                                ),
+                                ft.Text(text, color=TEXT(), size=14, expand=True),
+                            ],
+                            spacing=16,
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                        ),
+                        padding=ft.padding.symmetric(horizontal=16, vertical=14),
+                        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
+                    )
+                )
+            return ft.Container(
+                content=ft.Column(controls=items, spacing=0),
+                bgcolor=BG3(),
+                border_radius=ft.BorderRadius.all(10),
+            )
+
+        detail_content.controls.append(
+            ft.Container(
+                content=ft.Row(
+                    controls=[
+                        # Left — Bahan-bahan
+                        ft.Column(
+                            controls=[
+                                ft.Text("Bahan-bahan", size=22, weight=ft.FontWeight.BOLD, color=TEXT()),
+                                ingredient_card(recipe.get("ingredients", [])),
+                            ],
+                            spacing=16,
+                            expand=1,
+                        ),
+                        ft.Container(width=30),  # gap
+                        # Right — Cara Membuat
+                        ft.Column(
+                            controls=[
+                                ft.Text("Cara Membuat", size=22, weight=ft.FontWeight.BOLD, color=TEXT()),
+                                steps_card(recipe.get("steps", [])),
+                            ],
+                            spacing=16,
+                            expand=2,
+                        ),
+                    ],
+                    spacing=0,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    expand=True,
+                ),
+                padding=ft.padding.symmetric(horizontal=30, vertical=24),
+                expand=True,
+            )
+        )
+
+        detail_content.update()
+        navigate("detail")
+
+    def on_search(e):
+            async def run_search(): # Change to async for the task runner
+                ingredients = search_field.value.strip()
+                if not ingredients:
+                    return
+
+                results_column.controls.clear()
+                results_column.controls.append(ft.ProgressRing(color=ORANGE))
+                page.update()
+
+                # Runs in background but stays connected to Flet
+                process = subprocess.Popen(
+                    ["python", "./hadi/CookpadScraper.py", ingredients],
+                    cwd=".",
+                )
+                process.wait() 
+
+                try:
+                    with open("../data/recipes.json", "r", encoding="utf-8") as f:
+                        results = json.load(f)
+                except Exception as ex:
+                    results_column.controls.clear()
+                    results_column.controls.append(ft.Text(f"Error: {ex}", color="red"))
+                    page.update()
+                    return
+
+                results_column.controls.clear()
+                for r in results:
+                    def make_click(recipe):
+                        return lambda e: show_detail(recipe)
+                    
+                    results_column.controls.append(
+                        ft.Container(
+                            content=ft.Column(
+                                controls=[
+                                    ft.Text(r["name"], color=TEXT(), weight=ft.FontWeight.BOLD, size=15),
+                                    ft.Text(r.get("portion", ""), color=TEXT2(), size=12),
+                                    ft.Image(
+                                        src=r["image_url"],
+                                        width=float("inf"),
+                                        height=300,
+                                        fit="cover",
+                                        border_radius=8,
+                                    ),
+                                ],
+                                spacing=4,
+                            ),
+                            bgcolor=BG3(),
+                            border_radius=10,
+                            padding=14,
+                            on_click=make_click(r),
+                        )
+                    )
+                page.update()
+
+            # THIS REPLACES threading.Thread
+            page.run_task(run_search)
+
+    search_field = ft.TextField(
+        hint_text="cth: bawang putih, tomat...",
+        bgcolor=BG3(),
+        color=TEXT(),
+        expand=True,
+        on_submit=on_search,
+    )
+
+    pages["finder"] = ft.Container(
+        expand=True,
+        bgcolor=BG(),
+        visible=False,
+        content=ft.Column(
+            controls=[
+                ft.Container(
+                    content=ft.Row(controls=[
+                        search_field,
+                        ft.ElevatedButton("Cari", bgcolor=ORANGE, color="WHITE", on_click=on_search),
+                    ]),
+                    padding=ft.padding.all(20),
+                ),
+                results_column,
+            ],
+            spacing=0,
+            expand=True,
+        ),
+    )
+
+
+
+
+
+
+
+
+    #──Top Bar ─────────────────────────────────────────────────────
+    topbar = ft.Container(
+        width=float("inf"),
+        content=ft.Column(
+            controls=[
+                ft.Text("CookD", size=20, color=TEXT(), weight=ft.FontWeight.BOLD, font_family="Font"),
+                ft.Text("Cari resep dari bahan yang kamu punya", size=10, opacity=0.5, color=TEXT()),
+            ],
+            spacing=0,
+            horizontal_alignment=ft.CrossAxisAlignment.START,
+        ),
+        bgcolor=BG2(),
+        padding=ft.padding.symmetric(horizontal=40, vertical=14),
+        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
+    )
+
+    # ── Rebuild seluruh UI saat tema berubah ─────────────────────────
+    def rebuild_on_theme_change():
+        """Dipanggil oleh theme_mgr._notify() setiap kali toggle ditekan."""
+        # Page background
+        page.bgcolor = BG()
+        page.theme_mode = ft.ThemeMode.DARK if theme_mgr.is_dark() else ft.ThemeMode.LIGHT
+
+        # Sidebar
+        sidebar.bgcolor = BG2()
+
+        # Topbar
+        topbar.bgcolor = BG2()
+        topbar.border  = ft.Border.only(bottom=ft.BorderSide(1, BORDER()))
+        if isinstance(topbar.content, ft.Column):
+            for ctrl in topbar.content.controls:
+                if isinstance(ctrl, ft.Text):
+                    ctrl.color = TEXT()
+
+        # Pages bgcolor
+        for p in pages.values():
+            p.bgcolor = BG()
+
+        # Highlights nav
+        update_highlights()
+        page.update()
+
+    theme_mgr.add_listener(rebuild_on_theme_change)
+
+    # ── ROOT / Main ──────────────────────────────────────────────────────────
+    page.padding = ft.padding.all(0)
+    root = ft.Row(
+        expand=True,
+        spacing=0,
+        vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+        controls=[
+            sidebar,
+            ft.VerticalDivider(width=1, color=BORDER()),
+            ft.Column(
+                controls=[
+                    topbar,
+                    ft.Container(
+                        expand=True,
+                        content=ft.Stack(list(pages.values())),
+                    ),
+                ],
+                spacing=0,
+                expand=True,
+                alignment=ft.MainAxisAlignment.START,
+            ),
+        ],
+    )
+
+    page.add(root)
+
+    def window_resized(e):
+        width = e.width
+
+        #print("WIDTH:", width)
+
+        if width < 800:
+            toggle_sidebar(e)
+            page.update()
+
+    page.on_resize = window_resized
+    page.update()
+    # run once at start
+    #on_resize(None)
+
+
+#ft.run(main, assets_dir=".")
