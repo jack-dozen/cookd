@@ -256,5 +256,476 @@
       "1 sdt kaldu bubuk/secukupnya",
       "1 sdt garam/secukupnya"
     ]
+  },
+  {
+    "recipe_id": "3a0932c8b85b",
+    "name": "Ayam Rica Rica",
+    "source_url": "https://cookpad.com/id/resep/25722533",
+    "ingredients": [
+      "1 kg fillet paha ayam",
+      "3 ikat kemangi",
+      "1 btg sereh (geprek)",
+      "1 ruas jari lengkuas (geprek)",
+      "7 lbr daun jeruk",
+      "1 btg daun bawang (iris)",
+      "Secukupnya air",
+      "Secukupnya garam",
+      "Secukupnya kaldu ayam",
+      "10 siung bamer",
+      "4 siung baput",
+      "10 buah cabe merah keriting (bisa ditambahkan rawit sesuai selera)",
+      "2 btr kemiri",
+      "Secukupnya jahe & kunyit",
+      "1 keping gula merah"
+    ],
+    "steps": [
+      "Cuci bersih ayam beri perasan jeruk nipis diamkan 10 menit. Tumis bumbu halus hingga harum masukan sereh, lengkuas dan daun jeruk.",
+      "Masukan ayam masak sampai berubah warna, tuang air secukupnya masak sampai mendidih kuahnya tes rasa beri garam dan kaldu ayam. Masak dengan api sedang kecil sampai kuah mengental, ayamnya empuk dan matang.",
+      "Setelah ayam matang matikan api kompor masukan daun bawang juga kemangi. Aduk rata. Siap disajikan."
+    ],
+    "author": "Nia - Mimakuki",
+    "portion": "5 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/741b3c4e7db52947/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 13:54:14",
+    "match_score": 0.13333333333333333,
+    "have_ingredients": [
+      "1 kg fillet paha ayam",
+      "Secukupnya kaldu ayam"
+    ],
+    "missing_ingredients": [
+      "3 ikat kemangi",
+      "1 btg sereh (geprek)",
+      "1 ruas jari lengkuas (geprek)",
+      "7 lbr daun jeruk",
+      "1 btg daun bawang (iris)",
+      "Secukupnya air",
+      "Secukupnya garam",
+      "10 siung bamer",
+      "4 siung baput",
+      "10 buah cabe merah keriting (bisa ditambahkan rawit sesuai selera)",
+      "2 btr kemiri",
+      "Secukupnya jahe & kunyit",
+      "1 keping gula merah"
+    ]
+  },
+  {
+    "recipe_id": "bb2bafa2b3f5",
+    "name": "Bakpao Ayam",
+    "source_url": "https://cookpad.com/id/resep/25724075",
+    "ingredients": [
+      "225 g Tepung terigu pro rendah",
+      "25 g Tepung tang mian",
+      "40 g Gula pasir",
+      "4 g Ragi instant",
+      "1/2 sdt Baking powder",
+      "100-120 ml Air dingin",
+      "25 g Mentega putih",
+      "1/2 sdt garam (tambahan sy)",
+      "secukupnya Ayam Cincang Kecap (resep terlampir)"
+    ],
+    "steps": [
+      "Siapkan bahan², Campur tepung terigu, tang mian, gula.",
+      "Masukan ragi, baking powder, aduk rata, lalu masukan susu cair sedikit demi sedikit.",
+      "Aduk dengan scrapper hingga bahan menyatu/ bergumpal. Mixer hingga setengah kalis, hingga setengah kalis. Masukan mentega putih, garam.",
+      "Uleni lagi sampai kalis elastis.",
+      "Bagi adonan menjadi 10, remas² dan bulatkan. Diamkan selama 10 menit. Gilas/pipihkan lalu isi ayam kecap, tutup/ bentuk sesuai selera. Diamkan selama 20 menit.",
+      "Panaskan kukusan lalu Kukus bakpao selama 10 menit dengan api sedang. Bakpao siap disajikan."
+    ],
+    "author": "Pawon Puri",
+    "portion": "10 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/996d9073615cf013/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 13:53:57",
+    "match_score": 0.1111111111111111,
+    "have_ingredients": [
+      "secukupnya Ayam Cincang Kecap (resep terlampir)"
+    ],
+    "missing_ingredients": [
+      "225 g Tepung terigu pro rendah",
+      "25 g Tepung tang mian",
+      "40 g Gula pasir",
+      "4 g Ragi instant",
+      "1/2 sdt Baking powder",
+      "100-120 ml Air dingin",
+      "25 g Mentega putih",
+      "1/2 sdt garam (tambahan sy)"
+    ]
+  },
+  {
+    "recipe_id": "1fc95b645880",
+    "name": "Chicken Teriyaki",
+    "source_url": "https://cookpad.com/id/resep/25185436",
+    "ingredients": [
+      "500 gr Paha ayam tanpa tulang",
+      "1 butir Bawang bombay ukuran besar",
+      "Bumbu-bumbu:",
+      "2 sdm Kecap asin",
+      "2 sdm Kecap manis",
+      "2 sachet saus tiram",
+      "1 sdm Gula pasir",
+      "1 sdm Jahe parut",
+      "2 sdm minyak goreng untuk menumis",
+      "4 siung bawang putih cincang halus"
+    ],
+    "steps": [
+      "Campur kecap, mirin, gula, dan jahe untuk membuat saus.",
+      "Potong paha ayam sesuai selera.",
+      "Panaskan minyak, masak ayam hingga kedua sisi kecokelatan.",
+      "Tuang saus, masak hingga saus mengental dan ayam terbalut rata.",
+      "Sajikan hangat."
+    ],
+    "author": "Titik Purwani",
+    "portion": "5 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/4a7753fb5da7833c/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 13:54:05",
+    "match_score": 0.1,
+    "have_ingredients": [
+      "500 gr Paha ayam tanpa tulang"
+    ],
+    "missing_ingredients": [
+      "1 butir Bawang bombay ukuran besar",
+      "Bumbu-bumbu:",
+      "2 sdm Kecap asin",
+      "2 sdm Kecap manis",
+      "2 sachet saus tiram",
+      "1 sdm Gula pasir",
+      "1 sdm Jahe parut",
+      "2 sdm minyak goreng untuk menumis",
+      "4 siung bawang putih cincang halus"
+    ]
+  },
+  {
+    "recipe_id": "22fe3d467cf7",
+    "name": "Bakpao Wortel Lipat Isi Ayam",
+    "source_url": "https://cookpad.com/id/resep/25726154",
+    "ingredients": [
+      "225 gram tepung terigu protein rendah",
+      "25 gram Tepung Maizena Rose Brand",
+      "50 gram Gula Pasir Rose Brand",
+      "4 gram ragi instan",
+      "60 gram wortel",
+      "90 ml air",
+      "25 gram Margarin Rose Brand",
+      "Secukupnya pewarna oranye",
+      "Secukupnya daun selada",
+      "Secukupnya irisan tomat",
+      "Secukupnya ayam cincang kecap"
+    ],
+    "steps": [
+      "Blender wortel kukus dengan 50 ml air hingga lembut.",
+      "Campur tepung terigu protein rendah, tepung Maizena Rose Brand, gula pasir Rose Brand, dan ragi instan, aduk rata.",
+      "Masukkan wortel yang diblender, pewarna oranye, dan 40 ml air, mixer dengan kecepatan rendah hingga kalis.",
+      "Tambahkan margarin Rose Brand, mixer lagi sampai kalis elastis dengan kecepatan sedang.",
+      "Bulatkan adonan lalu bagi menjadi 12 bagian per 38 gram.",
+      "Ambil 1 adonan bulatkan, gilas panjang, taruh kertas cup di tengah kemudian lipat.",
+      "Letakkan di atas kertas cup lagi, tutup serbet bersih, istirahatkan 25 menit",
+      "Kukus 10 menit dengan api sedang.",
+      "Setelah matang, lepas kertas roti di bagian tengah pelan-pelan, isi dengan daun selada, ayam kecap, dan tomat.",
+      "Siap disajikan."
+    ],
+    "author": "Mama fathan",
+    "portion": "12 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/45f3b5444d197b40/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 13:54:30",
+    "match_score": 0.09090909090909091,
+    "have_ingredients": [
+      "Secukupnya ayam cincang kecap"
+    ],
+    "missing_ingredients": [
+      "225 gram tepung terigu protein rendah",
+      "25 gram Tepung Maizena Rose Brand",
+      "50 gram Gula Pasir Rose Brand",
+      "4 gram ragi instan",
+      "60 gram wortel",
+      "90 ml air",
+      "25 gram Margarin Rose Brand",
+      "Secukupnya pewarna oranye",
+      "Secukupnya daun selada",
+      "Secukupnya irisan tomat"
+    ]
+  },
+  {
+    "recipe_id": "21b2a785dd0d",
+    "name": "Soto Ayam Bening, Tanpa Minyak",
+    "source_url": "https://cookpad.com/id/resep/25700732",
+    "ingredients": [
+      "1/2 kg dada ayam fillet, potong jadi 4 bagian",
+      "1 ekor kerongkongan, potong sesuai selera",
+      "2 batang daun bawang, potong² kecil",
+      "1 batang seledri,potong kecil²",
+      "1 buah tomat, potong sesuai selera",
+      "2 buah jeruk nipis, 1 untuk membersihkan ayam,1 untuk pelengkap soto (potong jadi 5)",
+      "Secukupnya tauge,blansir dengan air panas",
+      "Secukupnya kol,iris tipis²",
+      "6 butir telur rebus",
+      "Secukupnya bawang goreng",
+      "Secukupnya air",
+      "Secukupnya garam",
+      "Secukupnya gula",
+      "Secukupnya penyedap",
+      "3 lembar daun salam",
+      "3 lembar daun jeruk",
+      "2 batang serai, geprek",
+      "5 ruas lengkuas,geprek",
+      "8 siung bawang merah",
+      "6 siung bawang putih",
+      "6 buah kemiri",
+      "1/4 sdt lada bubuk",
+      "4 ruas kunyit",
+      "4 ruas jahe",
+      "10 buat cabai rawit,rebus, ulek/blender,tambahkan sedikit air,siap digunakan"
+    ],
+    "steps": [
+      "Cuci ayam,rendam dengan garam & air jeruk selama 15 menit, cuci bersih, rebus dengan api kecil sampai busa keluar,saring/buang busanya,angkat ayamnya,sisihkan",
+      "Tambahkan secukupnya air ke dalam air rebusan ayam tadi,saya ganti panci yg lebih besar karena panci sebelumnya kekecilan. Masukkan bumbu halus & bumbu aromatik, masak sampai harum,tidak bau langu.kecilkan api, masukkan ayam,garam,gula, penyedap. Masak sampai ayam empuk & bumbu meresap",
+      "Tes rasa, jika sudah sesuai,tambahkan sebagian daun bawang & bawang goreng.Aduk rata",
+      "Plating/tata dalam mangkok kol,tauge,ayam disuir²,tomat,telur rebus,jeruk nipis, kuah soto,taburi daun bawang,seledri, bawang goreng.Tambahkan sambal cabai rawit atau sambal goreng.Soto ayam kuah bening ala resto siap dinikmati."
+    ],
+    "author": "Dapur Rahasya",
+    "portion": "6 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/4436ac05df7349b1/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 13:54:21",
+    "match_score": 0.04,
+    "have_ingredients": [
+      "1/2 kg dada ayam fillet, potong jadi 4 bagian"
+    ],
+    "missing_ingredients": [
+      "1 ekor kerongkongan, potong sesuai selera",
+      "2 batang daun bawang, potong² kecil",
+      "1 batang seledri,potong kecil²",
+      "1 buah tomat, potong sesuai selera",
+      "2 buah jeruk nipis, 1 untuk membersihkan ayam,1 untuk pelengkap soto (potong jadi 5)",
+      "Secukupnya tauge,blansir dengan air panas",
+      "Secukupnya kol,iris tipis²",
+      "6 butir telur rebus",
+      "Secukupnya bawang goreng",
+      "Secukupnya air",
+      "Secukupnya garam",
+      "Secukupnya gula",
+      "Secukupnya penyedap",
+      "3 lembar daun salam",
+      "3 lembar daun jeruk",
+      "2 batang serai, geprek",
+      "5 ruas lengkuas,geprek",
+      "8 siung bawang merah",
+      "6 siung bawang putih",
+      "6 buah kemiri",
+      "1/4 sdt lada bubuk",
+      "4 ruas kunyit",
+      "4 ruas jahe",
+      "10 buat cabai rawit,rebus, ulek/blender,tambahkan sedikit air,siap digunakan"
+    ]
+  },
+  {
+    "recipe_id": "e81975cbabdb",
+    "name": "Oseng Bawang Merah Teri Nasi",
+    "source_url": "https://cookpad.com/id/resep/25691118",
+    "ingredients": [
+      "250 gr bawang merah",
+      "10-20 buah cabe setan",
+      "1 bks teri nasi",
+      "1 batang daun bawang",
+      "1/2 sdt gula pasir",
+      "1/2 sdt penyedap rasa"
+    ],
+    "steps": [
+      "Goreng masing masing, teri nasi dan bawang merah utuh sampai matang. (Lebih banyak bawangnya lebih enak, kalau suka pedas bisa ditambahkan cabenya lagi ya) angkat dan tiriskan",
+      "Kurangi minyak gorengnya, kemudian tumis lagi bawang merah, teri nasi, dan cabe setan sampai cabe layu.",
+      "Karena teri nasi sudah asin, tidak usah ditambah garam. Cukup tambahkan penyedap dan gula pasir saja. Kemudian masukkan potongan daun bawang, aduk merata. Koreksi rasa sesuai selera",
+      "Sajikan"
+    ],
+    "author": "Sartini",
+    "portion": "4 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/753e9fcf82b2d404/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 14:44:40",
+    "match_score": 0.3333333333333333,
+    "have_ingredients": [
+      "250 gr bawang merah",
+      "1 batang daun bawang"
+    ],
+    "missing_ingredients": [
+      "10-20 buah cabe setan",
+      "1 bks teri nasi",
+      "1/2 sdt gula pasir",
+      "1/2 sdt penyedap rasa"
+    ]
+  },
+  {
+    "recipe_id": "067914bd3edf",
+    "name": "Alison Roman Caramelized Shallot Pasta",
+    "source_url": "https://cookpad.com/id/resep/25658320",
+    "ingredients": [
+      "20 siung bawang merah iris halus",
+      "4 siung bawang putih iris halus",
+      "1 kaleng anchovy fillet isi 12",
+      "130 gr tomato paste",
+      "1 sdt chili flakes",
+      "secukupnya flaky salt & black pepper",
+      "secukupnya Olive oil",
+      "2 sdm Flat leaf parsley cincang kasar",
+      "1 siung bawang putih cincang halus",
+      "80 gram spaghetti pasta"
+    ],
+    "steps": [
+      "Pakai dutch oven / panci yang bawahnya tebal. Masukkan olive oil, bawang merah, bawang putih. Masak dengan api sedang terus diaduk berkala hingga caramelized kira2 17-20 menit.",
+      "Kalau sudah caramelized, masukkan flaky salt & black pepper. Aduk2 hingga rata kira2 1 menit.",
+      "Masukkan chili flakes dan anchovy fillets. Aduk terus sambil hancurkan anchovy dengan spatula. Akan lumer dan menyatu dengan perbawangan. Kira-kira 2 menit",
+      "Masukkan tomato paste. Lalu terus diaduk agar tidak gosong. Koreksi rasa dengan garam & lada. Kira-kira 2-3menit. Lalu matikan api & sisihkan. Bisa disimpan di freezer jika mau tahan lama",
+      "Rebus spaghetti sesuai direction",
+      "Sambil menunggu, siapkan topping parsley & bawang putih cincang. Campur aduk hingga rata.",
+      "Spaghetti matang. Ambil airnya kira2 1-2cup baru ditiriskan",
+      "Combine spaghetti dengan saus sekitar 2-3sdm / porsi. Panaskan kembali sambil diaduk terus dalam 1 panci. Tambahkan 1-2 cup air pasta untuk melanjutkan memasak hingga tingkat kematangan yg disuka.",
+      "Siap disajikan di piring. Taburkan topping parsley & bawang putih yg sudah disiapkan.",
+      "Opsional boleh menambahkan perasan lemon untuk rasa yang lebih bright"
+    ],
+    "author": "tegimasak🧚‍♀️",
+    "portion": "4 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/7c8b7d58eb7fcf46/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 14:44:51",
+    "match_score": 0.3,
+    "have_ingredients": [
+      "20 siung bawang merah iris halus",
+      "4 siung bawang putih iris halus",
+      "1 siung bawang putih cincang halus"
+    ],
+    "missing_ingredients": [
+      "1 kaleng anchovy fillet isi 12",
+      "130 gr tomato paste",
+      "1 sdt chili flakes",
+      "secukupnya flaky salt & black pepper",
+      "secukupnya Olive oil",
+      "2 sdm Flat leaf parsley cincang kasar",
+      "80 gram spaghetti pasta"
+    ]
+  },
+  {
+    "recipe_id": "0de47e1f5010",
+    "name": "Sambal merah dengan bawang merah",
+    "source_url": "https://cookpad.com/id/resep/25702647",
+    "ingredients": [
+      "50 gr cabe keriting",
+      "100 gr cabe rawit",
+      "50 gr bawang merah",
+      "secukupnya Garam, penyedap, gula,"
+    ],
+    "steps": [
+      "Rebus cabe rawit dan cabe keriting kemudian blender",
+      "Iris tipis bawang merah kemudian tumis sampai matang, masukan cabe giling. Beri seasoning. Masak sampai keluar minyak"
+    ],
+    "author": "Dapur Bunda",
+    "portion": "",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/2008b4f1ade54f76/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 14:44:13",
+    "match_score": 0.25,
+    "have_ingredients": [
+      "50 gr bawang merah"
+    ],
+    "missing_ingredients": [
+      "50 gr cabe keriting",
+      "100 gr cabe rawit",
+      "secukupnya Garam, penyedap, gula,"
+    ]
+  },
+  {
+    "recipe_id": "a8521ef6c847",
+    "name": "Tahu Terong Rawit Bawang Merah Kecap Ala Tahu Gejrot Kurang Bahan",
+    "source_url": "https://cookpad.com/id/resep/25700088",
+    "ingredients": [
+      "4 bh Tahu kulit, goreng lagi biar lebih fresh",
+      "1 btg daun bawang,iris, kres kres pedes gimana gitu",
+      "3 buah terong ijo agak kecil, potong,rendam air garam,tiriskan,goreng sampai empuk",
+      "1 sdt kecap manis (bisa jadi kurang dari itu)",
+      "5-8 siung bawang merah",
+      "1 buah cabe rawit merah besar,sesuai selera aja",
+      "Seujung sdt lada bubuk",
+      "Seujung sdt ketumbar bubuk",
+      "1/2 sdt halawa penyedap atau sesuaikan",
+      "Secubit garam untuk pertegas rasa aja"
+    ],
+    "steps": [
+      "Nah uleg deh bahan yang perlu diuleg, tambah kecap,aduk",
+      "Iris tahu,bejek campur bahan ulegnya, (karena agak asin, jadi juga dicampur terong) aduk rata",
+      "Siap buat lauk wakkaakka"
+    ],
+    "author": "Anisa",
+    "portion": "",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/0d095f9fa8cfc4ba/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 14:44:27",
+    "match_score": 0.2,
+    "have_ingredients": [
+      "5-8 siung bawang merah",
+      "1 buah cabe rawit merah besar,sesuai selera aja"
+    ],
+    "missing_ingredients": [
+      "4 bh Tahu kulit, goreng lagi biar lebih fresh",
+      "1 btg daun bawang,iris, kres kres pedes gimana gitu",
+      "3 buah terong ijo agak kecil, potong,rendam air garam,tiriskan,goreng sampai empuk",
+      "1 sdt kecap manis (bisa jadi kurang dari itu)",
+      "Seujung sdt lada bubuk",
+      "Seujung sdt ketumbar bubuk",
+      "1/2 sdt halawa penyedap atau sesuaikan",
+      "Secubit garam untuk pertegas rasa aja"
+    ]
+  },
+  {
+    "recipe_id": "b3e253e17294",
+    "name": "Ikan Pindang Dusun Terasi Bawang Merah Ala Emakku Simple Sederhana Khas Sumatra Selatan Sumsel",
+    "source_url": "https://cookpad.com/id/resep/25631255",
+    "ingredients": [
+      "4 ekor ikan bersihkan",
+      "6 siung bawang merah (iris) sesuaikan selera",
+      "3 batang sereh (boleh iris atau geprek) Skip boleh",
+      "1 buah kunyit (biar warna cantik) Skip boleh",
+      "1 sdm terasi (kira-kira aja ya)",
+      "1 sdm asam jawa (usahakan 1:1 dengan terasi)",
+      "600 mL air (secukupnya)",
+      "3 sdt garam",
+      "3 sdt penyedap rasa (secukupnya)"
+    ],
+    "steps": [
+      "Siapkan ikan yang sudah dibersihkan",
+      "Potong bawang, kunyit dan serai",
+      "Larutkan terasi dan asam jawa dal mangkok lalu masukkan ke panci",
+      "Masukkan potongan bawang, kunyit dan sereh ke panci",
+      "Tambahkan air klo kurang banyak. Lalu, panaskan hingga mendidih",
+      "Pindang siap disajikan"
+    ],
+    "author": "Noviyanti",
+    "portion": "4 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/7d4dc67b30a0f925/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 14:45:03",
+    "match_score": 0.1111111111111111,
+    "have_ingredients": [
+      "6 siung bawang merah (iris) sesuaikan selera"
+    ],
+    "missing_ingredients": [
+      "4 ekor ikan bersihkan",
+      "3 batang sereh (boleh iris atau geprek) Skip boleh",
+      "1 buah kunyit (biar warna cantik) Skip boleh",
+      "1 sdm terasi (kira-kira aja ya)",
+      "1 sdm asam jawa (usahakan 1:1 dengan terasi)",
+      "600 mL air (secukupnya)",
+      "3 sdt garam",
+      "3 sdt penyedap rasa (secukupnya)"
+    ]
   }
 ]

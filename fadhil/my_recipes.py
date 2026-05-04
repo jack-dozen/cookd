@@ -10,7 +10,7 @@ Fitur:
     - Grid 2 kolom kartu resep
     - Search/filter resep tersimpan
     - Tambah resep manual (AddRecipeDialog)
-    - Edit catatan (EditNotesDialog)
+    - Edit resep lengkap: nama, bahan, langkah, catatan, porsi & waktu (EditRecipeDialog)
     - Hapus resep (ConfirmDeleteDialog)
     - Export JSON (pakai zaky/export_utils.py)
 """
@@ -31,7 +31,7 @@ from tinydb import TinyDB, Query
 DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'base.json')
 
 # ══════════════════════════════════════════════════════════════════════════════
-# WARNA — sesuai prototype v3
+# WARNA
 # ══════════════════════════════════════════════════════════════════════════════
 
 BG     = "#1A1A1A"
@@ -48,7 +48,7 @@ AMBER  = "#E09020"
 RED    = "#C0392B"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SAVED RECIPE MODEL — baca/tulis tabel my_recipes di base.json
+# SAVED RECIPE MODEL
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _make_id(text: str) -> str:
@@ -65,7 +65,6 @@ def get_all() -> list[dict]:
     return sorted(rows, key=lambda x: x.get("saved_at", ""), reverse=True)
 
 def search_recipes(keyword: str) -> list[dict]:
-    """Filter resep berdasarkan keyword nama."""
     all_data = get_all()
     if not keyword.strip():
         return all_data
@@ -74,10 +73,9 @@ def search_recipes(keyword: str) -> list[dict]:
 
 def save_recipe(recipe_id: str, recipe_name: str, notes: str = "",
                 ingredients_have: list = None, ingredients_all: list = None,
-                source_url: str = "", image_url: str = "",
-                cook_time: str = "", portion: str = "",
+                steps: list = None, image_url: str = "",
+                cook_time: int = 0, portion: int = 0,
                 source: str = "Cookpad") -> dict | None:
-    """Simpan resep. Return None kalau sudah ada."""
     table = _table()
     R     = Query()
     if table.search(R.recipe_id == recipe_id):
@@ -89,10 +87,10 @@ def save_recipe(recipe_id: str, recipe_name: str, notes: str = "",
         "notes":            notes,
         "ingredients_have": ingredients_have or [],
         "ingredients_all":  ingredients_all or [],
-        "source_url":       source_url,
+        "steps":            steps or [],
         "image_url":        image_url,
-        "cook_time":        cook_time,
-        "portion":          portion,
+        "cook_time":        cook_time,   # integer, satuan menit
+        "portion":          portion,     # integer, satuan orang
         "source":           source,
         "saved_at":         _now(),
         "last_updated":     _now(),
@@ -100,12 +98,13 @@ def save_recipe(recipe_id: str, recipe_name: str, notes: str = "",
     table.insert(row)
     return row
 
-def update_notes(saved_id: str, notes: str) -> bool:
+def update_recipe(saved_id: str, data: dict) -> bool:
     table = _table()
     R     = Query()
     if not table.search(R.saved_id == saved_id):
         return False
-    table.update({"notes": notes, "last_updated": _now()}, R.saved_id == saved_id)
+    data["last_updated"] = _now()
+    table.update(data, R.saved_id == saved_id)
     return True
 
 def delete_recipe(saved_id: str) -> bool:
@@ -120,16 +119,11 @@ def is_saved(recipe_id: str) -> bool:
     return bool(_table().search(Query().recipe_id == recipe_id))
 
 def export_json() -> str:
-    """
-    Export my_recipes ke Downloads folder.
-    Pakai utility dari zaky kalau tersedia, fallback ke manual.
-    """
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'zaky'))
         from export_utils import export_table
         return export_table("my_recipes")
     except ImportError:
-        # Fallback manual
         rows = get_all()
         downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
         output_path = os.path.join(downloads, 'my_recipes.json')
@@ -138,7 +132,6 @@ def export_json() -> str:
         return output_path
 
 def import_json(file_path: str) -> int:
-    """Import dari file JSON, skip duplikat."""
     if not os.path.exists(file_path):
         return 0
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -153,13 +146,13 @@ def import_json(file_path: str) -> int:
     return count
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SAVED CONTROLLER — validasi form
+# SAVED CONTROLLER
 # ══════════════════════════════════════════════════════════════════════════════
 
 class SavedController:
 
     @staticmethod
-    def validate_add(recipe_name: str) -> str | None:
+    def validate_name(recipe_name: str) -> str | None:
         if not recipe_name.strip():
             return "Nama resep tidak boleh kosong."
         if len(recipe_name.strip()) < 3:
@@ -173,139 +166,311 @@ class SavedController:
         return None
 
     @staticmethod
-    def do_save(recipe_name: str, notes: str, source_url: str
-                ) -> tuple[dict | None, str | None]:
-        err = SavedController.validate_add(recipe_name)
+    def validate_int(value: str, field_name: str) -> tuple[int, str | None]:
+        """Validasi input integer. Return (nilai, error)."""
+        if not value.strip():
+            return 0, None  # boleh kosong, default 0
+        try:
+            val = int(value.strip())
+            if val < 0:
+                return 0, f"{field_name} tidak boleh negatif."
+            return val, None
+        except ValueError:
+            return 0, f"{field_name} harus berupa angka."
+
+    @staticmethod
+    def do_save(recipe_name: str, notes: str, ingredients: list,
+                steps: list, portion_str: str,
+                cook_time_str: str) -> tuple[dict | None, str | None]:
+
+        err = SavedController.validate_name(recipe_name)
         if err:
             return None, err
+
         err = SavedController.validate_notes(notes)
         if err:
             return None, err
+
+        portion, err = SavedController.validate_int(portion_str, "Porsi")
+        if err:
+            return None, err
+
+        cook_time, err = SavedController.validate_int(cook_time_str, "Waktu masak")
+        if err:
+            return None, err
+
         recipe_id = _make_id(recipe_name + _now())
         row = save_recipe(
-            recipe_id   = recipe_id,
-            recipe_name = recipe_name.strip(),
-            notes       = notes.strip(),
-            source_url  = source_url.strip(),
-            source      = "Manual",
+            recipe_id       = recipe_id,
+            recipe_name     = recipe_name.strip(),
+            notes           = notes.strip(),
+            ingredients_all = ingredients,
+            steps           = steps,
+            cook_time       = cook_time,
+            portion         = portion,
+            source          = "Manual",
         )
         return row, None
 
     @staticmethod
-    def do_update_notes(saved_id: str, notes: str) -> tuple[bool, str | None]:
+    def do_edit(saved_id: str, recipe_name: str, notes: str,
+                ingredients: list, steps: list,
+                portion_str: str, cook_time_str: str) -> tuple[bool, str | None]:
+
+        err = SavedController.validate_name(recipe_name)
+        if err:
+            return False, err
+
         err = SavedController.validate_notes(notes)
         if err:
             return False, err
-        return update_notes(saved_id, notes), None
+
+        portion, err = SavedController.validate_int(portion_str, "Porsi")
+        if err:
+            return False, err
+
+        cook_time, err = SavedController.validate_int(cook_time_str, "Waktu masak")
+        if err:
+            return False, err
+
+        ok = update_recipe(saved_id, {
+            "recipe_name":     recipe_name.strip(),
+            "notes":           notes.strip(),
+            "ingredients_all": ingredients,
+            "steps":           steps,
+            "portion":         portion,
+            "cook_time":       cook_time,
+        })
+        return ok, None
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPER: format tampilan
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _fmt_portion(portion) -> str:
+    """int 4 → '4 porsi', 0 atau None → ''"""
+    try:
+        val = int(portion)
+        return f"{val} porsi" if val > 0 else ""
+    except (TypeError, ValueError):
+        return str(portion) if portion else ""
+
+def _fmt_time(cook_time) -> str:
+    """int 30 → '30 menit', 0 atau None → ''"""
+    try:
+        val = int(cook_time)
+        return f"{val} menit" if val > 0 else ""
+    except (TypeError, ValueError):
+        return str(cook_time) if cook_time else ""
+
+def _to_str(val) -> str:
+    """int/None → str untuk pre-fill field input."""
+    if val is None or val == 0:
+        return ""
+    return str(val)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPER: field styling
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _field(label, value="", multiline=False, min_lines=1,
+           max_lines=4, hint="", keyboard_type=None) -> ft.TextField:
+    return ft.TextField(
+        label                = label,
+        value                = value,
+        hint_text            = hint,
+        multiline            = multiline,
+        min_lines            = min_lines if multiline else None,
+        max_lines            = max_lines if multiline else None,
+        keyboard_type        = keyboard_type,
+        bgcolor              = BG3,
+        color                = TEXT,
+        label_style          = ft.TextStyle(color=TEXT2),
+        hint_style           = ft.TextStyle(color=TEXT3),
+        border_color         = BORDER,
+        focused_border_color = ORANGE,
+        content_padding      = ft.Padding.all(12),
+    )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DIALOG: Edit Resep Lengkap
+# ══════════════════════════════════════════════════════════════════════════════
+
+def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
+    existing_ingredients = "\n".join(saved.get("ingredients_all", []))
+    existing_steps       = "\n".join(saved.get("steps", []))
+
+    name_field = _field(
+        "Nama Resep *",
+        value=saved.get("recipe_name", ""),
+    )
+    portion_field = _field(
+        "Porsi (orang)",
+        value=_to_str(saved.get("portion")),
+        hint="cth: 4",
+        keyboard_type=ft.KeyboardType.NUMBER,
+    )
+    cook_time_field = _field(
+        "Waktu Masak (menit)",
+        value=_to_str(saved.get("cook_time")),
+        hint="cth: 30",
+        keyboard_type=ft.KeyboardType.NUMBER,
+    )
+    ingredients_field = _field(
+        "Bahan-bahan (satu baris = satu bahan)",
+        value=existing_ingredients,
+        multiline=True, min_lines=5, max_lines=10,
+        hint="cth:\n2 butir telur\n1 sdt garam\n3 sdm kecap manis",
+    )
+    steps_field = _field(
+        "Langkah-langkah (satu baris = satu langkah)",
+        value=existing_steps,
+        multiline=True, min_lines=5, max_lines=10,
+        hint="cth:\nCincang bawang putih\nTumis hingga harum\nSajikan",
+    )
+    notes_field = _field(
+        "Catatan",
+        value=saved.get("notes", ""),
+        multiline=True, min_lines=2, max_lines=4,
+        hint="Catatan pribadi kamu...",
+    )
+    error_text = ft.Text("", color=RED, size=11)
+
+    def on_save(e):
+        ingredients = [
+            line.strip()
+            for line in (ingredients_field.value or "").splitlines()
+            if line.strip()
+        ]
+        steps = [
+            line.strip()
+            for line in (steps_field.value or "").splitlines()
+            if line.strip()
+        ]
+
+        ok, err = SavedController.do_edit(
+            saved_id      = saved["saved_id"],
+            recipe_name   = name_field.value or "",
+            notes         = notes_field.value or "",
+            ingredients   = ingredients,
+            steps         = steps,
+            portion_str   = portion_field.value or "",
+            cook_time_str = cook_time_field.value or "",
+        )
+        if err:
+            error_text.value = err
+            error_text.update()
+            return
+
+        dialog.open = False
+        page.update()
+        if ok:
+            on_saved()
+
+    def on_cancel(e):
+        dialog.open = False
+        page.update()
+
+    dialog = ft.AlertDialog(
+        modal   = True,
+        title   = ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.EDIT, color=ORANGE, size=20),
+                ft.Text(
+                    f"Edit — {saved.get('recipe_name', 'Resep')}",
+                    color=TEXT, weight=ft.FontWeight.BOLD,
+                ),
+            ],
+            spacing=8,
+        ),
+        bgcolor = BG2,
+        content = ft.Container(
+            content=ft.Column(
+                controls=[
+                    name_field,
+                    ft.Row(controls=[portion_field, cook_time_field], spacing=10),
+                    ft.Divider(color=BG4, height=1),
+                    ingredients_field,
+                    ft.Divider(color=BG4, height=1),
+                    steps_field,
+                    ft.Divider(color=BG4, height=1),
+                    notes_field,
+                    error_text,
+                ],
+                spacing=10, tight=True,
+                scroll=ft.ScrollMode.AUTO,
+            ),
+            width=520, height=520,
+        ),
+        actions=[
+            ft.TextButton(
+                "Batal",
+                style=ft.ButtonStyle(color=TEXT3),
+                on_click=on_cancel,
+            ),
+            ft.ElevatedButton(
+                "Simpan Perubahan",
+                bgcolor=ORANGE, color="#FFFFFF",
+                on_click=on_save,
+            ),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+    return dialog
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DIALOG: Tambah Resep Manual
 # ══════════════════════════════════════════════════════════════════════════════
 
 def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
-    name_field = ft.TextField(
-        label="Nama Resep *", bgcolor=BG3, color=TEXT,
-        label_style=ft.TextStyle(color=TEXT2),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
+    name_field = _field("Nama Resep *")
+    portion_field = _field(
+        "Porsi (orang)", hint="cth: 4",
+        keyboard_type=ft.KeyboardType.NUMBER,
     )
-    portion_field = ft.TextField(
-        label="Porsi (cth: 4 servings)", bgcolor=BG3, color=TEXT,
-        label_style=ft.TextStyle(color=TEXT2),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
+    cook_time_field = _field(
+        "Waktu Masak (menit)", hint="cth: 30",
+        keyboard_type=ft.KeyboardType.NUMBER,
     )
-    cook_time_field = ft.TextField(
-        label="Waktu Masak (cth: 30 menit)", bgcolor=BG3, color=TEXT,
-        label_style=ft.TextStyle(color=TEXT2),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
-    )
-    ingredients_field = ft.TextField(
-        label="Bahan-bahan (satu baris = satu bahan)",
+    ingredients_field = _field(
+        "Bahan-bahan (satu baris = satu bahan)",
         multiline=True, min_lines=4, max_lines=8,
-        bgcolor=BG3, color=TEXT,
-        label_style=ft.TextStyle(color=TEXT2),
-        hint_text="cth:\n2 butir telur\n1 sdt garam\n3 sdm kecap manis",
-        hint_style=ft.TextStyle(color=TEXT3),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
+        hint="cth:\n2 butir telur\n1 sdt garam",
     )
-    steps_field = ft.TextField(
-        label="Langkah-langkah (satu baris = satu langkah)",
+    steps_field = _field(
+        "Langkah-langkah (satu baris = satu langkah)",
         multiline=True, min_lines=4, max_lines=8,
-        bgcolor=BG3, color=TEXT,
-        label_style=ft.TextStyle(color=TEXT2),
-        hint_text="cth:\nCincang bawang putih\nTumis hingga harum\nSajikan",
-        hint_style=ft.TextStyle(color=TEXT3),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
+        hint="cth:\nCincang bawang putih\nTumis hingga harum",
     )
-    notes_field = ft.TextField(
-        label="Catatan (opsional)", multiline=True,
-        min_lines=2, max_lines=4,
-        bgcolor=BG3, color=TEXT,
-        label_style=ft.TextStyle(color=TEXT2),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
-    )
-    url_field = ft.TextField(
-        label="URL Sumber (opsional)", bgcolor=BG3, color=TEXT,
-        label_style=ft.TextStyle(color=TEXT2),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
-    )
-    image_url_field = ft.TextField(
-        label="URL Gambar (opsional)", bgcolor=BG3, color=TEXT,
-        label_style=ft.TextStyle(color=TEXT2),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
+    notes_field  = _field(
+        "Catatan (opsional)",
+        multiline=True, min_lines=2, max_lines=4,
     )
     error_text = ft.Text("", color=RED, size=11)
 
     def on_save(e):
-        recipe_name = name_field.value or ""
-        err = SavedController.validate_add(recipe_name)
-        if err:
-            error_text.value = err
-            error_text.update()
-            return
-        notes = notes_field.value or ""
-        err = SavedController.validate_notes(notes)
-        if err:
-            error_text.value = err
-            error_text.update()
-            return
-
-        # Parse bahan dan langkah dari textarea
         ingredients = [
-            line.strip() for line in (ingredients_field.value or "").splitlines()
+            line.strip()
+            for line in (ingredients_field.value or "").splitlines()
             if line.strip()
         ]
         steps = [
-            line.strip() for line in (steps_field.value or "").splitlines()
+            line.strip()
+            for line in (steps_field.value or "").splitlines()
             if line.strip()
         ]
-
-        recipe_id = _make_id(recipe_name + _now())
-        row = save_recipe(
-            recipe_id        = recipe_id,
-            recipe_name      = recipe_name.strip(),
-            notes            = notes.strip(),
-            ingredients_all  = ingredients,
-            source_url       = url_field.value.strip(),
-            image_url        = image_url_field.value.strip(),
-            cook_time        = cook_time_field.value.strip(),
-            portion          = portion_field.value.strip(),
-            source           = "Manual",
+        row, err = SavedController.do_save(
+            recipe_name   = name_field.value or "",
+            notes         = notes_field.value or "",
+            ingredients   = ingredients,
+            steps         = steps,
+            portion_str   = portion_field.value or "",
+            cook_time_str = cook_time_field.value or "",
         )
-        # Simpan steps ke dalam row (tinydb tidak punya field steps by default, kita tambahkan)
-        if row:
-            table = _table()
-            R = Query()
-            table.update({"steps": steps}, R.saved_id == row["saved_id"])
-            row["steps"] = steps
-
+        if err:
+            error_text.value = err
+            error_text.update()
+            return
         dialog.open = False
         page.update()
         if row:
@@ -316,10 +481,10 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
         page.update()
 
     dialog = ft.AlertDialog(
-        modal=True,
-        title=ft.Text("Tambah Resep", color=TEXT, weight=ft.FontWeight.BOLD),
-        bgcolor=BG2,
-        content=ft.Container(
+        modal   = True,
+        title   = ft.Text("Tambah Resep", color=TEXT, weight=ft.FontWeight.BOLD),
+        bgcolor = BG2,
+        content = ft.Container(
             content=ft.Column(
                 controls=[
                     name_field,
@@ -327,65 +492,12 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
                     ingredients_field,
                     steps_field,
                     notes_field,
-                    url_field,
-                    image_url_field,
                     error_text,
                 ],
                 spacing=10, tight=True,
                 scroll=ft.ScrollMode.AUTO,
             ),
-            width=500,
-            height=500,
-        ),
-        actions=[
-            ft.TextButton("Batal", style=ft.ButtonStyle(color=TEXT3), on_click=on_cancel),
-            ft.ElevatedButton("Simpan", bgcolor=ORANGE, color="#FFFFFF", on_click=on_save),
-        ],
-        actions_alignment=ft.MainAxisAlignment.END,
-    )
-    return dialog
-
-# ══════════════════════════════════════════════════════════════════════════════
-# DIALOG: Edit Catatan
-# ══════════════════════════════════════════════════════════════════════════════
-
-def EditNotesDialog(page: ft.Page, saved_id: str,
-                    current_notes: str, on_saved) -> ft.AlertDialog:
-    notes_field = ft.TextField(
-        value=current_notes,
-        hint_text="Tulis catatan pribadi kamu...",
-        multiline=True, min_lines=3, max_lines=6,
-        bgcolor=BG3, color=TEXT,
-        hint_style=ft.TextStyle(color=TEXT3),
-        border_color=BORDER, focused_border_color=ORANGE,
-        content_padding=ft.Padding.all(12),
-    )
-    error_text = ft.Text("", color=RED, size=11)
-
-    def on_save(e):
-        ok, err = SavedController.do_update_notes(saved_id, notes_field.value or "")
-        if err:
-            error_text.value = err
-            error_text.update()
-            return
-        dialog.open = False
-        page.update()
-        if ok:
-            on_saved(notes_field.value.strip())
-
-    def on_cancel(e):
-        dialog.open = False
-        page.update()
-
-    dialog = ft.AlertDialog(
-        modal=True,
-        title=ft.Text("Edit Catatan", color=TEXT, weight=ft.FontWeight.BOLD),
-        bgcolor=BG2,
-        content=ft.Container(
-            content=ft.Column(
-                controls=[notes_field, error_text], spacing=8, tight=True,
-            ),
-            width=400,
+            width=520, height=500,
         ),
         actions=[
             ft.TextButton("Batal", style=ft.ButtonStyle(color=TEXT3), on_click=on_cancel),
@@ -411,10 +523,10 @@ def ConfirmDeleteDialog(page: ft.Page, recipe_name: str,
         page.update()
 
     dialog = ft.AlertDialog(
-        modal=True,
-        title=ft.Text("Hapus Resep?", color=RED, weight=ft.FontWeight.BOLD),
-        bgcolor=BG2,
-        content=ft.Text(
+        modal   = True,
+        title   = ft.Text("Hapus Resep?", color=RED, weight=ft.FontWeight.BOLD),
+        bgcolor = BG2,
+        content = ft.Text(
             f"'{recipe_name}' akan dihapus.\nTidak bisa dibatalkan.",
             color=TEXT2, size=13,
         ),
@@ -427,28 +539,24 @@ def ConfirmDeleteDialog(page: ft.Page, recipe_name: str,
     return dialog
 
 # ══════════════════════════════════════════════════════════════════════════════
-# KOMPONEN: kartu resep (grid 2 kolom, sesuai prototype)
+# KOMPONEN: kartu resep
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
-    """
-    Kartu resep sesuai prototype:
-    - Gambar di atas (140px)
-    - Nama + meta di bawah
-    - 3 tombol: Lihat | ✏️ | 🗑
-    """
     recipe_name = saved.get("recipe_name", "Resep")
-    portion     = saved.get("portion", "")
-    cook_time   = saved.get("cook_time", "")
-    source      = saved.get("source", "Cookpad")
     image_url   = saved.get("image_url", "")
+    notes       = saved.get("notes", "")
+    source      = saved.get("source", "Cookpad")
 
-    # Meta text: porsi + waktu + sumber
+    # Format porsi & waktu dari integer
+    portion_text   = _fmt_portion(saved.get("portion"))
+    cook_time_text = _fmt_time(saved.get("cook_time"))
+
     meta_parts = []
-    if portion:
-        meta_parts.append(f"👥 {portion}")
-    if cook_time:
-        meta_parts.append(f"⏱ {cook_time}")
+    if portion_text:
+        meta_parts.append(f"👥 {portion_text}")
+    if cook_time_text:
+        meta_parts.append(f"⏱ {cook_time_text}")
     if source:
         meta_parts.append(source)
     meta_text = " · ".join(meta_parts) if meta_parts else "Resep tersimpan"
@@ -456,7 +564,7 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
     return ft.Container(
         content=ft.Column(
             controls=[
-                # ── Gambar ─────────────────────────────────────────
+                # ── Gambar ────────────────────────────────────────
                 ft.Container(
                     content=ft.Stack(
                         controls=[
@@ -466,8 +574,7 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
                                 height=140,
                                 fit="cover",
                                 error_content=ft.Container(
-                                    bgcolor=BG4,
-                                    height=140,
+                                    bgcolor=BG4, height=140,
                                     content=ft.Icon(
                                         ft.Icons.RESTAURANT,
                                         color=TEXT3, size=36,
@@ -475,7 +582,6 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
                                     alignment=ft.Alignment(0, 0),
                                 ),
                             ),
-                            # Overlay gelap di bawah gambar
                             ft.Container(
                                 height=140,
                                 gradient=ft.LinearGradient(
@@ -488,34 +594,31 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
                         height=140,
                     ),
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                    border_radius=ft.BorderRadius.only(
-                        top_left=10, top_right=10,
-                    ),
+                    border_radius=ft.BorderRadius.only(top_left=10, top_right=10),
                 ),
 
-                # ── Body ───────────────────────────────────────────
+                # ── Body ──────────────────────────────────────────
                 ft.Container(
                     content=ft.Column(
                         controls=[
                             ft.Text(
-                                recipe_name,
-                                color=TEXT,
-                                size=14,
+                                recipe_name, color=TEXT, size=14,
                                 weight=ft.FontWeight.BOLD,
-                                max_lines=1,
-                                overflow=ft.TextOverflow.ELLIPSIS,
+                                max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
                             ),
                             ft.Text(
-                                meta_text,
-                                color=TEXT2,
-                                size=12,
-                                max_lines=1,
-                                overflow=ft.TextOverflow.ELLIPSIS,
+                                meta_text, color=TEXT2, size=12,
+                                max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
                             ),
-                            # ── Footer: tombol aksi ────────────────
+                            ft.Text(
+                                f"📝 {notes}", color=TEXT3, size=11,
+                                italic=True, max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                                visible=bool(notes),
+                            ),
+                            # Tombol aksi
                             ft.Row(
                                 controls=[
-                                    # Tombol Lihat
                                     ft.ElevatedButton(
                                         "Lihat",
                                         style=ft.ButtonStyle(
@@ -524,29 +627,24 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
                                             side=ft.BorderSide(1.5, ORANGE),
                                             shape=ft.RoundedRectangleBorder(radius=6),
                                             padding=ft.Padding.symmetric(
-                                                horizontal=10, vertical=5
-                                            ),
+                                                horizontal=10, vertical=5),
                                         ),
                                         on_click=lambda e: on_view(saved),
                                     ),
                                     ft.Container(expand=True),
-                                    # Tombol Edit
                                     ft.IconButton(
                                         icon=ft.Icons.EDIT_OUTLINED,
-                                        icon_color=TEXT2,
-                                        icon_size=18,
-                                        tooltip="Edit Catatan",
+                                        icon_color=TEXT2, icon_size=18,
+                                        tooltip="Edit Resep",
                                         style=ft.ButtonStyle(
                                             shape=ft.RoundedRectangleBorder(radius=6),
                                             side=ft.BorderSide(1.5, BG4),
                                         ),
                                         on_click=lambda e: on_edit(saved),
                                     ),
-                                    # Tombol Hapus
                                     ft.IconButton(
                                         icon=ft.Icons.DELETE_OUTLINE,
-                                        icon_color=RED,
-                                        icon_size=18,
+                                        icon_color=RED, icon_size=18,
                                         tooltip="Hapus",
                                         style=ft.ButtonStyle(
                                             shape=ft.RoundedRectangleBorder(radius=6),
@@ -558,7 +656,7 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
                         ],
-                        spacing=6,
+                        spacing=5,
                     ),
                     padding=ft.Padding.all(12),
                 ),
@@ -577,21 +675,10 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
-    """
-    Halaman My Recipes sesuai prototype v3.
-    Grid 2 kolom, search bar, tombol + Tambah.
-    """
 
-    # ── State ─────────────────────────────────────────────────────────
     search_keyword = {"value": ""}
 
-    # ── UI Refs ───────────────────────────────────────────────────────
-    grid = ft.Row(
-        wrap=True,
-        spacing=14,
-        run_spacing=14,
-        controls=[],
-    )
+    grid = ft.Row(wrap=True, spacing=14, run_spacing=14, controls=[])
 
     count_badge = ft.Container(
         content=ft.Text("Tersimpan: 0", color=TEXT2, size=12),
@@ -614,12 +701,11 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=8,
         ),
-        alignment=ft.Alignment.CENTER,
+        alignment=ft.Alignment(0, 0),
         padding=ft.Padding.all(60),
         visible=False,
     )
 
-    # ── Snackbar ──────────────────────────────────────────────────────
     def show_snack(msg: str, color=GREEN):
         page.snack_bar = ft.SnackBar(
             content=ft.Text(msg, color=color),
@@ -628,38 +714,34 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
         page.snack_bar.open = True
         page.update()
 
-    # ── Render grid ───────────────────────────────────────────────────
     def refresh(keyword: str = ""):
         search_keyword["value"] = keyword
         saved_list = search_recipes(keyword)
 
-        # Update badge count
-        all_count = len(get_all())
-        count_badge.content.value = f"Tersimpan: {all_count}"
-
+        count_badge.content.value = f"Tersimpan: {len(get_all())}"
         grid.controls.clear()
         empty_state.visible = len(saved_list) == 0
 
         for saved in saved_list:
-            card = _recipe_card(
-                saved     = saved,
-                on_view   = _on_view,
-                on_edit   = _on_edit,
-                on_delete = _on_delete,
-            )
-            # Setiap kartu lebar ~50% minus spacing
             grid.controls.append(
                 ft.Container(
-                    content=card,
+                    content=_recipe_card(
+                        saved     = saved,
+                        on_view   = _on_view,
+                        on_edit   = _on_edit,
+                        on_delete = _on_delete,
+                    ),
                     width=320,
                 )
             )
 
-        grid.update()
-        empty_state.update()
-        count_badge.update()
+        try:
+            grid.update()
+            empty_state.update()
+            count_badge.update()
+        except Exception:
+            pass  # belum di-mount, skip update
 
-    # ── Handler: lihat detail ─────────────────────────────────────────
     def _on_view(saved: dict):
         navigate("detail", recipe={
             "recipe_id":   saved.get("recipe_id", ""),
@@ -667,26 +749,20 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
             "ingredients": saved.get("ingredients_all", []),
             "steps":       saved.get("steps", []),
             "image_url":   saved.get("image_url", ""),
-            "cook_time":   saved.get("cook_time", ""),
-            "portion":     saved.get("portion", ""),
-            "source_url":  saved.get("source_url", ""),
+            "cook_time":   _fmt_time(saved.get("cook_time")),
+            "portion":     _fmt_portion(saved.get("portion")),
         })
 
-    # ── Handler: edit catatan ─────────────────────────────────────────
     def _on_edit(saved: dict):
-        def on_saved(new_notes):
-            show_snack("✓ Catatan diperbarui!")
+        def on_saved():
+            show_snack(f"✓ '{saved.get('recipe_name', 'Resep')}' berhasil diperbarui!")
             refresh(search_keyword["value"])
 
-        dialog = EditNotesDialog(
-            page=page, saved_id=saved["saved_id"],
-            current_notes=saved.get("notes", ""), on_saved=on_saved,
-        )
+        dialog = EditRecipeDialog(page=page, saved=saved, on_saved=on_saved)
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
 
-    # ── Handler: hapus ────────────────────────────────────────────────
     def _on_delete(saved: dict):
         def on_confirmed():
             ok = delete_recipe(saved["saved_id"])
@@ -695,14 +771,14 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
                 refresh(search_keyword["value"])
 
         dialog = ConfirmDeleteDialog(
-            page=page, recipe_name=saved.get("recipe_name", ""),
+            page=page,
+            recipe_name=saved.get("recipe_name", ""),
             on_confirmed=on_confirmed,
         )
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
 
-    # ── Handler: tambah manual ────────────────────────────────────────
     def _on_add(e):
         def on_saved(row):
             show_snack(f"✓ '{row['recipe_name']}' ditambahkan!")
@@ -713,19 +789,16 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
         dialog.open = True
         page.update()
 
-    # ── Handler: export ───────────────────────────────────────────────
     def _on_export(e):
         try:
-            path = export_json()
-            show_snack(f"✓ Diekspor ke Downloads/my_recipes.json")
+            export_json()
+            show_snack("✓ Diekspor ke Downloads/my_recipes.json")
         except Exception as ex:
             show_snack(f"Export gagal: {ex}", color=RED)
 
-    # ── Search field ──────────────────────────────────────────────────
     search_field = ft.TextField(
         hint_text            = "🔍 Cari resep tersimpan...",
-        bgcolor              = BG3,
-        color                = TEXT,
+        bgcolor              = BG3, color=TEXT,
         hint_style           = ft.TextStyle(color=TEXT3),
         border_color         = BG4,
         focused_border_color = ORANGE,
@@ -735,12 +808,11 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
         on_change            = lambda e: refresh(e.control.value),
     )
 
-    # ── Layout ────────────────────────────────────────────────────────
     page_content = ft.Container(
         expand=True, bgcolor=BG, visible=False,
         content=ft.Column(
             controls=[
-                # ── Topbar ────────────────────────────────────────
+                # Topbar
                 ft.Container(
                     content=ft.Row(
                         controls=[
@@ -759,7 +831,8 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
                                 bgcolor=ORANGE, color="#FFFFFF",
                                 style=ft.ButtonStyle(
                                     shape=ft.RoundedRectangleBorder(radius=20),
-                                    padding=ft.Padding.symmetric(horizontal=14, vertical=7),
+                                    padding=ft.Padding.symmetric(
+                                        horizontal=14, vertical=7),
                                 ),
                                 on_click=_on_add,
                             ),
@@ -776,20 +849,15 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
                     padding=ft.Padding.symmetric(horizontal=24, vertical=14),
                     border=ft.Border.only(bottom=ft.BorderSide(1, BG4)),
                 ),
-
-                # ── Search bar ────────────────────────────────────
+                # Search
                 ft.Container(
                     content=search_field,
                     padding=ft.Padding.symmetric(horizontal=24, vertical=12),
                 ),
-
-                # ── Grid resep ────────────────────────────────────
+                # Grid
                 ft.Container(
                     content=ft.Column(
-                        controls=[
-                            grid,
-                            empty_state,
-                        ],
+                        controls=[grid, empty_state],
                         scroll=ft.ScrollMode.AUTO,
                         expand=True,
                     ),
@@ -801,7 +869,5 @@ def MyRecipesPage(page: ft.Page, navigate) -> ft.Container:
         ),
     )
 
-    # Expose refresh
     page_content.refresh = refresh
-
     return page_content
