@@ -1,6 +1,6 @@
 import flet as ft
 import json
-from hadi import CookpadScraper
+from hadi import CookpadScraper  
 import threading
 import subprocess
 import sys, os
@@ -43,9 +43,42 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════
     pages: dict[str, ft.Container] = {}
 
-    def navigate(name: str):
+    def show_detail(recipe: dict):
+        """Fill detail page with this recipe's data then navigate to it."""
+        detail_content.controls.clear()
+
+        # Title
+        detail_content.controls.append(
+            ft.Text(recipe["name"], size=24, weight=ft.FontWeight.BOLD, color=TEXT)
+        )
+
+        # Steps — assumes json has "steps": ["step1", "step2", ...]
+        for i, step in enumerate(recipe["steps"], start=1):
+            detail_content.controls.append(
+                ft.Row(
+                    controls=[
+                        ft.Container(
+                            content=ft.Text(str(i), color="#fff", size=12, weight=ft.FontWeight.BOLD),
+                            width=26, height=26,
+                            bgcolor=ORANGE,
+                            border_radius=ft.BorderRadius.all(13),
+                            alignment=ft.Alignment(0, 0),
+                        ),
+                        ft.Text(step, color=TEXT2, expand=True),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                )
+            )
+
+        detail_content.update()
+        navigate("detail")
+
+    def navigate(name: str, recipe: dict = None):
         for key, container in pages.items():
             container.visible = (key == name)
+        if name == "detail" and recipe:
+            show_detail(recipe)
         page.update()
 
 
@@ -133,7 +166,7 @@ def main(page: ft.Page):
 
         def on_click(e):
             state["active_index"] = index
-            update_highlights()
+            update_highlights() 
             navigate(["home", "finder", "my-recipes", "for-you", "info"][index - 1])
 
         container = ft.Container(
@@ -145,14 +178,14 @@ def main(page: ft.Page):
             on_click=on_click,
         )
         return container
-
+            
     def update_highlights():
         # Nav items mulai dari index 2 (0=menu btn, 1=divider)
         nav_controls = sidebar.content.controls
         for i in range(2, len(nav_controls)):
             item = nav_controls[i]
             if isinstance(item, ft.Container) and isinstance(item.content, ft.Row):
-                btn_index = i - 1
+                btn_index = i - 1 
                 is_active = state["active_index"] == btn_index
                 item.bgcolor                       = BG3() if is_active else ft.Colors.TRANSPARENT
                 item.content.controls[0].color     = ORANGE if is_active else TEXT2()
@@ -307,8 +340,6 @@ def main(page: ft.Page):
         ),
     )
 
-    def show_detail(recipe: dict):
-        detail_content.controls.clear()
 
         # ── Hero section (image + title overlay) ──
         detail_content.controls.append(
@@ -419,25 +450,29 @@ def main(page: ft.Page):
                 border_radius=ft.BorderRadius.all(10),
             )
 
-        def steps_card(steps: list) -> ft.Container:
-            items = []
-            for i, step in enumerate(steps, start=1):
-                text = step.get("text", step) if isinstance(step, dict) else step
-                items.append(
+            # build cards
+            results_column.controls.clear()
+            for r in results:
+                def make_click(recipe):
+                    return lambda e: show_detail(recipe)
+                results_column.controls.append(
                     ft.Container(
-                        content=ft.Row(
+                        content=ft.Column(
                             controls=[
-                                ft.Container(
-                                    content=ft.Text(str(i), color=WHITE, size=13, weight=ft.FontWeight.BOLD),
-                                    width=32, height=32,
-                                    bgcolor=ORANGE,
-                                    border_radius=ft.BorderRadius.all(16),
-                                    alignment=ft.Alignment(0, 0),
+                                ft.Text(r["name"], color=TEXT, weight=ft.FontWeight.BOLD, size=15),
+                                ft.Text(r.get("portion", ""), color=TEXT2, size=12),
+                                ft.Text(r.get("author", ""), color=TEXT2, size=12),
+                                ft.Text(r.get("cook_time", ""), color=TEXT2, size=12),
+                                ft.Image(
+                                    src=r["image_url"],
+                                    width=float("inf"),
+                                    height=150,
+                                    fit="cover",
+                                    border_radius=ft.BorderRadius.all(8),
                                 ),
                                 ft.Text(text, color=TEXT(), size=14, expand=True),
                             ],
-                            spacing=16,
-                            vertical_alignment=ft.CrossAxisAlignment.START,
+                            spacing=4,
                         ),
                         padding=ft.padding.symmetric(horizontal=16, vertical=14),
                         border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
@@ -560,7 +595,7 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Row(controls=[
                         search_field,
-                        ft.ElevatedButton("Cari", bgcolor=ORANGE, color="WHITE", on_click=on_search),
+                        ft.ElevatedButton("Cari", bgcolor=ORANGE, color="#fff", on_click=on_search),
                     ]),
                     padding=ft.padding.all(20),
                 ),
@@ -643,10 +678,12 @@ def main(page: ft.Page):
 
     page.add(root)
 
+    pages["my-recipes"].refresh()
+    
     def window_resized(e):
         width = e.width
 
-        #print("WIDTH:", width)
+        #print("WIDTH:", width)  
 
         if width < 800:
             toggle_sidebar(e)
