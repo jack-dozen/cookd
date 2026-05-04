@@ -275,7 +275,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
     # ── Footer ───────────────────────────────────────────────────────
     footer = ft.Container(
         content=ft.Text(
-            "CookD v1.0.0 · Proyek Kuliah 2025",
+            "CookD v0.0.1",
             size=12,
             color=TEXT3(),
             font_family="Font",
