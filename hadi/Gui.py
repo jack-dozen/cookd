@@ -173,11 +173,7 @@ def main(page: ft.Page):
             ),
         )
 
-    pages["home"]       = make_page("Home")
-    pages["my-recipes"] = MyRecipesPage(page, navigate, on_view_recipe=show_detail)
-    pages["for-you"]    = make_page("For You")
-    pages["info"]       = InfoPage(page)
-    pages["home"].visible = True
+
 
     # ══════════════════════════════════════════════════════════════════
     #  DETAIL PAGE
@@ -469,6 +465,12 @@ def main(page: ft.Page):
             expand=True,
         ),
     )
+    
+    pages["home"]       = make_page("Home")
+    pages["my-recipes"] = MyRecipesPage(page, navigate)
+    pages["for-you"]    = make_page("For You")
+    pages["info"]       = InfoPage(page)
+    pages["home"].visible = True
 
     # ══════════════════════════════════════════════════════════════════
     #  TOPBAR
