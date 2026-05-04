@@ -6,6 +6,7 @@ import subprocess
 from fadhil.my_recipes import MyRecipesPage
 from rafy.theme import theme_mgr, ORANGE, GREEN, AMBER, BLUE, WHITE, BLACK
 from rafy.sidebar import build_sidebar_extras
+from zaky.info import InfoPage
 
 # ─────────────────────────────────────────────────────────────────────
 # COLORS — live dari theme_mgr
