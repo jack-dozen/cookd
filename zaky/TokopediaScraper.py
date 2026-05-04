@@ -185,5 +185,5 @@ def tokpedia_scraper(keywords: list[str]):
 
 
 # ── untuk testing ──
-if __name__ == '__main__':
-    tokpedia_scraper(keywords=['bawang putih', 'gula pasir', 'tempe', 'garam'])
+#if __name__ == '__main__':
+#    tokpedia_scraper(keywords=['bawang putih', 'gula pasir', 'tempe', 'garam'])
