@@ -23,18 +23,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup          # Parser HTML
 from tinydb import TinyDB, Query       # Database JSON ringan
-from tinydb.storages import JSONStorage
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PRETTY JSON STORAGE
-# ══════════════════════════════════════════════════════════════════════════════
 
-class PrettyJSONStorage(JSONStorage):
-    def write(self, data):
-        self._handle.seek(0)
-        json.dump(data, self._handle, indent=2, ensure_ascii=False)  # Simpan JSON rapi + support karakter Indonesia
-        self._handle.flush()
-        self._handle.truncate()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # KONFIGURASI
@@ -42,7 +32,7 @@ class PrettyJSONStorage(JSONStorage):
 
 BASE_URL       = "https://www.alfagift.id"
 SEARCH_URL     = "https://www.alfagift.id/find/{keyword}"  # URL search Alfagift, {keyword} diganti saat runtime
-DB_PATH        = os.path.join(os.path.dirname(__file__), "ingredients.json")  # DB di folder yang sama dengan script
+DB_PATH        = os.path.join(os.path.dirname(__file__), '..', 'data', 'base.json')
 CHROME_VERSION = 147               # Harus sesuai versi Chrome yang terinstall
 MAX_RESULTS    = 3                 # Jumlah produk yang di-scrape per keyword sebelum difilter
 DELAY_MIN      = 1.0
@@ -229,36 +219,38 @@ def pick_cheapest(products):
     valids = [p for p in products if p["price"] > 0]      # Buang produk yang harganya 0 / gagal parse
     return min(valids, key=lambda p: p["price"]) if valids else None  # Ambil harga terkecil
 
+# cek data baru dan masih baru
+def _is_data_fresh(db_path: str, keyword: str):
+    """Cek apakah data keyword sudah ada dan masih fresh (< 7 hari)."""
+    db = TinyDB(db_path)
+    result = db.table('alfagift_ingredients').get(Query().keyword == keyword)
+
+    if result is None:
+        return None  # belum ada
+
+    timestamp = datetime.strptime(result['timestamp'], '%Y-%m-%d %H:%M:%S')
+    selisih_hari = (datetime.now() - timestamp).days
+    return selisih_hari <= 7
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FUNGSI UTAMA: scrape_by_keyword
 # ══════════════════════════════════════════════════════════════════════════════
-
-def scrape_by_keyword(driver, keyword, db=None, use_cheapest_filter=True):
-    """
-    Scrape produk Alfagift berdasarkan keyword, simpan ke TinyDB.
-    Jika use_cheapest_filter=True, hanya simpan 1 produk termurah.
-    """
-    if db is None:
-        db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
-
-    table = db.table("ingredients")
-    Ingredient = Query()
-
+def scrape_by_keyword(driver, keyword, use_cheapest_filter=True):
+    db_path = DB_PATH
+    
     print(f"\n{'='*55}")
     print(f"SCRAPE ALFAGIFT - keyword: '{keyword}'")
     print(f"{'='*55}")
 
-    # Cek cache - kalau keyword sudah di-scrape hari ini, skip
-    today = datetime.now().strftime("%Y-%m-%d")
-    existing = table.search(
-        (Ingredient.ingredient_keyword == keyword) &
-        (Ingredient.source == "Alfagift") &
-        (Ingredient.scraped_at.test(lambda x: x.startswith(today)))  # Bandingkan tanggal saja
-    )
-    if existing:
-        print(f"  Cache hit: {len(existing)} data sudah ada untuk hari ini.")
-        return existing
+    # Cek cache — sama persis seperti Tokopedia, fresh = < 7 hari
+    status = _is_data_fresh(db_path, keyword)
+    if status is True:
+        print(f"[{keyword}] Data masih fresh, skip scraping.")
+        return get_by_keyword(keyword)
+    elif status is False:
+        print(f"[{keyword}] Data sudah > 7 hari, scraping ulang...")
+        db = TinyDB(db_path)
+        db.table('alfagift_ingredients').remove(Query().keyword == keyword)
 
     search_results = search_products(driver, keyword)
     if not search_results:
@@ -266,7 +258,6 @@ def scrape_by_keyword(driver, keyword, db=None, use_cheapest_filter=True):
         return []
 
     scraped = []
-
     for i, result in enumerate(search_results, 1):
         print(f"\n  [{i}/{len(search_results)}] {result['url']}")
         detail = scrape_product_detail(driver, result["url"])
@@ -276,69 +267,47 @@ def scrape_by_keyword(driver, keyword, db=None, use_cheapest_filter=True):
             continue
 
         row = {
-            "ingredient_keyword": keyword,
-            "product_name":       detail["product_name"],
-            "price":              detail["price"],
-            "price_str":          detail["price_str"].replace("\xa0", " ").strip(),  # Bersihkan non-breaking space
-            "unit":               detail["unit"],
-            "source":             "Alfagift",
-            "shop_name":          "Alfamart",
-            "city":               "Indonesia",
-            "product_url":        detail["product_url"],
-            "image_url":          detail["image_url"],
-            "kategori":           detail["kategori"],
-            "scraped_at":         datetime.now().isoformat(),
+            "keyword":      keyword,
+            "name":         detail["product_name"],
+            "price":        detail["price"],
+            "url":          detail["product_url"],
+            "unit":         detail["unit"],
+            "timestamp":    datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         }
-
         scraped.append(row)
-        print(f"    v {row['product_name']} - {row['price_str']} ({row['unit']})")
-        time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))   # Jeda acak antar produk
+        print(f"    v {row['name']} - Rp {row['price']:,} ({row['unit']})")
+        time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
-    # Filter ke 1 produk termurah sebelum disimpan
+    if not scraped:
+        return []
+
+    # Filter ke 1 produk termurah
     to_save = scraped
     if use_cheapest_filter and len(scraped) > 1:
-        best = pick_cheapest(scraped)
-        print(f"\n  [Cheapest filter] Produk terpilih: {best['product_name']} - {best['price_str']}")
+        best = min([r for r in scraped if r["price"] > 0], key=lambda x: x["price"], default=scraped[0])
+        print(f"\n  [Cheapest filter] Produk terpilih: {best['name']} - Rp {best['price']:,}")
         to_save = [best]
 
-    # Simpan ke DB - upsert agar tidak duplikat berdasarkan URL produk
-    saved = []
-    for row in to_save:
-        table.upsert(row, Ingredient.product_url == row["product_url"])
-        saved.append(row)
+    # Simpan ke TinyDB : remove lama, insert baru
+    db = TinyDB(db_path)
+    alfagift_ingredients = db.table('alfagift_ingredients')
+    alfagift_ingredients.remove(Query().keyword == keyword)  # hapus data lama
+    alfagift_ingredients.insert(to_save[0])
+    print(f"[{keyword}] Tersimpan ke TinyDB.")
 
-    print(f"\n  Selesai! {len(saved)} produk disimpan untuk keyword '{keyword}'")
-    return saved
-
+    return to_save
 
 # ══════════════════════════════════════════════════════════════════════════════
 # QUERY HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_by_keyword(keyword, db_path=DB_PATH):
-    """Ambil data dari DB untuk keyword tertentu."""
-    db = TinyDB(db_path, storage=PrettyJSONStorage)
-    table = db.table("ingredients")
-    return table.search(
-        (Query().ingredient_keyword == keyword) &
-        (Query().source == "Alfagift")
-    )
-
+    db = TinyDB(db_path)
+    return db.table('alfagift_ingredients').get(Query().keyword == keyword)
 
 def get_all(db_path=DB_PATH):
-    """Ambil semua data ingredients dari DB."""
-    db = TinyDB(db_path, storage=PrettyJSONStorage)
-    return db.table("ingredients").all()
-
-
-def delete_by_keyword(keyword, db_path=DB_PATH):
-    """Hapus semua data Alfagift untuk keyword tertentu."""
-    db = TinyDB(db_path, storage=PrettyJSONStorage)
-    db.table("ingredients").remove(
-        (Query().ingredient_keyword == keyword) &
-        (Query().source == "Alfagift")
-    )
-    print(f"Data Alfagift untuk '{keyword}' dihapus.")
+    db = TinyDB(db_path)
+    return db.table('alfagift_ingredients').all()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -346,18 +315,19 @@ def delete_by_keyword(keyword, db_path=DB_PATH):
 # ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    keywords = ["wortel", "tepung tapioka"]
+    keywords = ["gula pasir", "telur ayam"]
 
-    db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
+   
     driver = init_driver()
 
     try:
         for kw in keywords:
-            results = scrape_by_keyword(driver, kw, db)
+            results = scrape_by_keyword(driver, kw)
+
 
             print(f"\nRingkasan '{kw}':")
             for r in results:
-                print(f"  - {r['product_name']:40} Rp {r['price']:>10,}  {r['unit']}")
+                print(f"  - {r['name']:40} Rp {r['price']:>10,}  {r['unit']}")
 
     finally:
         try:
