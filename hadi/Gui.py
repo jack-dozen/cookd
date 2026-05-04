@@ -173,9 +173,9 @@ def main(page: ft.Page):
         )
 
     pages["home"]       = make_page("Home")
-    pages["my-recipes"] = MyRecipesPage(page, navigate)
+    pages["my-recipes"] = MyRecipesPage(page, navigate, on_view_recipe=show_detail)
     pages["for-you"]    = make_page("For You")
-    pages["info"]       = make_page("Info")
+    pages["info"]       = InfoPage(page)
     pages["home"].visible = True
 
     # ══════════════════════════════════════════════════════════════════
@@ -501,7 +501,7 @@ def main(page: ft.Page):
 
         # rebuild static pages so text colors refresh
         stack = root.controls[2].controls[1].content  # the ft.Stack holding pages
-        for key in ["home", "for-you", "info"]:
+        for key in ["home", "for-you"]:
             was_visible = pages[key].visible
             new_page = make_page(key)
             new_page.visible = was_visible
