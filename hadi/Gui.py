@@ -28,7 +28,8 @@ def main(page: ft.Page):
     page.title             = "CookD"
     page.bgcolor           = BG()
     page.padding           = 0
-    page.window_height     = 720
+    page.window_height     = 1200
+    page.window_width      = 720
     page.window.min_width  = 400
     page.window.min_height = 300
     page.window_resizable  = True
@@ -539,7 +540,7 @@ def main(page: ft.Page):
                     )
                 page.update()
 
-            # THIS REPLACES threading.Thread
+            
             page.run_task(run_search)
 
     search_field = ft.TextField(
@@ -569,11 +570,6 @@ def main(page: ft.Page):
             expand=True,
         ),
     )
-
-
-
-
-
 
 
 
