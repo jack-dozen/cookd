@@ -1,0 +1,7 @@
+beautifulsoup4==4.14.3
+flet==0.84.0
+recipe_scrapers==15.11.0
+scrapling==0.4.7
+selenium==4.43.0
+tinydb==4.8.2
+undetected_chromedriver==3.5.5
