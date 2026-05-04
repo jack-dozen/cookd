@@ -37,7 +37,7 @@ class PrettyJSONStorage(JSONStorage):
 
 BASE_URL       = "https://raisa.aeonstore.id"
 SEARCH_URL     = "https://raisa.aeonstore.id/?s={keyword}&post_type=product"
-DB_PATH        = os.path.join(os.path.dirname(__file__), "ingredients.json")   # TinyDB file
+DB_PATH        = os.path.join(os.path.dirname(__file__), '..', 'data', 'base.json')   # TinyDB file
 CHROME_VERSION = 147                  # sesuaikan versi Chrome kamu
 MAX_RESULTS    = 2                   # maks produk per keyword
 DELAY_MIN      = 0.8
@@ -241,7 +241,7 @@ def scrape_by_keyword(driver, keyword, db=None):
     if db is None:
         db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
 
-    table = db.table("ingredients")
+    table = db.table("aeon_ingredients")
     Ingredient = Query()
 
     print(f"\n{'='*55}")
@@ -249,14 +249,15 @@ def scrape_by_keyword(driver, keyword, db=None):
     print(f"{'='*55}")
 
     # Cek cache — jika keyword sudah ada di DB hari ini, skip scraping
-    today = datetime.now().strftime("%Y-%m-%d")
-    existing = table.search(
-        (Ingredient.ingredient_keyword == keyword) &
-        (Ingredient.scraped_at.test(lambda x: x.startswith(today)))
-    )
+    # Ganti bagian cek cache:
+    existing = table.search(Query().keyword == keyword)
     if existing:
-        print(f"  Cache hit: {len(existing)} data sudah ada untuk hari ini.")
-        return existing
+        # cek timestamp masih fresh (< 7 hari), mirip logika tokped
+        from datetime import datetime as dt
+        ts = dt.strptime(existing[0]["timestamp"], "%Y-%m-%d %H:%M:%S")
+        if (dt.today() - ts).days <= 7:
+            print(f"  Cache hit untuk '{keyword}'")
+            return existing
 
     # Scrape hasil pencarian
     search_results = search_products(driver, keyword)
@@ -278,22 +279,15 @@ def scrape_by_keyword(driver, keyword, db=None):
 
         # Susun data sesuai struktur tabel ingredients
         row = {
-            "ingredient_keyword": keyword,
-            "product_name":       detail["product_name"],
-            "price":              detail["price"],
-            "price_str":          detail["price_str"],
-            "unit":               detail["unit"],
-            "source":             "AEON Store",
-            "shop_name":          "RAISA AEON Indonesia",
-            "city":               "Jakarta",          # AEON Indonesia
-            "product_url":        detail["product_url"],
-            "image_url":          detail["image_url"],
-            "kategori":           detail["kategori"],
-            "scraped_at":         datetime.now().isoformat(),
+            "keyword":    keyword,
+            "name":       detail["product_name"],
+            "price":      detail["price"],
+            "url":        detail["product_url"],
+            "timestamp":  datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
         # Simpan ke TinyDB (upsert: update jika URL sudah ada)
-        table.upsert(row, Ingredient.product_url == row["product_url"])
+        table.upsert(row, Query().keyword == row["keyword"])
         saved.append(row)
 
         print(f"    ✓ {row['product_name']} — {row['price_str']} ({row['unit']})")
@@ -308,23 +302,16 @@ def scrape_by_keyword(driver, keyword, db=None):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_by_keyword(keyword, db_path=DB_PATH):
-    """Ambil semua data dari DB untuk keyword tertentu."""
-    db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
-    table = db.table("ingredients")
-    return table.search(Query().ingredient_keyword == keyword)
-
+    db = TinyDB(db_path)
+    return db.table("aeon_ingredients").search(Query().keyword == keyword)
 
 def get_all(db_path=DB_PATH):
-    """Ambil semua data ingredients dari DB."""
-    db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
-    return db.table("ingredients").all()
-
+    db = TinyDB(db_path)
+    return db.table("aeon_ingredients").all()
 
 def delete_by_keyword(keyword, db_path=DB_PATH):
-    """Hapus semua data untuk keyword tertentu."""
-    db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
-    db.table("ingredients").remove(Query().ingredient_keyword == keyword)
-    print(f"Data untuk '{keyword}' dihapus.")
+    db = TinyDB(db_path)
+    db.table("aeon_ingredients").remove(Query().keyword == keyword)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
