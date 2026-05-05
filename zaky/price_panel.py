@@ -3,24 +3,9 @@ price_panel.py
 ═══════════════════════════════════════════════════════════════════════════════
 Modul UI untuk visualisasi hasil kalkulasi harga bahan resep.
 
-Berisi dua komponen utama:
+komponen utama:
     1. build_loading_panel()  → animasi loading "mencari harga"
     2. build_price_panel()    → price cards + bar chart perbandingan 3 toko
-
-Cara pakai dari Gui.py (hadi):
-    from zaky.price_panel import build_loading_panel, build_price_panel, run_price_calculation
-
-    # Di show_detail():
-    price_area = ft.Ref[ft.Container]()
-    ...
-    # Tombol kalkulasi:
-    ft.ElevatedButton(
-        "💰 Kalkulasi Harga Bahan",
-        on_click=lambda e: run_price_calculation(page, recipe, price_area)
-    )
-    ...
-    # Area tempat hasil muncul:
-    ft.Container(ref=price_area)
 ═══════════════════════════════════════════════════════════════════════════════
 """
 
@@ -82,6 +67,7 @@ _LOADING_MESSAGES = [
     "Menghitung estimasi biaya resep...",
     "Menyiapkan rekomendasi terbaik...",
     "Hampir selesai...",
+    "Biarkan Rafy memasak...",
 ]
 
 
