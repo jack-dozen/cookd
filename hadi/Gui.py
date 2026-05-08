@@ -8,7 +8,7 @@ from fadhil.my_recipes import MyRecipesPage
 from rafy.theme import theme_mgr, ORANGE, GREEN, AMBER, BLUE, WHITE, BLACK
 from rafy.sidebar import build_sidebar_extras
 from zaky.info import InfoPage
-#from zaky.price_panel import run_price_calculation
+from zaky.price_panel import run_price_calculation
 
 # ─────────────────────────────────────────────────────────────────────
 # COLORS & THEME
@@ -234,8 +234,8 @@ def main(page: ft.Page):
 
     def show_detail(recipe: dict):
         detail_content.controls.clear()
-        # price_area_ref = ft.Ref[ft.Container]()
-        # kalk_btn_ref   = ft.Ref[ft.ElevatedButton]()
+        price_area_ref = ft.Ref[ft.Container]()
+        kalk_btn_ref   = ft.Ref[ft.ElevatedButton]()
 
         # ── Hero ──
         detail_content.controls.append(
@@ -511,35 +511,35 @@ def main(page: ft.Page):
         )
         
         # ── Kalkulasi Harga ──
-        # detail_content.controls.append(
-        #     ft.Container(
-        #         content=ft.Column(
-        #             controls=[
-        #                 ft.ElevatedButton(
-        #                     ref=kalk_btn_ref,
-        #                     content=ft.Text("💰 Kalkulasi Harga Bahan", color=WHITE),
-        #                     on_click=lambda e: run_price_calculation(
-        #                         page, recipe, price_area_ref, kalk_btn_ref
-        #                     ),
-        #                     style=ft.ButtonStyle(
-        #                         bgcolor=ORANGE,
-        #                         shape=ft.RoundedRectangleBorder(radius=10),
-        #                         padding=ft.padding.symmetric(horizontal=24, vertical=14),
-        #                     ),
-        #                 ),
-        #                 ft.Container(
-        #                     ref=price_area_ref,
-        #                     visible=False,
-        #                     expand=True,
-        #                 ),
-        #             ],
-        #             spacing=16,
-        #             horizontal_alignment=ft.CrossAxisAlignment.START,
-        #         ),
-        #         padding=ft.padding.symmetric(horizontal=30, vertical=20),
-        #         border=ft.Border.only(top=ft.BorderSide(1, BORDER())),
-        #     )
-        # )
+        detail_content.controls.append(
+            ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.ElevatedButton(
+                            ref=kalk_btn_ref,
+                            content=ft.Text("💰 Kalkulasi Harga Bahan", color=WHITE),
+                            on_click=lambda e: run_price_calculation(
+                                page, recipe, price_area_ref, kalk_btn_ref
+                            ),
+                            style=ft.ButtonStyle(
+                                bgcolor=ORANGE,
+                                shape=ft.RoundedRectangleBorder(radius=10),
+                                padding=ft.padding.symmetric(horizontal=24, vertical=14),
+                            ),
+                        ),
+                        ft.Container(
+                            ref=price_area_ref,
+                            visible=False,
+                            expand=True,
+                        ),
+                    ],
+                    spacing=16,
+                    horizontal_alignment=ft.CrossAxisAlignment.START,
+                ),
+                padding=ft.padding.symmetric(horizontal=30, vertical=20),
+                border=ft.Border.only(top=ft.BorderSide(1, BORDER())),
+            )
+        )
 
         navigate("detail")
         page.update()
