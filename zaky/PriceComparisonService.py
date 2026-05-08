@@ -322,9 +322,33 @@ def _clean_keyword(text: str) -> str:
     text  = _STRIP_SUFFIX.sub("", text).strip()
     words = [w for w in text.split()
              if w.lower() not in _STRIP_WORDS
-             and w.lower() not in _STRIP_DESCRIPTOR]
-    # Maks 2 kata — cukup untuk keyword scraping
-    return " ".join(words[:2]).strip().lower()
+             and w.lower() not in _STRIP_DESCRIPTOR
+             and len(w) > 1]  # skip kata pendek seperti "atau"
+    # Maks 3 kata untuk keyword lebih akurat, tapi hindari terlalu panjang
+    return " ".join(words[:3]).strip().lower()
+
+
+def _get_fallback_price(keyword: str, qty_gram: float, exclude_store: str) -> IngredientStorePrice:
+    """
+    Jika bahan tidak ditemukan di satu toko, ambil median harga dari toko lain yang berhasil.
+    """
+    prices = []
+    for store, read_fn in [("tokopedia", _read_tokped), ("alfagift", _read_alfagift), ("aeon", _read_aeon)]:
+        if store != exclude_store:
+            isp = read_fn(keyword, qty_gram)
+            if isp.found and isp.price > 0:
+                prices.append(isp.price_recipe)
+
+    if prices:
+        median_price = sorted(prices)[len(prices) // 2]
+        return IngredientStorePrice(
+            keyword=keyword, store=exclude_store,
+            name=f"Estimasi dari {len(prices)} toko lain",
+            price=median_price, price_recipe=median_price,
+            url="", found=False  # mark as not found, but with fallback price
+        )
+    else:
+        return _make_failed(keyword, exclude_store)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -662,19 +686,38 @@ class PriceComparisonService:
         except Exception as e:
             return PriceResult(success=False, error_message=f"Scraping gagal: {e}")
 
+        log("Scraping selesai, mulai kalkulasi harga...")
+
         # ── Step 4: Baca DB + hitung price_recipe per bahan ───────────────────
         qty_map = {p.keyword: p.qty_gram for p in parsed}
-        per_ingredient: dict[str, list[IngredientStorePrice]] = {
-            p.keyword: [
-                _read_tokped(p.keyword, qty_map[p.keyword]),
-                _read_alfagift(p.keyword, qty_map[p.keyword]),
-                _read_aeon(p.keyword, qty_map[p.keyword]),
-            ]
-            for p in parsed
-        }
+        per_ingredient: dict[str, list[IngredientStorePrice]] = {}
+
+        for p in parsed:
+            keyword = p.keyword
+            qty_gram = qty_map[keyword]
+            stores = []
+
+            # Baca dari masing-masing toko
+            tokped = _read_tokped(keyword, qty_gram)
+            alfagift = _read_alfagift(keyword, qty_gram)
+            aeon = _read_aeon(keyword, qty_gram)
+
+            # Jika tidak ditemukan, gunakan fallback median dari toko lain
+            if not tokped.found:
+                tokped = _get_fallback_price(keyword, qty_gram, "tokopedia")
+            if not alfagift.found:
+                alfagift = _get_fallback_price(keyword, qty_gram, "alfagift")
+            if not aeon.found:
+                aeon = _get_fallback_price(keyword, qty_gram, "aeon")
+
+            stores = [tokped, alfagift, aeon]
+            per_ingredient[keyword] = stores
+
+        log(f"Perhitungan harga bahan selesai untuk {len(per_ingredient)} bahan")
 
         # ── Step 5: Hitung 4 angka per toko ───────────────────────────────────
         per_store = self._calc_store_totals(per_ingredient, portions)
+        log("Perhitungan total per toko selesai")
 
         # ── Step 6: Tandai toko termurah ──────────────────────────────────────
         valid    = [s for s in per_store.values() if s.harga_resep > 0]

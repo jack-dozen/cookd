@@ -632,8 +632,13 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
             padding=ft.padding.all(16),
         )
 
+    print("[price_panel] Mulai build price cards...")
     cards_widget = _build_price_cards(result)
+    print("[price_panel] Price cards selesai")
+
+    print("[price_panel] Mulai build bar chart...")
     chart_widget = _build_bar_chart(result)
+    print("[price_panel] Bar chart selesai")
 
     disclaimer = ft.Text(
         "* Harga estimasi berdasarkan data scraping real-time. Harga aktual di toko dapat berbeda.",
@@ -666,10 +671,14 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
     # Trigger fill + fade-in setelah satu frame
     def _reveal():
         time.sleep(0.05)
+        print("[price_panel] Mulai _init_fill...")
         cards_widget._init_fill(page)
+        print("[price_panel] _init_fill selesai")
         panel.opacity = 1
+        print("[price_panel] Mulai page.update...")
         try: page.update()
         except: pass
+        print("[price_panel] page.update selesai")
 
     threading.Thread(target=_reveal, daemon=True).start()
 
@@ -756,13 +765,19 @@ def run_price_calculation(
         # Stop animasi loading
         stop_loading()
 
+        print("[price_panel] Service selesai, mulai build panel hasil...")
+
         # Ganti dengan panel hasil
         panel = build_price_panel(result, page)
+
+        print("[price_panel] Panel hasil berhasil dibangun")
 
         if price_area.current:
             price_area.current.content = panel
             price_area.current._price_done = True
             page.update()
+
+        print("[price_panel] UI berhasil diupdate")
 
         # Restore tombol
         if btn and btn.current:
