@@ -29,8 +29,8 @@ def main(page: ft.Page):
     page.title             = "CookD"
     page.bgcolor           = BG()
     page.padding           = 0
-    page.window.width      = 720
-    page.window.height     = 1200
+    page.window.width      = 1200
+    page.window.height     = 720
     page.window.min_width  = 400
     page.window.min_height = 300
     page.window.resizable  = True
@@ -45,10 +45,13 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════
     pages: dict[str, ft.Container] = {}
 
-    def navigate(name: str):
+    def navigate(name: str, recipe: dict = None):
         for key, container in pages.items():
             container.visible = (key == name)
+        if name == "detail" and recipe:
+            show_detail(recipe)
         page.update()
+
 
     # ══════════════════════════════════════════════════════════════════
     #  SIDEBAR
@@ -99,10 +102,21 @@ def main(page: ft.Page):
     def toggle_sidebar(e):
         is_collapsing = sidebar.width == 200
         sidebar.width = 60 if is_collapsing else 200
+        
         for item in sidebar.content.controls:
-            if isinstance(item, ft.Container) and isinstance(item.content, ft.Row):
-                item.content.controls[1].visible = not is_collapsing
-        page.update()
+            # Check if the item has a 'content' attribute (like a Container)
+            content = getattr(item, "content", None)
+            
+            # If it's a Row (or a Container holding a Row)
+            if isinstance(content, ft.Row) or isinstance(item, ft.Row):
+                row = content if isinstance(content, ft.Row) else item
+                # Look through everything in the row
+                for ctrl in row.controls:
+                    # Hide anything that is a Text object
+                    if isinstance(ctrl, ft.Text):
+                        ctrl.visible = not is_collapsing
+                    
+    page.update()
 
     sidebar = ft.Container(
         width=200,
@@ -298,7 +312,7 @@ def main(page: ft.Page):
             return ft.Container(
                 content=ft.Column(controls=items, spacing=0),
                 bgcolor=BG3(),
-                border_radius=ft.BorderRadius.all(10),
+                border_radius=ft.BorderRadius.all(20),
             )
 
         # ── Steps ──
@@ -329,7 +343,7 @@ def main(page: ft.Page):
             return ft.Container(
                 content=ft.Column(controls=items, spacing=0),
                 bgcolor=BG3(),
-                border_radius=ft.BorderRadius.all(10),
+                border_radius=ft.BorderRadius.all(20),
             )
 
         detail_content.controls.append(
@@ -378,6 +392,8 @@ def main(page: ft.Page):
 
     def on_search(e):
         async def run_search():
+            results_column.controls.clear()
+            
             ingredients = search_field.value.strip()
             if not ingredients:
                 return
@@ -391,47 +407,96 @@ def main(page: ft.Page):
                 cwd=".",
             )
             await asyncio.get_event_loop().run_in_executor(None, process.wait)
-
-            try:
-                with open(CookpadScraper.OUTPUT_FILE, "r", encoding="utf-8") as f:
-                    results = json.load(f)
-            except Exception as ex:
-                results_column.controls.clear()
-                results_column.controls.append(ft.Text(f"Error: {ex}", color="red"))
-                page.update()
-                return
-
+            results = CookpadScraper.get_temp_results(CookpadScraper.OUTPUT_FILE)
+            
+            def build_card(r):
+                score = r.get("match_score", 0)
+                score_pct = f"{round(score * 100)}% cocok"
+                bg_score, fg_score = ("#1B3D28", GREEN) if score >= 0.8 else \
+                                    ("#3D2E0A", AMBER) if score >= 0.5 else \
+                                    ("#3D1A1A", "#C0392B")
+                                    
+                def on_card_click(e):
+                    # Reset hover state before navigating
+                    card.bgcolor = BG3()
+                    card.border  = ft.Border.all(1, BORDER())
+                    card.update()
+                    show_detail(r)
+                card = ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            # thumbnail
+                            ft.Container(
+                                width=90, height=90,
+                                border_radius=ft.BorderRadius.all(8),
+                                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                                content=ft.Image(
+                                    src=r.get("image_url", ""),
+                                    width=90, height=90,
+                                    fit="cover",
+                                ),
+                            ),
+                            # info
+                            ft.Column(
+                                controls=[
+                                    ft.Text(r["name"], color=TEXT(), weight=ft.FontWeight.BOLD, size=15),
+                                    ft.Row(controls=[
+                                        ft.Icon(ft.Icons.PEOPLE_OUTLINE, color=TEXT2(), size=13),
+                                        ft.Text(r.get("portion", ""), color=TEXT2(), size=12),
+                                        ft.Text("·", color=TEXT3(), size=12),
+                                        ft.Icon(ft.Icons.TIMER_OUTLINED, color=TEXT2(), size=13),
+                                        ft.Text(r.get("cook_time", ""), color=TEXT2(), size=12),
+                                    ], spacing=4),
+                                    ft.Container(
+                                        content=ft.Text(r.get("source", "Cookpad"), color=TEXT3(), size=11),
+                                        bgcolor=BG4(), border_radius=4,
+                                        padding=ft.padding.symmetric(horizontal=8, vertical=3),
+                                    ),
+                                ],
+                                spacing=6,
+                                expand=True,
+                            ),
+                            # right side — score + button
+                            ft.Column(
+                                controls=[
+                                    ft.Container(
+                                        content=ft.Text(score_pct, color=fg_score, size=12, weight=ft.FontWeight.BOLD),
+                                        bgcolor=bg_score,
+                                        border_radius=ft.BorderRadius.all(20),
+                                        padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                    ),
+                                    ft.OutlinedButton(
+                                        "Lihat",
+                                        style=ft.ButtonStyle(color=ORANGE, side=ft.BorderSide(1, ORANGE)),
+                                        on_click=make_click(r),
+                                    ),
+                                ],
+                                spacing=8,
+                                horizontal_alignment=ft.CrossAxisAlignment.END,
+                            ),
+                        ],
+                        spacing=14,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    bgcolor=BG3(),
+                    border_radius=ft.BorderRadius.all(15),
+                    padding=ft.padding.symmetric(horizontal=20, vertical=15),
+                    border=ft.Border.all(1, BORDER()),
+                    on_hover=lambda e: (
+                        setattr(e.control, "bgcolor", "#42190d" if e.data else BG3()),
+                        setattr(e.control, "border", ft.Border.all(1, ORANGE if e.data else BORDER())),
+                        e.control.update()          
+                    ),
+                    on_click=on_card_click,
+                )
+                return card
             results_column.controls.clear()
             for r in results:
-                def make_click(recipe):
-                    return lambda e: show_detail(recipe)
-
-                results_column.controls.append(
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Text(r["name"], color=TEXT(), weight=ft.FontWeight.BOLD, size=15),
-                                ft.Text(r.get("portion", ""),   color=TEXT2(), size=12),
-                                ft.Text(r.get("author", ""),    color=TEXT2(), size=12),
-                                ft.Text(r.get("cook_time", ""), color=TEXT2(), size=12),
-                                ft.Image(
-                                    src=r["image_url"],
-                                    width=float("inf"),
-                                    height=150,
-                                    fit="cover",
-                                    border_radius=ft.BorderRadius.all(8),
-                                ),
-                            ],
-                            spacing=4,
-                        ),
-                        bgcolor=BG3(),
-                        border_radius=10,
-                        padding=ft.padding.all(14),
-                        border=ft.Border.all(1, BORDER()),
-                        ink=True,
-                        on_click=make_click(r),
-                    )
-                )
+                # ONLY build a card if 'r' is actually a dictionary/recipe
+                if isinstance(r, dict):
+                    def make_click(recipe):
+                        return lambda e: show_detail(recipe)
+                    results_column.controls.append(build_card(r))
             page.update()
 
         page.run_task(run_search)
@@ -459,7 +524,10 @@ def main(page: ft.Page):
                     ]),
                     padding=ft.padding.all(20),
                 ),
-                results_column,
+                ft.Container(
+                    content=results_column,
+                    padding=ft.padding.symmetric(horizontal=20), 
+                ),
             ],
             spacing=0,
             expand=True,
@@ -530,7 +598,7 @@ def main(page: ft.Page):
         vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         controls=[
             sidebar,
-            ft.VerticalDivider(width=1, color=BORDER()),
+            ft.VerticalDivider(width=5, color=BORDER()),
             ft.Column(
                 controls=[
                     topbar,
