@@ -414,14 +414,57 @@ def _calc_price_recipe(price: int, unit_str: str, qty_gram_needed: float) -> int
 
 
 def _load_recipe(recipe_id: str) -> Optional[dict]:
-    """Baca satu resep dari tabel recipes di base.json."""
+    """Baca satu resep dari base.json.
+
+    Cari di tabel recipes, cookpad_recipes, cookpad_temp, atau my_recipes.
+    Jika format file bukan format TinyDB standar, gunakan fallback dengan
+    pembacaan JSON langsung.
+    """
     try:
-        db  = TinyDB(_DB_PATH)
-        row = db.table("recipes").get(Query().recipe_id == recipe_id)
-        return row
+        db = TinyDB(_DB_PATH)
+        for table_name in ["recipes", "cookpad_recipes", "cookpad_temp", "my_recipes"]:
+            try:
+                row = db.table(table_name).get(Query().recipe_id == recipe_id)
+                if row:
+                    return row
+            except Exception:
+                pass
+
+        # Fallback: baca JSON langsung apabila struktur file tidak sesuai TinyDB
+        import json
+        with open(_DB_PATH, encoding="utf-8") as f:
+            raw = json.load(f)
+        for table_data in raw.values():
+            if isinstance(table_data, dict):
+                for item in table_data.values():
+                    if isinstance(item, dict) and item.get("recipe_id") == recipe_id:
+                        return item
     except Exception as e:
         print(f"[DB] Gagal baca resep '{recipe_id}': {e}")
-        return None
+    return None
+
+
+def _extract_ingredient_strings(recipe: dict) -> list[str]:
+    ingredients = recipe.get("ingredients", [])
+    if not ingredients:
+        return []
+    if all(isinstance(item, str) for item in ingredients):
+        return ingredients
+
+    normalized: list[str] = []
+    for item in ingredients:
+        if isinstance(item, dict):
+            qty  = str(item.get("qty", "")).strip()
+            name = str(item.get("name", "")).strip()
+            if qty and name:
+                normalized.append(f"{qty} {name}")
+            elif name:
+                normalized.append(name)
+            elif qty:
+                normalized.append(qty)
+        else:
+            normalized.append(str(item).strip())
+    return normalized
 
 
 def _read_tokped(keyword: str, qty_gram: float) -> IngredientStorePrice:
@@ -598,7 +641,7 @@ class PriceComparisonService:
                 error_message=f"Resep '{recipe_id}' tidak ditemukan di database."
             )
 
-        ingredient_strings = recipe.get("ingredients", [])
+        ingredient_strings = _extract_ingredient_strings(recipe)
         portion_str        = recipe.get("portion", "")
         recipe_name        = recipe.get("name", "")
         portions           = _parse_portions(portion_str)

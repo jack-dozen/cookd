@@ -292,7 +292,7 @@ def _build_price_cards(result) -> ft.Container:
         color=TEXT(),
         text_size=12,
         content_padding=ft.padding.symmetric(horizontal=10, vertical=6),
-        on_change=lambda e: (_fill(e.control.value), page_ref[0].update())
+        on_select=lambda e: (_fill(e.control.value), page_ref[0].update())
                   if page_ref[0] else None,
     )
     page_ref = [None]  # set after, workaround closure
@@ -373,7 +373,7 @@ def _build_price_cards(result) -> ft.Container:
     # Isi nilai awal setelah build
     def _init_fill(page: ft.Page):
         page_ref[0] = page
-        dd.on_change = lambda e: (_fill(e.control.value), page.update())
+        dd.on_select = lambda e: (_fill(e.control.value), page.update())
         _fill(dd.value)
 
     container._init_fill = _init_fill
@@ -733,11 +733,12 @@ def run_price_calculation(
 
             # Progress callback: update status toko di loading panel
             def _progress(msg: str):
-                for store in ["tokopedia", "alfagift", "aeon"]:
-                    done = f"{store[:3]}" in msg.lower() and "✓" in msg
-                    if f"{STORE_LABELS[store].split()[0].lower()[:3]}" in msg.lower():
-                        if "✓" in msg:
-                            update_store(store, True)
+                parts = [p.strip() for p in msg.split("·") if p.strip()]
+                for part in parts:
+                    for store in ["tokopedia", "alfagift", "aeon"]:
+                        label = STORE_LABELS[store].split()[0].lower()
+                        if part.lower().startswith(label):
+                            update_store(store, "✓" in part)
 
             result = service.run(recipe_id=recipe_id, progress_cb=_progress)
 
