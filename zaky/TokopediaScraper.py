@@ -72,9 +72,17 @@ def _is_data_fresh(db_path: str, keyword: str) -> bool | None:
 
 def _scrape_keyword(keyword, db_path):
     print(f"[{keyword}] Memulai scraping...")
-    driver = wb.Chrome()
+    options = wb.ChromeOptions()
+    # Atur posisi window agar tidak menimpa UI utama (misal ke kanan layar)
+    options.add_argument("--window-position=1000,0")  # x=1000, y=0 (kanan atas)
+    options.add_argument("--window-size=800,600")     # ukuran window
+    driver = wb.Chrome(options=options)
 
     try:
+        # Pastikan window posisi benar setelah init
+        driver.set_window_position(1000, 0)
+        driver.set_window_size(800, 600)
+
         driver.get('https://www.tokopedia.com/')
         driver.implicitly_wait(5)
 
