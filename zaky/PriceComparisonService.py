@@ -1,5 +1,5 @@
 """
-PriceComparisonService.py 
+PriceComparisonService.py
 ═══════════════════════════════════════════════════════════════════════════════
 Service layer untuk kalkulasi perbandingan harga bahan resep dari 3 toko.
 
@@ -47,7 +47,7 @@ for _p in [_ROOT, _RAFY_DIR, _FADHIL_DIR]:
         sys.path.insert(0, _p)
 
 # ── Import scraper ─────────────────────────────────────────────────────────────
-from TokopediaScraper import tokpedia_scraper
+from zaky.TokopediaScraper import tokpedia_scraper
 
 try:
     from rafy.AlfagiftScraper import scrape_by_keyword as _alfa_scrape
