@@ -582,7 +582,7 @@ def main(page: ft.Page):
         height=100,
         repeat=True,
         visible=True,
-        scale=ft.Scale(scale=1.3),
+        scale=ft.Scale(scale=1.2),
     )
     loader_dots   = [
         ft.Container(width=8, height=8, border_radius=ft.BorderRadius.all(4),
