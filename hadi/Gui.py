@@ -1,4 +1,5 @@
 import flet as ft
+import flet_lottie as ftl
 import json
 import asyncio
 import webbrowser
@@ -83,11 +84,11 @@ def main(page: ft.Page):
 
         return ft.Container(
             content=ft.Row(controls=[icon_obj, text_obj], spacing=15),
-            padding=ft.padding.symmetric(horizontal=15, vertical=12),
+            padding=ft.Padding.symmetric(horizontal=15, vertical=12),
             border_radius=10,
             bgcolor=BG3() if is_active else ft.Colors.TRANSPARENT,
             on_hover=on_hover,
-            on_click=on_click,
+            on_click=on_click
         )
 
     def update_highlights():
@@ -260,7 +261,7 @@ def main(page: ft.Page):
                         ),
                         ft.Container(
                             bottom=0, left=0, right=0,
-                            padding=ft.padding.symmetric(horizontal=30, vertical=20),
+                            padding=ft.Padding.symmetric(horizontal=30, vertical=20),
                             content=ft.Column(
                                 controls=[
                                     ft.Text(recipe.get("name", ""), size=28, weight=ft.FontWeight.BOLD, color=WHITE),
@@ -289,7 +290,7 @@ def main(page: ft.Page):
                 bgcolor=BG3(),
                 border=ft.Border.all(1, ORANGE),
                 border_radius=ft.BorderRadius.all(20),
-                padding=ft.padding.symmetric(horizontal=14, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=14, vertical=8),
             )
             
         def meta_pill_link():
@@ -308,7 +309,7 @@ def main(page: ft.Page):
                 bgcolor=BG3(),
                 border=ft.Border.all(1, ORANGE),
                 border_radius=ft.BorderRadius.all(20),
-                padding=ft.padding.symmetric(horizontal=14, vertical=8),
+                padding=ft.Padding.symmetric(horizontal=14, vertical=8),
                 on_click=confirm_open,
                 ink=True,
             )
@@ -347,7 +348,7 @@ def main(page: ft.Page):
                     ],
                     spacing=8,
                 ),
-                padding=ft.padding.symmetric(horizontal=30, vertical=16),
+                padding=ft.Padding.symmetric(horizontal=30, vertical=16),
                 border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
             )
         )
@@ -372,7 +373,7 @@ def main(page: ft.Page):
                     items.append(
                         ft.Container(
                             content=ft.Text(name, color=ORANGE, weight=ft.FontWeight.BOLD, size=16),
-                            padding=ft.padding.only(left=5, top=15, bottom=15),
+                            padding=ft.Padding.only(left=5, top=15, bottom=15),
                             expand=True,
                             width=float("inf"),
                             border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())), 
@@ -390,7 +391,7 @@ def main(page: ft.Page):
                 items.append(
                     ft.Container(
                         content=ft.Row(controls=row_controls, spacing=10),
-                        padding=ft.padding.symmetric(horizontal=5, vertical=10),
+                        padding=ft.Padding.symmetric(horizontal=5, vertical=10),
                         border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
                     )
                 )
@@ -412,30 +413,38 @@ def main(page: ft.Page):
                 videos = step.get("videos", []) if isinstance(step, dict) else []
 
                 media_controls = []
+                
                 for src in images:
+                    if any(skip in src for skip in ["video.thumbnail", "/step_videos/", ".mp4", ".webm", ".mov"]):
+                        continue
                     media_controls.append(
                         ft.Image(src=src, width=160, height=128, fit="cover",
                                 border_radius=ft.BorderRadius.all(8))
                     )
 
                 for vid in videos:
+                    href  = vid.get("href", "")
+                    thumb = vid.get("thumb", "")
+                    if not href:
+                        continue
+                    if href.startswith("/"):
+                        href = CookpadScraper.BASE_URL + href
+
                     media_controls.append(
                         ft.GestureDetector(
                             mouse_cursor=ft.MouseCursor.CLICK,
-                            on_tap=lambda e, url=vid["href"]: webbrowser.open(url),
-                            content=ft.Stack(
-                                controls=[
-                                    ft.Image(src=vid["thumb"], width=160, height=128, fit="cover",
-                                            border_radius=ft.BorderRadius.all(8)),
-                                    ft.Container(
-                                        width=160, height=128,
-                                        border_radius=ft.BorderRadius.all(8),
-                                        bgcolor="#88000000",  # dark overlay
-                                        alignment=ft.alignment.center,
-                                        content=ft.Icon(ft.Icons.PLAY_CIRCLE_FILLED, color=WHITE, size=40),
-                                    ),
-                                ],
-                            )
+                            on_tap=lambda e, url=href: webbrowser.open(url),
+                            content=ft.Stack(controls=[
+                                ft.Image(src=thumb, width=160, height=128, fit="cover",
+                                    border_radius=ft.BorderRadius.all(8)),
+                                ft.Container(
+                                    width=160, height=128,
+                                    border_radius=ft.BorderRadius.all(8),
+                                    bgcolor="#88000000",
+                                    alignment=ft.alignment.center,
+                                    content=ft.Icon(ft.Icons.PLAY_CIRCLE_FILLED, color=WHITE, size=40),
+                                ),
+                            ]),
                         )
                     )
 
@@ -468,7 +477,7 @@ def main(page: ft.Page):
                             spacing=16,
                             vertical_alignment=ft.CrossAxisAlignment.START,
                         ),
-                        padding=ft.padding.symmetric(horizontal=16, vertical=14),
+                        padding=ft.Padding.symmetric(horizontal=16, vertical=14),
                         border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
                     )
                 )
@@ -505,7 +514,7 @@ def main(page: ft.Page):
                     vertical_alignment=ft.CrossAxisAlignment.START,
                     expand=True,
                 ),
-                padding=ft.padding.symmetric(horizontal=30, vertical=24),
+                padding=ft.Padding.symmetric(horizontal=30, vertical=24),
                 expand=True,
             )
         )
@@ -524,7 +533,7 @@ def main(page: ft.Page):
                             style=ft.ButtonStyle(
                                 bgcolor=ORANGE,
                                 shape=ft.RoundedRectangleBorder(radius=10),
-                                padding=ft.padding.symmetric(horizontal=24, vertical=14),
+                                padding=ft.Padding.symmetric(horizontal=24, vertical=14),
                             ),
                         ),
                         ft.Container(
@@ -536,7 +545,7 @@ def main(page: ft.Page):
                     spacing=16,
                     horizontal_alignment=ft.CrossAxisAlignment.START,
                 ),
-                padding=ft.padding.symmetric(horizontal=30, vertical=20),
+                padding=ft.Padding.symmetric(horizontal=30, vertical=20),
                 border=ft.Border.only(top=ft.BorderSide(1, BORDER())),
             )
         )
@@ -554,41 +563,85 @@ def main(page: ft.Page):
         expand=True,
     )
     
-    def build_loading_card():
-        return ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Container(width=90, height=90, bgcolor=BG3(), border_radius=ft.BorderRadius.all(8)),
-                    ft.Column(
-                        controls=[
-                            ft.Container(width=200, height=16, bgcolor=BG3(), border_radius=ft.BorderRadius.all(4)),
-                            ft.Container(width=120, height=12, bgcolor=BG3(), border_radius=ft.BorderRadius.all(4)),
-                            ft.ProgressRing(width=16, height=16, stroke_width=2, color=ORANGE),
-                            ft.Text("please wait, searching for recipes...", color=TEXT2(), size=12),
-                        ],
-                        spacing=8,
-                    ),
-                ],
-                spacing=14,
-            ),
-            bgcolor=BG2(),
-            border_radius=10,
-            padding=ft.padding.symmetric(horizontal=14, vertical=12),
-            border=ft.Border.all(1, BORDER()),
-        )
-        
-    loading_card = None  
+    # Build once, near results_column
+    COOKING_STAGES = [
+        ("Preparing ingredients...",    "Fetching page"),
+        ("Cracking the recipe open...", "Parsing HTML"),
+        ("Mixing the instructions...",  "Extracting steps"),
+        ("Gathering ingredients...",    "Building card"),
+        ("Sliding into the oven...",    "Almost done"),
+        ("Recipe served! 🍽",           "Loaded"),
+    ]
+    
+
+    loader_label  = ft.Text(COOKING_STAGES[0][0], color=ORANGE, size=14, italic=True)
+    loader_sub    = ft.Text(COOKING_STAGES[0][1], color=TEXT2(), size=11)
+    loader_ring = ftl.Lottie(
+        src="https://lottie.host/7748923e-58e6-4db0-bff7-7454e10aa489/L8lGN5kMvc.json",
+        width=100,
+        height=100,
+        repeat=True,
+        visible=True,
+        scale=ft.Scale(scale=1.2),
+    )
+    loader_dots   = [
+        ft.Container(width=8, height=8, border_radius=ft.BorderRadius.all(4),
+                    bgcolor=BG3(), border=ft.Border.all(1, BORDER()))
+        for _ in range(6)
+    ]
+
+    sticky_loader = ft.Container(
+        visible=False,
+        bgcolor=BG2(),
+        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
+        padding=ft.Padding.symmetric(horizontal=24, vertical=15),
+        content=ft.Row(
+            controls=[
+                ft.Container(content=loader_ring, width=60, height=60,
+                            bgcolor=BG3(), border_radius=ft.BorderRadius.all(22),
+                            alignment=ft.Alignment.CENTER,),
+                ft.Column(controls=[loader_label, loader_sub], spacing=2, expand=True),
+                ft.Column(controls=[
+                    ft.Row(controls=loader_dots, spacing=6, tight=True),
+                ], spacing=6, horizontal_alignment=ft.CrossAxisAlignment.END),
+            ],
+            spacing=30,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+    )
+
+    def build_loading_card(stage):
+        if stage < 0:
+            sticky_loader.visible = False
+            page.update()
+            return
+        sticky_loader.visible = True
+        s = COOKING_STAGES[min(stage, len(COOKING_STAGES)-1)]
+        loader_label.value  = s[0]
+        loader_sub.value    = s[1]
+        loader_ring.visible = stage < 5
+        loader_ring.play = stage < 5
+        for i, dot in enumerate(loader_dots):
+            if i < stage:
+                dot.bgcolor = ORANGE
+                dot.border  = ft.Border.all(1, ORANGE)
+            elif i == stage:
+                dot.bgcolor = "transparent"
+                dot.border  = ft.Border.all(2, ORANGE)
+            else:
+                dot.bgcolor = BG3()
+                dot.border  = ft.Border.all(1, BORDER())
+        page.update()
 
     def on_search(e):
         async def run_search():
             results_column.controls.clear()
-            
+
             ingredients = search_field.value.strip()
             if not ingredients:
                 return
 
-            state = {"loading_card": build_loading_card()}  # ← mutable dict instead of nonlocal
-            results_column.controls.append(state["loading_card"])
+            build_loading_card(0)
             page.update()
 
             user_ingredients = [k.strip() for k in ingredients.split(",") if k.strip()]
@@ -596,21 +649,17 @@ def main(page: ft.Page):
 
             def on_recipe_found(recipe):
                 async def update_ui():
-                    if state["loading_card"] in results_column.controls:
-                        results_column.controls.remove(state["loading_card"])
-                    
-                    # Find insertion index based on match_score
+                    n = len(results_column.controls)
+                    build_loading_card(min(1 + n, 4))
+
                     new_card = build_card(recipe)
-                    insert_at = len(results_column.controls)  # default to end
+                    insert_at = len(results_column.controls)
                     for i, ctrl in enumerate(results_column.controls):
-                        existing_score = ctrl.data  # we'll store score in card's data field
-                        if recipe["match_score"] > (existing_score or 0):
+                        if recipe["match_score"] > (ctrl.data or 0):
                             insert_at = i
                             break
-                    
+
                     results_column.controls.insert(insert_at, new_card)
-                    state["loading_card"] = build_loading_card()
-                    results_column.controls.append(state["loading_card"])
                     page.update()
                 asyncio.run_coroutine_threadsafe(update_ui(), loop)
 
@@ -618,9 +667,8 @@ def main(page: ft.Page):
                 CookpadScraper.find_recipe(user_ingredients, on_recipe_found=on_recipe_found)
 
             await asyncio.get_event_loop().run_in_executor(None, run)
-            
-            if state["loading_card"] in results_column.controls:
-                results_column.controls.remove(state["loading_card"])
+
+            build_loading_card(-1)
             page.update()
 
         page.run_task(run_search)
@@ -671,7 +719,7 @@ def main(page: ft.Page):
                             ft.Container(
                                 content=ft.Text(r.get("source", "Cookpad"), color=TEXT3(), size=11),
                                 bgcolor=BG4(), border_radius=4,
-                                padding=ft.padding.symmetric(horizontal=8, vertical=3),
+                                padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                             ),
                         ],
                         spacing=6,
@@ -684,7 +732,7 @@ def main(page: ft.Page):
                                 content=ft.Text(score_pct, color=fg_score, size=12, weight=ft.FontWeight.BOLD),
                                 bgcolor=bg_score,
                                 border_radius=ft.BorderRadius.all(20),
-                                padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
                             ),
                             ft.OutlinedButton(
                                 "Lihat",
@@ -701,7 +749,7 @@ def main(page: ft.Page):
             ),
             bgcolor=BG3(),
             border_radius=ft.BorderRadius.all(15),
-            padding=ft.padding.symmetric(horizontal=20, vertical=15),
+            padding=ft.Padding.symmetric(horizontal=20, vertical=15),
             border=ft.Border.all(1, BORDER()),
             on_hover=lambda e: (
                 setattr(e.control, "bgcolor", "#42190d" if e.data else BG3()),
@@ -734,12 +782,14 @@ def main(page: ft.Page):
                         search_field,
                         ft.ElevatedButton("Cari", bgcolor=ORANGE, color=WHITE, on_click=on_search,style=ft.ButtonStyle(mouse_cursor=ft.MouseCursor.CLICK,),),
                     ]),
-                    padding=ft.padding.all(20),
+                    padding=ft.Padding.all(20),
                     ink=True,
                 ),
+                sticky_loader,
                 ft.Container(
                     content=results_column,
-                    padding=ft.padding.symmetric(horizontal=20), 
+                    padding=ft.Padding.symmetric(horizontal=20), 
+                    margin=ft.Margin.only(top=12),
                     expand=True,
                 ),
             ],
@@ -768,7 +818,7 @@ def main(page: ft.Page):
             horizontal_alignment=ft.CrossAxisAlignment.START,
         ),
         bgcolor=BG2(),
-        padding=ft.padding.symmetric(horizontal=40, vertical=14),
+        padding=ft.Padding.symmetric(horizontal=40, vertical=14),
         border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
     )
 
@@ -802,7 +852,7 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════
     #  ROOT
     # ══════════════════════════════════════════════════════════════════
-    page.padding = ft.padding.all(0)
+    page.padding = ft.Padding.all(0)
     root = ft.Row(
         expand=True,
         spacing=0,

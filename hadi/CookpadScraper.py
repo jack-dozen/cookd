@@ -327,7 +327,7 @@ def find_recipe(user_ingredients: list[str], on_recipe_found=None) -> list[dict]
                 recipe = scrape_recipe_detail(stub)
                 if not recipe:
                     continue
-            log.info(f"Ingredients: {recipe['ingredients'][:2]}")            
+            #log.info(f"Ingredients: {recipe['ingredients'][:2]}")            
             score_result = ingredient_score(recipe["ingredients"], user_ingredients)
             log.info(f"Score: {score_result['score']} for {stub['name']}")
             if score_result["score"] < MIN_MATCH_SCORE:
