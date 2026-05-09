@@ -36,7 +36,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Optional
 
-# ── Path resolver ──────────────────────────────────────────────────────────────
 _HERE       = os.path.dirname(os.path.abspath(__file__))
 _ROOT       = os.path.dirname(_HERE)
 _RAFY_DIR   = os.path.join(_ROOT, "rafy")
@@ -46,7 +45,6 @@ for _p in [_ROOT, _RAFY_DIR, _FADHIL_DIR]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-# ── Import scraper ─────────────────────────────────────────────────────────────
 from zaky.TokopediaScraper import tokpedia_scraper
 
 try:
@@ -55,7 +53,6 @@ try:
     _ALFA_AVAILABLE = True
 except ImportError:
     _ALFA_AVAILABLE = False
-    print("[PriceComparisonService] WARNING: AlfagiftScraper tidak ditemukan.")
 
 try:
     from fadhil.AEONScraper import scrape_by_keyword as _aeon_scrape
@@ -63,72 +60,41 @@ try:
     _AEON_AVAILABLE = True
 except ImportError:
     _AEON_AVAILABLE = False
-    print("[PriceComparisonService] WARNING: AEONScraper tidak ditemukan.")
 
 from tinydb import TinyDB, Query
 _DB_PATH = os.path.join(_ROOT, "data", "base.json")
 
+# ── TinyDB cache (buka sekali, reuse) ─────────────────────────────────────────
+_db_cache = None
+_db_lock  = threading.Lock()
+
+def _get_db() -> TinyDB:
+    global _db_cache
+    if _db_cache is None:
+        _db_cache = TinyDB(_DB_PATH)
+    return _db_cache
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # UNIT CONVERTER
-# Semua satuan dikonversi ke GRAM sebagai satuan dasar kalkulasi.
 # ══════════════════════════════════════════════════════════════════════════════
 
 _UNIT_TO_GRAM: dict[str, float] = {
-    # berat langsung
-    "g"      : 1.0,
-    "gr"     : 1.0,
-    "gram"   : 1.0,
-    "kg"     : 1000.0,
-    "ons"    : 100.0,       # ons Indonesia = 100g
-
-    # volume (asumsi densitas ~1 g/ml)
-    "ml"     : 1.0,
-    "cc"     : 1.0,
-    "liter"  : 1000.0,
-    "l"      : 1000.0,
-    "sdm"    : 15.0,        # sendok makan ≈ 15ml
-    "sdt"    : 5.0,         # sendok teh ≈ 5ml
-    "gelas"  : 240.0,
-    "cup"    : 240.0,
-
-    # satuan masakan Indonesia
-    "siung"  : 5.0,         # 1 siung bawang ≈ 5g
-    "buah"   : 100.0,
-    "biji"   : 10.0,
-    "butir"  : 10.0,
-    "batang" : 20.0,        # serai, daun bawang
-    "lembar" : 2.0,         # daun salam, daun jeruk
-    "ruas"   : 15.0,        # jahe, lengkuas
-    "bonggol": 50.0,
-    "ikat"   : 100.0,
-    "genggam": 30.0,
-    "bungkus": 200.0,
-    "sachet" : 7.0,
-    "kaleng" : 400.0,
-    "bks"    : 200.0,
-    "bh"     : 100.0,       # alias buah
-    "pcs"    : 100.0,
-    "pack"   : 250.0,
-    "papan"  : 300.0,       # papan tempe ≈ 300g
-    "lonjor" : 100.0,
-    "tangkai": 10.0,
-    "porsi"  : 200.0,
-    "sayap"  : 60.0,        # 1 sayap ayam ≈ 60g
-    "potong" : 80.0,        # 1 potong ayam ≈ 80g
-    "ekor"   : 800.0,       # 1 ekor ayam ≈ 800g
+    "g": 1.0, "gr": 1.0, "gram": 1.0, "kg": 1000.0, "ons": 100.0,
+    "ml": 1.0, "cc": 1.0, "liter": 1000.0, "l": 1000.0,
+    "sdm": 15.0, "sdt": 5.0, "gelas": 240.0, "cup": 240.0,
+    "siung": 5.0, "buah": 100.0, "biji": 10.0, "butir": 10.0,
+    "batang": 20.0, "lembar": 2.0, "ruas": 15.0, "bonggol": 50.0,
+    "ikat": 100.0, "genggam": 30.0, "bungkus": 200.0, "sachet": 7.0,
+    "kaleng": 400.0, "bks": 200.0, "bh": 100.0, "pcs": 100.0,
+    "pack": 250.0, "papan": 300.0, "lonjor": 100.0, "tangkai": 10.0,
+    "porsi": 200.0, "sayap": 60.0, "potong": 80.0, "ekor": 800.0,
 }
 
 _UNIT_ALIAS: dict[str, str] = {
-    "sendok makan": "sdm",
-    "sendok teh"  : "sdt",
-    "sendok"      : "sdm",
-    "lbr"         : "lembar",
-    "btg"         : "batang",
-    "btr"         : "butir",
-    "bh"          : "buah",
-    "bg"          : "bungkus",
-    "suing"       : "siung",  # typo umum
+    "sendok makan": "sdm", "sendok teh": "sdt", "sendok": "sdm",
+    "lbr": "lembar", "btg": "batang", "btr": "butir",
+    "bh": "buah", "bg": "bungkus", "suing": "siung",
 }
 
 
@@ -137,73 +103,84 @@ def _normalize_unit(raw: str) -> str:
     return _UNIT_ALIAS.get(u, u)
 
 
-def _parse_store_unit_gram(unit_str: str) -> float:
+def _parse_store_unit_gram(unit_str: str, product_name: str = "") -> float:
     """
-    Parse field 'unit' dari DB scraper → gram.
-    Contoh: "500g" → 500.0, "1kg" → 1000.0, "per kg" → 1000.0, "" → 1000.0
+    Parse unit dari DB scraper → gram.
+    PERBAIKAN: Jika unit kosong, parse dari nama produk.
+    Default 500g (bukan 1000g) — lebih realistis untuk produk retail.
     """
-    if not unit_str:
-        return 1000.0  # default asumsi 1kg
+    if unit_str:
+        s = unit_str.strip().lower()
+        extra = {
+            "per kg": 1000.0, "per gram": 1.0, "per liter": 1000.0,
+            "per pcs": 100.0, "per pack": 250.0, "per buah": 100.0,
+        }
+        combined = {**_UNIT_TO_GRAM, **extra}
+        if s in combined:
+            return combined[s]
+        m = re.match(r"([\d.,]+)\s*([a-z]+)", s)
+        if m:
+            try:
+                qty  = float(m.group(1).replace(",", "."))
+                unit = _normalize_unit(m.group(2))
+                result = qty * _UNIT_TO_GRAM.get(unit, 1.0)
+                if result > 0:
+                    return result
+            except ValueError:
+                pass
 
-    s = unit_str.strip().lower()
+    # Coba parse dari nama produk
+    if product_name:
+        name_lower = product_name.lower()
+        # Pola: angka + satuan berat/volume dalam nama produk
+        # Prioritas: kg dulu karena "500gr" bisa match "gr" dari "50gr" juga
+        patterns = [
+            (r"(\d+(?:[.,]\d+)?)\s*kg\b", 1000.0),
+            (r"(\d+(?:[.,]\d+)?)\s*gram\b", 1.0),
+            (r"(\d+(?:[.,]\d+)?)\s*gr\b", 1.0),
+            (r"(\d+(?:[.,]\d+)?)\s*g\b", 1.0),
+            (r"(\d+(?:[.,]\d+)?)\s*ml\b", 1.0),
+            (r"(\d+(?:[.,]\d+)?)\s*liter\b", 1000.0),
+            (r"(\d+(?:[.,]\d+)?)\s*l\b", 1000.0),
+        ]
+        for pat, multiplier in patterns:
+            m = re.search(pat, name_lower)
+            if m:
+                try:
+                    qty = float(m.group(1).replace(",", "."))
+                    result = qty * multiplier
+                    if result > 0:
+                        return result
+                except ValueError:
+                    pass
 
-    extra = {"per kg": 1000.0, "per gram": 1.0, "per liter": 1000.0,
-             "per pcs": 100.0, "per pack": 250.0, "per buah": 100.0}
-    combined = {**_UNIT_TO_GRAM, **extra}
-    if s in combined:
-        return combined[s]
-
-    # parse "500g", "1.5kg", "250gr"
-    m = re.match(r"([\d.,]+)\s*([a-z]+)", s)
-    if m:
-        try:
-            qty  = float(m.group(1).replace(",", "."))
-            unit = _normalize_unit(m.group(2))
-            return qty * _UNIT_TO_GRAM.get(unit, 1.0)
-        except ValueError:
-            pass
-
-    return 1000.0
+    return 500.0  # default 500g (lebih realistis dari 1kg)
 
 
 def to_gram(qty: float, unit: str) -> float:
-    """Konversi qty + unit → gram. Contoh: to_gram(3, 'siung') → 15.0"""
     return qty * _UNIT_TO_GRAM.get(_normalize_unit(unit), 1.0)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PORTIONS PARSER
-# Parse string porsi dari DB resep → int
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _parse_portions(portion_str: str) -> int:
-    """
-    Parse field 'portion' dari resep → jumlah porsi (int).
-
-    Contoh:
-        "2 servings"  → 2
-        "4 servings"  → 4
-        "400 grams"   → 1   (bukan porsi orang, fallback ke 1)
-        ""            → 1
-        "untuk 6 org" → 6
-    """
+def _parse_portions(portion_str) -> int:
     if not portion_str:
         return 1
-
-    # Cari angka pertama dalam string
-    m = re.search(r"(\d+)", portion_str)
+    # Handle integer langsung (my_recipes simpan int)
+    if isinstance(portion_str, int):
+        return max(1, portion_str)
+    m = re.search(r"(\d+)", str(portion_str))
     if not m:
         return 1
-
     angka = int(m.group(1))
-
-    # Kalau satuannya bukan "serving/porsi/orang/pax", kemungkinan berat/gram
-    # → tidak relevan sebagai jumlah porsi, fallback ke 1
-    portion_lower = portion_str.lower()
-    satuan_porsi  = ["serving", "porsi", "orang", "pax", "person", "sajian"]
+    portion_lower = str(portion_str).lower()
+    satuan_porsi = ["serving", "porsi", "orang", "pax", "person", "sajian"]
     if not any(s in portion_lower for s in satuan_porsi):
+        if angka <= 20:
+            return max(1, angka)
         return 1
-
     return max(1, angka)
 
 
@@ -214,8 +191,8 @@ def _parse_portions(portion_str: str) -> int:
 @dataclass
 class ParsedIngredient:
     raw          : str
-    keyword      : str    # keyword bersih untuk scraping
-    qty_gram     : float  # kebutuhan resep dalam gram
+    keyword      : str
+    qty_gram     : float
     qty_original : float
     unit_original: str
 
@@ -225,7 +202,6 @@ _STRIP_WORDS = {
     "iris", "cincang", "potong", "geprek", "memarkan", "parut",
     "giling", "haluskan", "sangrai", "goreng",
 }
-
 _STRIP_DESCRIPTOR = {
     "segar", "halus", "kasar", "mentah", "matang", "kering", "basah",
     "has", "dalam", "luar", "fillet", "filet", "utuh",
@@ -233,122 +209,116 @@ _STRIP_DESCRIPTOR = {
     "bubuk", "instan", "sachet",
 }
 
-# Hapus keterangan dalam kurung, setelah koma, atau kata kunci tertentu
 _STRIP_SUFFIX = re.compile(
-    r"\s*[\(\[].*?[\)\]]"           # (keterangan dalam kurung)
-    r"|\s*,.*$"                     # , apapun setelah koma
-    r"|\s*/.*$"                     # / alternatif bahan
+    r"\s*[\(\[].*?[\)\]]"
+    r"|\s*,.*$"
+    r"|\s*/.*$"
     r"|\s*\b(untuk|supaya|agar|hingga|sampai)\b.*$",
     re.IGNORECASE,
 )
 
 
-def parse_ingredient(raw: str) -> ParsedIngredient:
-    """
-    Parse satu baris bahan resep dari Cookpad.
-
-    Contoh:
-        "300 gram ayam filet(bagian paha lebih juice)" → keyword="ayam",        qty_gram=300.0
-        "2 siung bawang putih(di haluskan)"            → keyword="bawang putih", qty_gram=10.0
-        "1/2 kg ayam paha (aku beli yang paha)"        → keyword="ayam paha",    qty_gram=500.0
-        "3 sdm kecap manis"                            → keyword="kecap manis",  qty_gram=45.0
-        "1,5 sdm saus hoisin"                          → keyword="saus hoisin",  qty_gram=22.5
-        "Sedikit kaldu atau garam"                     → keyword="kaldu",        qty_gram=5.0
-        "secukupnya Minyak"                            → keyword="minyak",       qty_gram=15.0
-        "12 sayap ayam"                                → keyword="ayam",         qty_gram=720.0
-    """
-    raw = raw.strip()
-
-    # Bersihkan suffix dulu
-    cleaned = _STRIP_SUFFIX.sub("", raw).strip()
-
-    # Pola 1: pecahan biasa "1/2", "3/4"
-    m = re.match(r"^(\d+)/(\d+)\s*([a-zA-Z]+)\s+(.+)$", cleaned)
-    if m:
-        qty  = int(m.group(1)) / int(m.group(2))
-        unit = _normalize_unit(m.group(3))
-        qty_gram = to_gram(qty, unit)
-        keyword  = _clean_keyword(m.group(4))
-        return ParsedIngredient(raw=raw, keyword=keyword, qty_gram=qty_gram,
-                                qty_original=qty, unit_original=unit)
-
-    # Pola 2: angka dengan koma desimal "1,5 sdm" atau titik "1.5 sdm"
-    m = re.match(r"^(\d+[.,]\d+)\s*([a-zA-Z]+)\s+(.+)$", cleaned)
-    if m:
-        qty  = float(m.group(1).replace(",", "."))
-        unit = _normalize_unit(m.group(2))
-        qty_gram = to_gram(qty, unit)
-        keyword  = _clean_keyword(m.group(3))
-        return ParsedIngredient(raw=raw, keyword=keyword, qty_gram=qty_gram,
-                                qty_original=qty, unit_original=unit)
-
-    # Pola 3: angka bulat + satuan + nama  "3 siung bawang putih"
-    m = re.match(r"^(\d+)\s*([a-zA-Z]+)\s+(.+)$", cleaned)
-    if m:
-        qty  = float(m.group(1))
-        unit = _normalize_unit(m.group(2))
-        qty_gram = to_gram(qty, unit)
-        keyword  = _clean_keyword(m.group(3))
-        return ParsedIngredient(raw=raw, keyword=keyword, qty_gram=qty_gram,
-                                qty_original=qty, unit_original=unit)
-
-    # Pola 4: angka + nama tanpa satuan  "12 sayap ayam"
-    m = re.match(r"^(\d+)\s+(.+)$", cleaned)
-    if m:
-        qty     = float(m.group(1))
-        rest    = m.group(2)
-        keyword = _clean_keyword(rest)
-        # Cek apakah kata pertama rest adalah satuan yang dikenal
-        first_word = rest.split()[0].lower()
-        if first_word in _UNIT_TO_GRAM:
-            unit     = _normalize_unit(first_word)
-            qty_gram = to_gram(qty, unit)
-            keyword  = _clean_keyword(" ".join(rest.split()[1:]))
-        else:
-            # Tidak ada satuan → qty adalah jumlah buah/unit
-            qty_gram = to_gram(qty, "buah")  # default per buah
-            unit     = "buah"
-        return ParsedIngredient(raw=raw, keyword=keyword, qty_gram=qty_gram,
-                                qty_original=qty, unit_original=unit)
-
-    # Fallback: tidak ada angka (contoh: "secukupnya Minyak", "Sedikit kaldu")
-    keyword = _clean_keyword(cleaned)
-    return ParsedIngredient(raw=raw, keyword=keyword, qty_gram=5.0,
-                            qty_original=1.0, unit_original="sdt")
+def _is_valid_keyword(keyword: str) -> bool:
+    """Validasi keyword — hindari keyword seperti '1', '2-3', '2-3 siung', dll."""
+    if not keyword or len(keyword.strip()) < 2:
+        return False
+    # Hanya angka/simbol
+    if re.fullmatch(r"[\d\s\-/.,]+", keyword):
+        return False
+    # Dimulai dengan pola angka-tanda hubung-angka (misal "2-3 siung")
+    if re.match(r"^\d+[\-\s]+\d", keyword):
+        return False
+    return True
 
 
 def _clean_keyword(text: str) -> str:
-    """Bersihkan teks bahan → keyword scraping yang ringkas."""
     text  = _STRIP_SUFFIX.sub("", text).strip()
     words = [w for w in text.split()
              if w.lower() not in _STRIP_WORDS
              and w.lower() not in _STRIP_DESCRIPTOR
-             and len(w) > 1]  # skip kata pendek seperti "atau"
-    # Maks 3 kata untuk keyword lebih akurat, tapi hindari terlalu panjang
+             and len(w) > 1]
     return " ".join(words[:3]).strip().lower()
 
 
-def _get_fallback_price(keyword: str, qty_gram: float, exclude_store: str) -> IngredientStorePrice:
-    """
-    Jika bahan tidak ditemukan di satu toko, ambil median harga dari toko lain yang berhasil.
-    """
-    prices = []
-    for store, read_fn in [("tokopedia", _read_tokped), ("alfagift", _read_alfagift), ("aeon", _read_aeon)]:
-        if store != exclude_store:
-            isp = read_fn(keyword, qty_gram)
-            if isp.found and isp.price > 0:
-                prices.append(isp.price_recipe)
+def parse_ingredient(raw: str) -> ParsedIngredient:
+    raw = raw.strip()
+    cleaned = _STRIP_SUFFIX.sub("", raw).strip()
 
-    if prices:
-        median_price = sorted(prices)[len(prices) // 2]
-        return IngredientStorePrice(
-            keyword=keyword, store=exclude_store,
-            name=f"Estimasi dari {len(prices)} toko lain",
-            price=median_price, price_recipe=median_price,
-            url="", found=False  # mark as not found, but with fallback price
-        )
-    else:
-        return _make_failed(keyword, exclude_store)
+    # Pola 1: pecahan "1/2 kg ayam"
+    m = re.match(r"^(\d+)/(\d+)\s*([a-zA-Z]+)\s+(.+)$", cleaned)
+    if m:
+        qty  = int(m.group(1)) / int(m.group(2))
+        unit = _normalize_unit(m.group(3))
+        keyword = _clean_keyword(m.group(4))
+        if _is_valid_keyword(keyword):
+            return ParsedIngredient(raw=raw, keyword=keyword,
+                                    qty_gram=to_gram(qty, unit),
+                                    qty_original=qty, unit_original=unit)
+
+    # Pola 1b: pecahan tanpa satuan "1/2 bawang bombay"
+    m = re.match(r"^(\d+)/(\d+)\s+(.+)$", cleaned)
+    if m:
+        qty = int(m.group(1)) / int(m.group(2))
+        keyword = _clean_keyword(m.group(3))
+        if _is_valid_keyword(keyword):
+            return ParsedIngredient(raw=raw, keyword=keyword,
+                                    qty_gram=to_gram(qty, "buah"),
+                                    qty_original=qty, unit_original="buah")
+
+    # Pola 2: desimal "1,5 sdm saus hoisin"
+    m = re.match(r"^(\d+[.,]\d+)\s*([a-zA-Z]+)\s+(.+)$", cleaned)
+    if m:
+        qty  = float(m.group(1).replace(",", "."))
+        unit = _normalize_unit(m.group(2))
+        keyword = _clean_keyword(m.group(3))
+        if _is_valid_keyword(keyword):
+            return ParsedIngredient(raw=raw, keyword=keyword,
+                                    qty_gram=to_gram(qty, unit),
+                                    qty_original=qty, unit_original=unit)
+
+    # Pola 3: bulat + satuan + nama "3 siung bawang putih"
+    m = re.match(r"^(\d+)\s*([a-zA-Z]+)\s+(.+)$", cleaned)
+    if m:
+        qty  = float(m.group(1))
+        unit = _normalize_unit(m.group(2))
+        if unit in _UNIT_TO_GRAM or unit in _UNIT_ALIAS:
+            keyword = _clean_keyword(m.group(3))
+            if _is_valid_keyword(keyword):
+                return ParsedIngredient(raw=raw, keyword=keyword,
+                                        qty_gram=to_gram(qty, unit),
+                                        qty_original=qty, unit_original=unit)
+        else:
+            # Bukan satuan → nama dimulai dari token ke-2
+            rest = m.group(2) + " " + m.group(3)
+            keyword = _clean_keyword(rest)
+            if _is_valid_keyword(keyword):
+                return ParsedIngredient(raw=raw, keyword=keyword,
+                                        qty_gram=to_gram(qty, "buah"),
+                                        qty_original=qty, unit_original="buah")
+
+    # Pola 4: bulat tanpa satuan "12 sayap ayam"
+    m = re.match(r"^(\d+)\s+(.+)$", cleaned)
+    if m:
+        qty     = float(m.group(1))
+        rest    = m.group(2)
+        first_w = rest.split()[0].lower()
+        if first_w in _UNIT_TO_GRAM:
+            unit    = _normalize_unit(first_w)
+            keyword = _clean_keyword(" ".join(rest.split()[1:]))
+        else:
+            unit    = "buah"
+            keyword = _clean_keyword(rest)
+        if _is_valid_keyword(keyword):
+            return ParsedIngredient(raw=raw, keyword=keyword,
+                                    qty_gram=to_gram(qty, unit),
+                                    qty_original=qty, unit_original=unit)
+
+    # Fallback: tanpa angka "secukupnya Minyak"
+    keyword = _clean_keyword(cleaned)
+    if not _is_valid_keyword(keyword):
+        keyword = re.sub(r"^\d+\s*", "", cleaned).strip().lower()
+    return ParsedIngredient(raw=raw, keyword=keyword, qty_gram=5.0,
+                            qty_original=1.0, unit_original="sdt")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -357,31 +327,17 @@ def _get_fallback_price(keyword: str, qty_gram: float, exclude_store: str) -> In
 
 @dataclass
 class IngredientStorePrice:
-    """
-    Harga 1 bahan di 1 toko.
-    Ditampilkan di popup saat user klik nama bahan.
-    """
     keyword      : str
-    store        : str   # "tokopedia" | "alfagift" | "aeon"
-    name         : str   # nama produk di toko
-    price        : int   # harga satuan penuh (Rupiah)
-    price_recipe : int   # harga proporsional sesuai kebutuhan resep
-    url          : str   # link → tombol Beli
+    store        : str
+    name         : str
+    price        : int
+    price_recipe : int
+    url          : str
     found        : bool = True
 
 
 @dataclass
 class StoreTotal:
-    """
-    Ringkasan 1 toko.
-    Ditampilkan di PriceCard dan BarChart.
-
-    4 angka yang dikembalikan:
-        harga_total     → jumlah price satuan penuh semua bahan
-        harga_resep     → jumlah price_recipe (proporsional) semua bahan
-        harga_per_porsi → harga_resep / jumlah_porsi
-        is_cheapest     → True jika toko ini paling murah (berdasarkan harga_resep)
-    """
     store           : str
     harga_total     : int
     harga_resep     : int
@@ -391,20 +347,6 @@ class StoreTotal:
 
 @dataclass
 class PriceResult:
-    """
-    Output utama service.run().
-
-    Attributes:
-        per_ingredient : dict[keyword, list[IngredientStorePrice × 3 toko]]
-                         → popup per bahan: nama produk + harga satuan + harga resep + url
-        per_store      : dict[store_name, StoreTotal]
-                         → PriceCard & BarChart: 4 angka per toko
-        cheapest_store : nama toko termurah
-        portions       : jumlah porsi resep (hasil parse dari DB)
-        recipe_name    : nama resep (untuk label UI)
-        success        : False jika recipe_id tidak ditemukan atau semua scraping gagal
-        error_message  : pesan error jika success=False
-    """
     per_ingredient : dict = field(default_factory=dict)
     per_store      : dict = field(default_factory=dict)
     cheapest_store : str  = ""
@@ -423,29 +365,36 @@ def _make_failed(keyword: str, store: str) -> IngredientStorePrice:
                                 price=0, price_recipe=0, url="", found=False)
 
 
-def _calc_price_recipe(price: int, unit_str: str, qty_gram_needed: float) -> int:
+def _calc_price_recipe(price: int, unit_str: str, qty_gram_needed: float,
+                        product_name: str = "") -> int:
     """
     Harga proporsional = price × (qty_gram_needed / store_gram).
-
-    Contoh:
-        Toko jual 1kg (1000g), harga Rp 14.000, resep butuh 500g
-        → 14.000 × (500/1000) = Rp 7.000
+    PERBAIKAN:
+    - Parse unit dari nama produk jika unit_str kosong
+    - Sanity check: hasil tidak boleh > 10× harga satuan
     """
     if price <= 0 or qty_gram_needed <= 0:
         return 0
-    store_gram = _parse_store_unit_gram(unit_str) or 1000.0
-    return max(1, int(round(price * (qty_gram_needed / store_gram))))
+    store_gram = _parse_store_unit_gram(unit_str, product_name)
+    if store_gram <= 0:
+        store_gram = 500.0
+
+    ratio  = qty_gram_needed / store_gram
+    result = price * ratio
+
+    # Sanity check: kalau hasil > 10× harga satuan, ada bug di parsing unit
+    if result > price * 10:
+        print(f"[WARNING] price_recipe ({result:,.0f}) > 10x price ({price:,}) "
+              f"untuk unit='{unit_str}', name='{product_name}', qty={qty_gram_needed}g. "
+              f"Gunakan harga satuan sebagai batas atas.")
+        return price
+
+    return max(1, int(round(result)))
 
 
 def _load_recipe(recipe_id: str) -> Optional[dict]:
-    """Baca satu resep dari base.json.
-
-    Cari di tabel recipes, cookpad_recipes, cookpad_temp, atau my_recipes.
-    Jika format file bukan format TinyDB standar, gunakan fallback dengan
-    pembacaan JSON langsung.
-    """
     try:
-        db = TinyDB(_DB_PATH)
+        db = _get_db()
         for table_name in ["recipes", "cookpad_recipes", "cookpad_temp", "my_recipes"]:
             try:
                 row = db.table(table_name).get(Query().recipe_id == recipe_id)
@@ -454,7 +403,6 @@ def _load_recipe(recipe_id: str) -> Optional[dict]:
             except Exception:
                 pass
 
-        # Fallback: baca JSON langsung apabila struktur file tidak sesuai TinyDB
         import json
         with open(_DB_PATH, encoding="utf-8") as f:
             raw = json.load(f)
@@ -474,7 +422,6 @@ def _extract_ingredient_strings(recipe: dict) -> list[str]:
         return []
     if all(isinstance(item, str) for item in ingredients):
         return ingredients
-
     normalized: list[str] = []
     for item in ingredients:
         if isinstance(item, dict):
@@ -492,14 +439,18 @@ def _extract_ingredient_strings(recipe: dict) -> list[str]:
 
 
 def _read_tokped(keyword: str, qty_gram: float) -> IngredientStorePrice:
+    """Tokopedia tidak simpan 'unit' → parse dari nama produk."""
     try:
-        row = TinyDB(_DB_PATH).table("tokped_ingredients").get(Query().keyword == keyword)
-        if row and row.get("price"):
-            p = int(row["price"])
+        with _db_lock:
+            row = _get_db().table("tokped_ingredients").get(Query().keyword == keyword)
+        if row and row.get("price") and int(row["price"]) > 0:
+            p    = int(row["price"])
+            name = row.get("name", "")
+            unit = row.get("unit", "")   # biasanya kosong
             return IngredientStorePrice(
                 keyword=keyword, store="tokopedia",
-                name=row.get("name", ""), price=p,
-                price_recipe=_calc_price_recipe(p, row.get("unit", ""), qty_gram),
+                name=name, price=p,
+                price_recipe=_calc_price_recipe(p, unit, qty_gram, name),
                 url=row.get("url", ""),
             )
     except Exception as e:
@@ -508,14 +459,18 @@ def _read_tokped(keyword: str, qty_gram: float) -> IngredientStorePrice:
 
 
 def _read_alfagift(keyword: str, qty_gram: float) -> IngredientStorePrice:
+    """Skip jika price = 0 (scraping gagal)."""
     try:
-        row = TinyDB(_DB_PATH).table("alfagift_ingredients").get(Query().keyword == keyword)
-        if row and row.get("price"):
-            p = int(row["price"])
+        with _db_lock:
+            row = _get_db().table("alfagift_ingredients").get(Query().keyword == keyword)
+        if row and row.get("price") and int(row["price"]) > 0:
+            p    = int(row["price"])
+            name = row.get("name", "")
+            unit = row.get("unit", "")
             return IngredientStorePrice(
                 keyword=keyword, store="alfagift",
-                name=row.get("name", ""), price=p,
-                price_recipe=_calc_price_recipe(p, row.get("unit", ""), qty_gram),
+                name=name, price=p,
+                price_recipe=_calc_price_recipe(p, unit, qty_gram, name),
                 url=row.get("url", ""),
             )
     except Exception as e:
@@ -524,14 +479,18 @@ def _read_alfagift(keyword: str, qty_gram: float) -> IngredientStorePrice:
 
 
 def _read_aeon(keyword: str, qty_gram: float) -> IngredientStorePrice:
+    """Skip jika price = 0."""
     try:
-        row = TinyDB(_DB_PATH).table("aeon_ingredients").get(Query().keyword == keyword)
-        if row and row.get("price"):
-            p = int(row["price"])
+        with _db_lock:
+            row = _get_db().table("aeon_ingredients").get(Query().keyword == keyword)
+        if row and row.get("price") and int(row["price"]) > 0:
+            p    = int(row["price"])
+            name = row.get("name", "")
+            unit = row.get("unit", "")
             return IngredientStorePrice(
                 keyword=keyword, store="aeon",
-                name=row.get("name", ""), price=p,
-                price_recipe=_calc_price_recipe(p, row.get("unit", ""), qty_gram),
+                name=name, price=p,
+                price_recipe=_calc_price_recipe(p, unit, qty_gram, name),
                 url=row.get("url", ""),
             )
     except Exception as e:
@@ -540,35 +499,6 @@ def _read_aeon(keyword: str, qty_gram: float) -> IngredientStorePrice:
 
 
 def _save_results(recipe_id: str, result: PriceResult) -> None:
-    """
-    Simpan PriceResult ke tabel 'results' di base.json.
-    Kalau recipe_id sudah ada → overwrite (upsert).
-    Kalau belum ada → insert baru.
-
-    Struktur dokumen yang disimpan:
-    {
-        "recipe_id"     : "5eef19bfb57b",
-        "recipe_name"   : "Ayam teriyaki",
-        "portions"      : 2,
-        "calculated_at" : "2026-05-04 10:00:00",
-        "per_ingredient": {
-            "ayam": [
-                { "store": "tokopedia", "name": "...", "price": 35000,
-                  "price_recipe": 21000, "url": "...", "found": true },
-                ...
-            ],
-            ...
-        },
-        "per_store": {
-            "tokopedia": { "harga_total": 120000, "harga_resep": 85000,
-                           "harga_per_porsi": 42500, "is_cheapest": false },
-            ...
-        }
-    }
-    """
-    # ── Serialisasi per_ingredient ─────────────────────────────────────────────
-    # per_ingredient adalah dict[keyword, list[IngredientStorePrice]]
-    # TinyDB butuh plain dict, jadi dataclass dikonversi manual.
     per_ingredient_serial: dict = {}
     for keyword, store_prices in result.per_ingredient.items():
         per_ingredient_serial[keyword] = [
@@ -582,9 +512,6 @@ def _save_results(recipe_id: str, result: PriceResult) -> None:
             }
             for isp in store_prices
         ]
-
-    # ── Serialisasi per_store ──────────────────────────────────────────────────
-    # per_store adalah dict[store_name, StoreTotal]
     per_store_serial: dict = {}
     for store_name, store_total in result.per_store.items():
         per_store_serial[store_name] = {
@@ -593,8 +520,6 @@ def _save_results(recipe_id: str, result: PriceResult) -> None:
             "harga_per_porsi": store_total.harga_per_porsi,
             "is_cheapest"    : store_total.is_cheapest,
         }
-
-    # ── Dokumen final yang disimpan ────────────────────────────────────────────
     doc = {
         "recipe_id"     : recipe_id,
         "recipe_name"   : result.recipe_name,
@@ -603,24 +528,18 @@ def _save_results(recipe_id: str, result: PriceResult) -> None:
         "per_ingredient": per_ingredient_serial,
         "per_store"     : per_store_serial,
     }
-
-    # ── Upsert ke tabel results ────────────────────────────────────────────────
     try:
-        db    = TinyDB(_DB_PATH)
-        table = db.table("results")
-        q     = Query()
-
-        existing = table.get(q.recipe_id == recipe_id)
-        if existing:
-            # Recipe sudah pernah dikalkulasi → timpa dengan data terbaru
-            table.update(doc, q.recipe_id == recipe_id)
-            print(f"[DB] results: overwrite recipe_id='{recipe_id}'")
-        else:
-            # Pertama kali → insert baru
-            table.insert(doc)
-            print(f"[DB] results: insert recipe_id='{recipe_id}'")
+        with _db_lock:
+            db    = _get_db()
+            table = db.table("results")
+            q     = Query()
+            existing = table.get(q.recipe_id == recipe_id)
+            if existing:
+                table.update(doc, q.recipe_id == recipe_id)
+            else:
+                table.insert(doc)
+            print(f"[DB] results: saved recipe_id='{recipe_id}'")
     except Exception as e:
-        # Gagal simpan tidak menghentikan program — hasil tetap di-return ke UI
         print(f"[DB] Gagal simpan results '{recipe_id}': {e}")
 
 
@@ -629,34 +548,18 @@ def _save_results(recipe_id: str, result: PriceResult) -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 class PriceComparisonService:
-    """
-    Service utama. Dipanggil dari PriceController setelah user klik
-    tombol 'Kalkulasi Harga'.
-
-    Contoh:
-        service = PriceComparisonService()
-        result  = service.run(recipe_id="5eef19bfb57b", progress_cb=fn)
-    """
 
     def run(
         self,
         recipe_id   : str,
         progress_cb : Optional[Callable[[str], None]] = None,
     ) -> PriceResult:
-        """
-        Entry point utama.
 
-        Args:
-            recipe_id   : ID resep dari tabel recipes di base.json
-            progress_cb : Callback string untuk update label di Flet
-                          Contoh pesan: "Tokopedia ✓ · Alfagift ⏳ · AEON ⏳"
-        """
         def log(msg: str):
             print(f"[PriceComparisonService] {msg}")
             if progress_cb:
                 progress_cb(msg)
 
-        # ── Step 1: Baca resep dari DB ────────────────────────────────────────
         log(f"Membaca resep '{recipe_id}' dari DB...")
         recipe = _load_recipe(recipe_id)
         if not recipe:
@@ -675,12 +578,26 @@ class PriceComparisonService:
 
         log(f"Resep: {recipe_name} | {len(ingredient_strings)} bahan | {portions} porsi")
 
-        # ── Step 2: Parse semua bahan → keyword + qty_gram ────────────────────
-        parsed   = [parse_ingredient(ing) for ing in ingredient_strings]
-        keywords = [p.keyword for p in parsed]
-        log(f"Keywords scraping: {keywords}")
+        # Parse + filter keyword valid
+        parsed = [parse_ingredient(ing) for ing in ingredient_strings]
+        parsed_valid = [p for p in parsed if _is_valid_keyword(p.keyword)]
+        invalid = [p for p in parsed if not _is_valid_keyword(p.keyword)]
+        if invalid:
+            print(f"[PriceComparisonService] SKIP invalid: {[p.raw for p in invalid]}")
 
-        # ── Step 3: Scrape paralel 3 toko ─────────────────────────────────────
+        if not parsed_valid:
+            return PriceResult(success=False, error_message="Tidak ada bahan yang bisa diparse.")
+
+        # Deduplicate keywords, preserve order
+        seen = set()
+        keywords = []
+        for p in parsed_valid:
+            if p.keyword not in seen:
+                seen.add(p.keyword)
+                keywords.append(p.keyword)
+
+        log(f"Keywords ({len(keywords)}): {keywords}")
+
         try:
             self._scrape_parallel(keywords, log)
         except Exception as e:
@@ -688,38 +605,28 @@ class PriceComparisonService:
 
         log("Scraping selesai, mulai kalkulasi harga...")
 
-        # ── Step 4: Baca DB + hitung price_recipe per bahan ───────────────────
-        qty_map = {p.keyword: p.qty_gram for p in parsed}
+        # qty_map: keyword → qty_gram (ambil yang pertama jika duplikat)
+        qty_map = {}
+        for p in parsed_valid:
+            if p.keyword not in qty_map:
+                qty_map[p.keyword] = p.qty_gram
+
         per_ingredient: dict[str, list[IngredientStorePrice]] = {}
-
-        for p in parsed:
-            keyword = p.keyword
-            qty_gram = qty_map[keyword]
-            stores = []
-
-            # Baca dari masing-masing toko
-            tokped = _read_tokped(keyword, qty_gram)
+        for keyword, qty_gram in qty_map.items():
+            tokped   = _read_tokped(keyword, qty_gram)
             alfagift = _read_alfagift(keyword, qty_gram)
-            aeon = _read_aeon(keyword, qty_gram)
+            aeon     = _read_aeon(keyword, qty_gram)
 
-            # Jika tidak ditemukan, gunakan fallback median dari toko lain
-            if not tokped.found:
-                tokped = _get_fallback_price(keyword, qty_gram, "tokopedia")
-            if not alfagift.found:
-                alfagift = _get_fallback_price(keyword, qty_gram, "alfagift")
-            if not aeon.found:
-                aeon = _get_fallback_price(keyword, qty_gram, "aeon")
+            if not any([tokped.found, alfagift.found, aeon.found]):
+                print(f"[PriceComparisonService] '{keyword}' tidak ditemukan di semua toko.")
 
-            stores = [tokped, alfagift, aeon]
-            per_ingredient[keyword] = stores
+            per_ingredient[keyword] = [tokped, alfagift, aeon]
 
-        log(f"Perhitungan harga bahan selesai untuk {len(per_ingredient)} bahan")
+        log(f"Selesai kalkulasi {len(per_ingredient)} bahan")
 
-        # ── Step 5: Hitung 4 angka per toko ───────────────────────────────────
         per_store = self._calc_store_totals(per_ingredient, portions)
-        log("Perhitungan total per toko selesai")
+        log("Total per toko selesai")
 
-        # ── Step 6: Tandai toko termurah ──────────────────────────────────────
         valid    = [s for s in per_store.values() if s.harga_resep > 0]
         cheapest = min(valid, key=lambda s: s.harga_resep) if valid else None
         if cheapest:
@@ -736,17 +643,13 @@ class PriceComparisonService:
             success        = True,
         )
 
-        # ── Step 7: Simpan hasil ke tabel results di DB ───────────────────────
         log("Menyimpan hasil ke database...")
         _save_results(recipe_id, result)
         log("Hasil tersimpan ✓")
 
         return result
 
-    # ── Scraping paralel ───────────────────────────────────────────────────────
-
     def _scrape_parallel(self, keywords: list[str], log: Callable):
-        """Jalankan 3 scraper paralel, update status via log()."""
         lock   = threading.Lock()
         status = {"tokopedia": "⏳", "alfagift": "⏳", "aeon": "⏳"}
 
@@ -811,31 +714,22 @@ class PriceComparisonService:
         for t in threads: t.start()
         for t in threads: t.join()
 
-    # ── Kalkulasi 4 angka per toko ─────────────────────────────────────────────
-
     def _calc_store_totals(
         self,
         per_ingredient : dict[str, list[IngredientStorePrice]],
         portions       : int,
     ) -> dict[str, StoreTotal]:
-        """
-        Hitung StoreTotal (4 angka) untuk setiap toko:
-            harga_total     = jumlah price satuan penuh semua bahan
-            harga_resep     = jumlah price_recipe (proporsional) semua bahan
-            harga_per_porsi = harga_resep / portions
-        """
         totals: dict[str, StoreTotal] = {}
         for store in ["tokopedia", "alfagift", "aeon"]:
             total_satuan = sum(
                 r.price for rows in per_ingredient.values()
-                for r in rows if r.store == store and r.found
+                for r in rows if r.store == store and r.found and r.price > 0
             )
             total_resep = sum(
                 r.price_recipe for rows in per_ingredient.values()
-                for r in rows if r.store == store and r.found
+                for r in rows if r.store == store and r.found and r.price_recipe > 0
             )
             per_porsi = (total_resep // portions) if portions > 0 and total_resep > 0 else 0
-
             totals[store] = StoreTotal(
                 store           = store,
                 harga_total     = total_satuan,

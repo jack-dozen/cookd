@@ -140,10 +140,30 @@ def _scrape_keyword(keyword, db_path):
             tokped_ingredients = db.table('tokped_ingredients')
             Item = Query()
             tokped_ingredients.remove(Item.keyword == keyword)  # hapus data lama jika ada
+            # PERBAIKAN: Ekstrak ukuran dari nama produk dan simpan sebagai 'unit'
+            # Contoh: "Dada Ayam Fillet 1 Kg" → unit="1kg"
+            product_name_lower = hasil['name'].lower()
+            detected_unit = ''
+            import re as _re
+            # Prioritas: kg, gram/gr, ml, liter
+            for _pat, _label in [
+                (r'(\d+(?:[.,]\d+)?)\s*kg\b', lambda m: f"{m.group(1)}kg"),
+                (r'(\d+(?:[.,]\d+)?)\s*gram\b', lambda m: f"{m.group(1)}gram"),
+                (r'(\d+(?:[.,]\d+)?)\s*gr\b', lambda m: f"{m.group(1)}gr"),
+                (r'(\d+(?:[.,]\d+)?)\s*g\b', lambda m: f"{m.group(1)}g"),
+                (r'(\d+(?:[.,]\d+)?)\s*ml\b', lambda m: f"{m.group(1)}ml"),
+                (r'(\d+(?:[.,]\d+)?)\s*liter\b', lambda m: f"{m.group(1)}liter"),
+            ]:
+                _m = _re.search(_pat, product_name_lower)
+                if _m:
+                    detected_unit = _label(_m)
+                    break
+
             tokped_ingredients.insert({
                 'keyword': keyword,
                 'name': hasil['name'],
                 'price': int(hasil['price']),
+                'unit': detected_unit,
                 'url': hasil['url'],
                 'timestamp': datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
             })

@@ -393,7 +393,8 @@ def _build_bar_chart(result) -> ft.Container:
     store_data = result.per_store
     cheapest   = result.cheapest_store
 
-    CHART_H    = 120   # tinggi area bar (px)
+    CHART_H    = 140   # tinggi area bar (px) — diperbesar biar label nilai tidak kepotong
+    LABEL_H    = 20    # ruang untuk label nilai di atas tiap bar
     BAR_W      = 22    # lebar tiap bar
 
     # Kumpulkan semua nilai untuk normalisasi
@@ -432,7 +433,7 @@ def _build_bar_chart(result) -> ft.Container:
             for lvl in reversed(y_levels)
         ],
         spacing=0,
-        height=CHART_H + 20,
+        height=CHART_H + LABEL_H,
         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
     )
 
@@ -488,9 +489,10 @@ def _build_bar_chart(result) -> ft.Container:
         )
 
         # Wrapper dengan tinggi fixed agar semua grup sejajar
+        # PERBAIKAN: Tinggi = CHART_H + LABEL_H agar label nilai di atas bar tidak terpotong
         bars_container = ft.Container(
             content=bars,
-            height=CHART_H,
+            height=CHART_H + LABEL_H,
             alignment=ft.Alignment(0, 1),  # align bottom
         )
 
@@ -668,19 +670,10 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
         opacity=0,
     )
 
-    # Trigger fill + fade-in setelah satu frame
-    def _reveal():
-        time.sleep(0.05)
-        print("[price_panel] Mulai _init_fill...")
-        cards_widget._init_fill(page)
-        print("[price_panel] _init_fill selesai")
-        panel.opacity = 1
-        print("[price_panel] Mulai page.update...")
-        try: page.update()
-        except: pass
-        print("[price_panel] page.update selesai")
-
-    threading.Thread(target=_reveal, daemon=True).start()
+    # Simpan _init_fill sebagai attribute agar bisa dipanggil dari luar
+    # PERBAIKAN: Tidak pakai thread terpisah — cukup expose fungsi _init_fill
+    # supaya caller (_work di run_price_calculation) yang manage update
+    panel._init_fill = lambda: cards_widget._init_fill(page)
 
     return panel
 
@@ -775,6 +768,14 @@ def run_price_calculation(
         if price_area.current:
             price_area.current.content = panel
             price_area.current._price_done = True
+            # PERBAIKAN: Panggil _init_fill dulu (isi nilai kartu)
+            # BARU page.update() — semua dalam satu thread ini, tidak ada race condition
+            if hasattr(panel, "_init_fill"):
+                try:
+                    panel._init_fill()
+                except Exception as e:
+                    print(f"[price_panel] _init_fill error: {e}")
+            panel.opacity = 1
             page.update()
 
         print("[price_panel] UI berhasil diupdate")
