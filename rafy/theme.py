@@ -194,7 +194,7 @@ def build_theme_toggle(page: ft.Page, show_label: bool = True) -> ft.Container:
         ),
         bgcolor=theme_mgr.get("BG3"),
         border_radius=10,
-        padding=ft.padding.symmetric(horizontal=14, vertical=10),
+        padding=ft.Padding.symmetric(horizontal=14, vertical=10),
         animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
 

@@ -58,7 +58,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
                             ),
                         ],
                     ),
-                    padding=ft.padding.only(right=20),
+                    padding=ft.Padding.only(right=20),
                 ),
                 ft.Column(
                     controls=[
@@ -88,8 +88,8 @@ def InfoPage(page: ft.Page) -> ft.Container:
         ),
         bgcolor=ORANGE,
         border_radius=ft.BorderRadius.all(16),
-        padding=ft.padding.symmetric(horizontal=28, vertical=24),
-        margin=ft.margin.only(bottom=20),
+        padding=ft.Padding.symmetric(horizontal=28, vertical=24),
+        margin=ft.Margin.only(bottom=20),
         shadow=ft.BoxShadow(
             spread_radius=0,
             blur_radius=20,
@@ -142,7 +142,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
                 spacing=16,
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            padding=ft.padding.symmetric(horizontal=20, vertical=16),
+            padding=ft.Padding.symmetric(horizontal=20, vertical=16),
             border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
         )
 
@@ -157,7 +157,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
                         color=TEXT(),
                         font_family="Font",
                     ),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=16),
+                    padding=ft.Padding.symmetric(horizontal=20, vertical=16),
                     border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
                 ),
                 step_item(
@@ -191,7 +191,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
         border_radius=ft.BorderRadius.all(14),
         border=ft.Border.all(1, BORDER()),
         clip_behavior=ft.ClipBehavior.HARD_EDGE,
-        margin=ft.margin.only(bottom=16),
+        margin=ft.Margin.only(bottom=16),
     )
 
     # ── Source badge builder ─────────────────────────────────────────
@@ -219,7 +219,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
             bgcolor=BG3(),
             border_radius=ft.BorderRadius.all(20),
             border=ft.Border.all(1, dot_color + "55"),
-            padding=ft.padding.symmetric(horizontal=14, vertical=8),
+            padding=ft.Padding.symmetric(horizontal=14, vertical=8),
         )
 
     sumber_data = ft.Container(
@@ -233,7 +233,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
                         color=TEXT(),
                         font_family="Font",
                     ),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=16),
+                    padding=ft.Padding.symmetric(horizontal=20, vertical=16),
                     border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
                 ),
                 ft.Container(
@@ -260,7 +260,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
                         ],
                         spacing=14,
                     ),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=16),
+                    padding=ft.Padding.symmetric(horizontal=20, vertical=16),
                 ),
             ],
             spacing=0,
@@ -269,7 +269,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
         border_radius=ft.BorderRadius.all(14),
         border=ft.Border.all(1, BORDER()),
         clip_behavior=ft.ClipBehavior.HARD_EDGE,
-        margin=ft.margin.only(bottom=16),
+        margin=ft.Margin.only(bottom=16),
     )
 
     # ── Footer ───────────────────────────────────────────────────────
@@ -282,7 +282,7 @@ def InfoPage(page: ft.Page) -> ft.Container:
             text_align=ft.TextAlign.CENTER,
         ),
         alignment=ft.Alignment(0, 0),
-        padding=ft.padding.symmetric(vertical=20),
+        padding=ft.Padding.symmetric(vertical=20),
     )
 
     # ── Assemble scroll column ───────────────────────────────────────
@@ -302,6 +302,6 @@ def InfoPage(page: ft.Page) -> ft.Container:
         expand=True,
         bgcolor=BG(),
         visible=False,
-        padding=ft.padding.symmetric(horizontal=28, vertical=24),
+        padding=ft.Padding.symmetric(horizontal=28, vertical=24),
         content=scroll_content,
     )
