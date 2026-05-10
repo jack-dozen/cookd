@@ -433,22 +433,22 @@
     "cook_time": "",
     "image_url": "https://img-global.cpcdn.com/recipes/45f3b5444d197b40/1200x630cq80/photo.jpg",
     "source": "Cookpad",
-    "scraped_at": "2026-05-04 13:54:30",
+    "scraped_at": "2026-05-04 15:54:58",
     "match_score": 0.09090909090909091,
     "have_ingredients": [
-      "Secukupnya ayam cincang kecap"
+      "60 gram wortel"
     ],
     "missing_ingredients": [
       "225 gram tepung terigu protein rendah",
       "25 gram Tepung Maizena Rose Brand",
       "50 gram Gula Pasir Rose Brand",
       "4 gram ragi instan",
-      "60 gram wortel",
       "90 ml air",
       "25 gram Margarin Rose Brand",
       "Secukupnya pewarna oranye",
       "Secukupnya daun selada",
-      "Secukupnya irisan tomat"
+      "Secukupnya irisan tomat",
+      "Secukupnya ayam cincang kecap"
     ]
   },
   {
@@ -726,6 +726,207 @@
       "600 mL air (secukupnya)",
       "3 sdt garam",
       "3 sdt penyedap rasa (secukupnya)"
+    ]
+  },
+  {
+    "recipe_id": "6b5dbcda019c",
+    "name": "Oseng Gambas & Wortel dengan Telur Orak-Arik",
+    "source_url": "https://cookpad.com/id/resep/25714458",
+    "ingredients": [
+      "2 buah Gambas ukuran besar",
+      "2 buah Wortel ukuran sedang",
+      "2 butir Telur",
+      "3 siung Bawang putih",
+      "2 siung bawang merah",
+      "1 bh cabe merah besar",
+      "1 buah tomat",
+      "1 sdm Minyak goreng",
+      "1/2 sdt Garam",
+      "1 sdm saus tiram",
+      "secukupnya air",
+      "1/4 sdt Merica"
+    ],
+    "steps": [
+      "Kupas gambas lalu iris. Kemudian potong wortel sesuai selera, sisihkan. Cincang bawang putih dan merah, lalu iris cabe dan sisihkan.",
+      "Kocok telur, lalu orak-arik di wajan dengan sedikit minyak, angkat.Tumis bawang dan cabe hingga harum, masukkan wortel dan tomat, tumis sebentar. Tambahkan sedikit air",
+      "Masukkan gambas, tumis cepat agar warnanya tetap cantik. Bumbui dengan garam, saus tiram dan lada bubuk, tes rasa. Angkat jika gambas sudah cukup matang tetapi warnanya masih hijau. Sayur gambas pun siap disajikan."
+    ],
+    "author": "Yulianti Khusumawardani",
+    "portion": "4 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/6d503865568cdc6b/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 15:54:49",
+    "match_score": 0.08333333333333333,
+    "have_ingredients": [
+      "2 buah Wortel ukuran sedang"
+    ],
+    "missing_ingredients": [
+      "2 buah Gambas ukuran besar",
+      "2 butir Telur",
+      "3 siung Bawang putih",
+      "2 siung bawang merah",
+      "1 bh cabe merah besar",
+      "1 buah tomat",
+      "1 sdm Minyak goreng",
+      "1/2 sdt Garam",
+      "1 sdm saus tiram",
+      "secukupnya air",
+      "1/4 sdt Merica"
+    ]
+  },
+  {
+    "recipe_id": "d462cf584f26",
+    "name": "601. Tumis Cuciwis Wortel",
+    "source_url": "https://cookpad.com/id/resep/16105193",
+    "ingredients": [
+      "secukupnya cuciwis",
+      "1 buah wortel iris sesuai selera",
+      "1/2 bawang bombay",
+      "2 bawang putih geprek",
+      "1 bawang daun iris tipis",
+      "1 butir telur",
+      "1 sdt saus tiram",
+      "1 sdt kaldu",
+      "1/2 sdt gula",
+      "1/2 sdt lada",
+      "secukupnya garam",
+      "1 buah sosis iris sesuai selera",
+      "3 butir bakso iris sesuai selera"
+    ],
+    "steps": [
+      "Tumis bawang putih, bombay hingga layu dan harum",
+      "Masukkan sosis dan bakso tumis sebentar, masukkan telur dan orak arik",
+      "Masukkan wortel dan beri air",
+      "Masukkan cuciwis, masak hingga sayur matang lalu masukkan saus tiram, garam, kaldu, lada, gula dan bawang daun",
+      "Koreksi rasa dan sajikan selagi hangat"
+    ],
+    "author": "elvira Agustina",
+    "portion": "5 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/9dfa5165a8124d94/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 15:54:44",
+    "match_score": 0.07692307692307693,
+    "have_ingredients": [
+      "1 buah wortel iris sesuai selera"
+    ],
+    "missing_ingredients": [
+      "secukupnya cuciwis",
+      "1/2 bawang bombay",
+      "2 bawang putih geprek",
+      "1 bawang daun iris tipis",
+      "1 butir telur",
+      "1 sdt saus tiram",
+      "1 sdt kaldu",
+      "1/2 sdt gula",
+      "1/2 sdt lada",
+      "secukupnya garam",
+      "1 buah sosis iris sesuai selera",
+      "3 butir bakso iris sesuai selera"
+    ]
+  },
+  {
+    "recipe_id": "7aab18c121f0",
+    "name": "Tumis Wortel Sawi Putih Pentol Bakso",
+    "source_url": "https://cookpad.com/id/resep/25058504",
+    "ingredients": [
+      "1 buah wortel ukuran sedang",
+      "12 lembar sawi putih",
+      "4 biji pentol bakso sapi bisa kurang atau lebih sesuai selera",
+      "1 butir telur ayam",
+      "1/2 buah bawang Bombay bisa skip jika tidak ada",
+      "4 siung bawang putih",
+      "6 buah bawang merah",
+      "3 biji cabe keriting bisa kurang atau lebih sesuai selera",
+      "8 biji cabe rawit bisa kurang atau lebih sesuai selera",
+      "1 buah tomat ukuran besar",
+      "1 sendok makan saus tiram",
+      "1/4 sendok teh lada bubuk",
+      "1/4 sendok teh garam halus bisa kurang atau lebih sesuai selera",
+      "1/4 sendok teh kaldu bubuk bisa kurang atau lebih sesuai selera",
+      "1/4 sendok makan gula pasir bisa kurang atau lebih sesuai selera",
+      "2 sendok makan minyak goreng",
+      "150 ml air putih bersih"
+    ],
+    "steps": [
+      "Siapkan semua bahan yang dibutuhkan seperti sawi putih, wortel, pentol bakso, bawang Bombay, tomat, telur, bawang merah, bawang putih, cabe rawit dan cabe merah keriting. Pisahkan sawi putih dari bonggolnya lalu cuci bersih kemudian potong-potong sesuai selera dan sisihkan.",
+      "Kupas wortel lalu cuci bersih kemudian potong-potong sesuai selera dan sisihkan. Kupas bawang Bombay, bawang merah dan bawang putih lalu cuci bersih bersama dengan tomat, cabe rawit dan cabe merah keriting. Iris tipis bawang merah dan bawang putih lalu sisihkan. Potong-potong sesuai selara bawang bombay, pentol bakso, tomat, cabe rawit dan cabe merah keriting lalu sisihkan. Panaskan minyak goreng dengan api sedang lalu pecahkan telur dan masukkan dalam wajan penggorengan lalu orak arik telur.",
+      "Masukkan potongan bawang Bombay dan irisan bawang putih lalu tumis hingga layu dan harum. Tambahkan irisan bawang merah tumis kembali hingga setengah matang. Kemudian masukkan potongan pentol bakso, cabe rawit dan cabe merah keriting lalu tumis kembali hingga semua bahan matang.",
+      "Setelah itu masukkan air putih dan aduk-aduk lalu tunggu hingga air mendidih. Masukkan potongan wortel, aduk-aduk kembali dan bumbui dengan garam, gula, saus tiram, kaldu bubuk, lada bubuk lalu aduk-aduk kembali hingga bumbu tercampur rata kemudian biarkan masak hingga wortel setengah matang..",
+      "Setelah itu masukkan potongan sawi putih, aduk-aduk kembali. Terakhir masukkan potongan buah tomat lalu aduk-aduk kembali dan tes rasa apakah sudah pas rasanya seperti yang diinginkan. Jika dirasa sudah pas dan sayuran sudah matang sesuai selara matikan api kompor dan angkat lalu pindahkan pada piring saji.",
+      "Tumis Wortel Sawi Putih Pentol Bakso siap untuk disajikan dan dinikmati sebagai pendamping nasi putih dan lauk sesuai selera, selamat mencoba 🙏🥰."
+    ],
+    "author": "Ririn Kristanti",
+    "portion": "4 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/8929ab2c2c9319ed/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 15:54:54",
+    "match_score": 0.058823529411764705,
+    "have_ingredients": [
+      "1 buah wortel ukuran sedang"
+    ],
+    "missing_ingredients": [
+      "12 lembar sawi putih",
+      "4 biji pentol bakso sapi bisa kurang atau lebih sesuai selera",
+      "1 butir telur ayam",
+      "1/2 buah bawang Bombay bisa skip jika tidak ada",
+      "4 siung bawang putih",
+      "6 buah bawang merah",
+      "3 biji cabe keriting bisa kurang atau lebih sesuai selera",
+      "8 biji cabe rawit bisa kurang atau lebih sesuai selera",
+      "1 buah tomat ukuran besar",
+      "1 sendok makan saus tiram",
+      "1/4 sendok teh lada bubuk",
+      "1/4 sendok teh garam halus bisa kurang atau lebih sesuai selera",
+      "1/4 sendok teh kaldu bubuk bisa kurang atau lebih sesuai selera",
+      "1/4 sendok makan gula pasir bisa kurang atau lebih sesuai selera",
+      "2 sendok makan minyak goreng",
+      "150 ml air putih bersih"
+    ]
+  },
+  {
+    "recipe_id": "4ca546b1a3ae",
+    "name": "Tumis kembang kol, wortel dan jagung manis",
+    "source_url": "https://cookpad.com/id/resep/25722599",
+    "ingredients": [
+      "1 bongkol kembang kol,iris kecil-kecil",
+      "1 bonggol jagung manis, sisir",
+      "1 buah wortel,potong panjang",
+      "1 cm bawang bombay",
+      "2 siung bawang putih",
+      "1 sdt bawang putih bubuk (opsional)",
+      "Secukupnya penyedap rasa",
+      "Secukupnya garam",
+      "Secukupnya air"
+    ],
+    "steps": [
+      "Potong dadu bawang Bombay dan cincang kasar bawang putih",
+      "Cuci bersih kembang kol,wortel dan jagung manis",
+      "Panaskan minyak,tumis bawang putih dan bawang Bombay sampai harum",
+      "Masukkan kembang kol dan wortel,tumis sebentar",
+      "Tambahkan jagung manis tumis sebentar. Lalu tambahkan air",
+      "Masak air hingga tersisa separuh lalu tambahkan bumbu dan jangan lupa koreksi rasa. Masak sampai air menyusut"
+    ],
+    "author": "Niken Kurniani",
+    "portion": "4 servings",
+    "cook_time": "",
+    "image_url": "https://img-global.cpcdn.com/recipes/b49c00a3259fbb8f/1200x630cq80/photo.jpg",
+    "source": "Cookpad",
+    "scraped_at": "2026-05-04 15:55:03",
+    "match_score": 0.0,
+    "have_ingredients": [],
+    "missing_ingredients": [
+      "1 bongkol kembang kol,iris kecil-kecil",
+      "1 bonggol jagung manis, sisir",
+      "1 buah wortel,potong panjang",
+      "1 cm bawang bombay",
+      "2 siung bawang putih",
+      "1 sdt bawang putih bubuk (opsional)",
+      "Secukupnya penyedap rasa",
+      "Secukupnya garam",
+      "Secukupnya air"
     ]
   }
 ]
