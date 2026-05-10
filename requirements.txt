@@ -1,6 +1,7 @@
 beautifulsoup4==4.14.3
 flet==0.85.0
 flet-lottie==0.85.0
+flet-video==0.85.0
 recipe_scrapers==15.11.0
 scrapling==0.4.7
 selenium==4.43.0
