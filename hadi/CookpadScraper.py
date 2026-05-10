@@ -15,11 +15,12 @@ from recipe_scrapers._exceptions import (
 )
 
 # ── Setup logging ──────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-log = logging.getLogger(__name__)
+log = logging.getLogger("CookpadScraper")
+log.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(asctime)s [COOKPAD] %(message)s"))
+log.addHandler(handler)
+log.propagate = False  
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 BASE_URL         = "https://cookpad.com"
@@ -122,6 +123,7 @@ def ingredient_score(recipe_ingredients: list, user_ingredients: list[str]) -> d
 
 
 # ── Scraping ───────────────────────────────────────────────────────────────────
+
 def search_recipe(keyword: str) -> list[dict]:
     """Return recipe stubs (id, name, url) from one Cookpad search page."""
     url = SEARCH_URL.format(keyword=keyword.replace(" ", "%20"))
@@ -154,6 +156,20 @@ def search_recipe(keyword: str) -> list[dict]:
     log.info(f"     {len(stubs)} stubs found")
     return stubs
 
+def scrape_video_url(video_page_url: str) -> str:
+    """Fetch the actual .mp4 URL from a Cookpad video page."""
+    try:
+        page = StealthyFetcher.fetch(video_page_url, headless=True, network_idle=True)
+        video_el = page.css("video source")
+        if video_el:
+            return video_el[0].attrib.get("src", "")
+        # fallback: look for video tag directly
+        video_tag = page.css("video")
+        if video_tag:
+            return video_tag[0].attrib.get("src", "")
+    except Exception as e:
+        log.warning(f"Video scrape failed: {e}")
+    return ""
 
 def scrape_recipe_detail(stub: dict) -> dict | None:
     """
@@ -244,13 +260,16 @@ def scrape_recipe_detail(stub: dict) -> dict | None:
         videos = []
         for a in attachments:
             href = a.attrib.get("href", "")
-            img = a.css("img")
-            src = img[0].attrib.get("src", "") if img else ""
-            if "/step_attachment/videos/" in href:
-                videos.append({"thumb": src, "href": BASE_URL + href if href.startswith("/") else href})
-            elif src:
-                images.append(src)
-        
+            picture = a.css("picture source")
+            src = picture[0].attrib.get("srcset", "").split(" ")[0] if picture else ""
+            if "/videos/production/step_videos/" in href:
+                full_href = BASE_URL + href if href.startswith("/") else href
+                mp4_url = scrape_video_url(full_href)
+                videos.append({"thumb": src, "href": mp4_url if mp4_url else full_href})
+            elif "/step_attachment/images/" in href:
+                if src:
+                    images.append(src)
+            
         if images:
             step["images"] = images
         if videos:
@@ -346,20 +365,22 @@ def find_recipe(user_ingredients: list[str], on_recipe_found=None) -> list[dict]
     db.close()
 
     return sorted(results, key=lambda x: x["match_score"], reverse=True)[:MAX_RECIPES]
+
 # ── Main ───────────────────────────────────────────────────────────────────────
-def main():
+
+def main(ingredients, on_recipe_found=None):
     print("=" * 50)
     print("  Cookpad Recipe Scraper")
     print("=" * 50)
 
-    raw = sys.argv[1]
-    if not raw:
+    if not ingredients:
         print("Tidak ada bahan yang diinput. Keluar.")
         return
 
-    user_ingredients = [k.strip() for k in raw.split(",") if k.strip()]
+    user_ingredients = ingredients if isinstance(ingredients, list) else [i.strip() for i in ingredients.split(",")]
+    print(f"Bahan yang dimasukkan: {', '.join(user_ingredients)}")
 
-    detailed = find_recipe(user_ingredients)
+    detailed = find_recipe(user_ingredients, on_recipe_found=on_recipe_found)
     if not detailed:
         print("\nTidak ada resep yang cocok ditemukan.")
         return
@@ -411,4 +432,4 @@ def get_temp_results(filepath: str) -> list[dict]:
     db.close()
     return results
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1])
