@@ -1,5 +1,7 @@
 import flet as ft
-from fadhil.my_recipes import MyRecipesPage
+from tinydb.utils import D
+from fadhil.my_recipes import MyRecipesPage,on_view_recipe
+from hadi.ui import detail
 from rafy.theme import theme_mgr, ORANGE, GREEN, WHITE
 from zaky.info import InfoPage
 
@@ -95,7 +97,7 @@ def main(page: ft.Page):
     pages["detail"]     = build_detail_page(page, navigate, topbar)
     pages["finder"]     = build_finder_page(page, show_detail_fn=pages["detail"].show)
     pages["home"]       = make_placeholder("Home")
-    pages["my-recipes"] = MyRecipesPage(page, navigate)
+    pages["my-recipes"] = MyRecipesPage(page, navigate, on_view_recipe=pages["detail"].show)
     pages["for-you"]    = make_placeholder("For You")
     pages["info"]       = InfoPage(page)
     pages["home"].visible = True
