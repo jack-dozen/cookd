@@ -181,7 +181,7 @@ def build_loading_panel(page: ft.Page) -> tuple[ft.Container, callable]:
         ),
         bgcolor=BG3(),
         border_radius=ft.BorderRadius.all(14),
-        padding=ft.padding.symmetric(horizontal=30, vertical=20),
+        padding=ft.Padding.symmetric(horizontal=30, vertical=20),
         border=ft.Border.all(1, BORDER()),
         animate_opacity=ft.Animation(300, ft.AnimationCurve.EASE_IN_OUT),
     )
@@ -291,7 +291,7 @@ def _build_price_cards(result) -> ft.Container:
         border_color=BORDER(),
         color=TEXT(),
         text_size=12,
-        content_padding=ft.padding.symmetric(horizontal=10, vertical=6),
+        content_padding=ft.Padding.symmetric(horizontal=10, vertical=6),
         on_select=lambda e: (_fill(e.control.value), page_ref[0].update())
                   if page_ref[0] else None,
     )
@@ -303,7 +303,7 @@ def _build_price_cards(result) -> ft.Container:
         content=ft.Text("Termurah ⭐", color=WHITE, size=9, weight=ft.FontWeight.BOLD),
         bgcolor=GREEN,
         border_radius=ft.BorderRadius.all(20),
-        padding=ft.padding.symmetric(horizontal=7, vertical=3),
+        padding=ft.Padding.symmetric(horizontal=7, vertical=3),
         visible=True,
     )
 
@@ -335,7 +335,7 @@ def _build_price_cards(result) -> ft.Container:
             bgcolor=BG4(),
             border=ft.Border.all(1, BORDER()),
             border_radius=ft.BorderRadius.all(10),
-            padding=ft.padding.all(14),
+            padding=ft.Padding.all(14),
             expand=True,
             animate=ft.Animation(250, ft.AnimationCurve.EASE_IN_OUT),
         )
@@ -456,7 +456,7 @@ def _build_bar_chart(result) -> ft.Container:
                     text_align=ft.TextAlign.CENTER,
                 ),
                 visible=(h > 0),
-                padding=ft.padding.only(bottom=2),
+                padding=ft.Padding.only(bottom=2),
             )
             bar_body = ft.Container(
                 width=BAR_W,
@@ -595,7 +595,7 @@ def _build_bar_chart(result) -> ft.Container:
         bgcolor=BG4(),
         border=ft.Border.all(1, BORDER()),
         border_radius=ft.BorderRadius.all(10),
-        padding=ft.padding.all(14),
+        padding=ft.Padding.all(14),
     )
 
 
@@ -631,7 +631,7 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
             bgcolor=BG3(),
             border=ft.Border.all(1, AMBER),
             border_radius=ft.BorderRadius.all(10),
-            padding=ft.padding.all(16),
+            padding=ft.Padding.all(16),
         )
 
     print("[price_panel] Mulai build price cards...")
