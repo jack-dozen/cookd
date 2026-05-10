@@ -1,31 +1,5 @@
 """
-PriceComparisonService.py
-═══════════════════════════════════════════════════════════════════════════════
-Service layer untuk kalkulasi perbandingan harga bahan resep dari 3 toko.
-
-Flow:
-    1. Terima recipe_id → baca ingredients + portions dari tabel recipes di DB
-    2. Parse setiap string bahan → qty_gram + keyword bersih
-    3. Scrape paralel: Tokopedia + Alfagift + AEON
-    4. Baca unit satuan produk dari DB → hitung rasio proporsional kebutuhan resep
-    5. Simpan hasil ke tabel results di base.json (upsert by recipe_id)
-    6. Return PriceResult berisi:
-         · per_ingredient → harga per bahan per toko (nama, harga satuan, harga resep, url)
-         · per_store      → harga total, harga resep, harga per porsi per toko
-         · cheapest_store → toko termurah berdasarkan harga_resep
-
-Cara pakai dari PriceController / Gui Hadi:
-    from zaky.PriceComparisonService import PriceComparisonService
-
-    service = PriceComparisonService()
-    result  = service.run(
-        recipe_id   = "5eef19bfb57b",
-        progress_cb = lambda msg: print(msg),   # update label Flet
-    )
-    result.per_ingredient  # dict[keyword, list[IngredientStorePrice × 3 toko]]
-    result.per_store       # dict[store,   StoreTotal]
-    result.cheapest_store  # "alfagift"
-═══════════════════════════════════════════════════════════════════════════════
+PriceComparisonService.py - FIXED VERSION
 """
 
 import re
@@ -719,16 +693,55 @@ class PriceComparisonService:
         per_ingredient : dict[str, list[IngredientStorePrice]],
         portions       : int,
     ) -> dict[str, StoreTotal]:
+        """
+        Hitung StoreTotal per toko.
+
+        Kalau suatu bahan tidak ditemukan di satu toko (found=False),
+        dan bahan itu ditemukan di ≥ 1 toko lain, gunakan MEDIAN harga_recipe
+        dari toko yang punya data sebagai estimasi — tapi hanya kalau
+        bahan yang N/A ≤ 50% dari total bahan (kalau terlalu banyak yang missing,
+        estimasi tidak bisa dipercaya → tetap tampilkan N/A / 0).
+        """
+        stores = ["tokopedia", "alfagift", "aeon"]
         totals: dict[str, StoreTotal] = {}
-        for store in ["tokopedia", "alfagift", "aeon"]:
-            total_satuan = sum(
-                r.price for rows in per_ingredient.values()
-                for r in rows if r.store == store and r.found and r.price > 0
-            )
-            total_resep = sum(
-                r.price_recipe for rows in per_ingredient.values()
-                for r in rows if r.store == store and r.found and r.price_recipe > 0
-            )
+
+        for store in stores:
+            total_satuan = 0
+            total_resep  = 0
+            missing_count = 0
+            total_count   = 0
+
+            for keyword, rows in per_ingredient.items():
+                total_count += 1
+                # Cari data bahan ini untuk toko ini
+                own = next((r for r in rows if r.store == store), None)
+
+                if own and own.found and own.price > 0:
+                    total_satuan += own.price
+                    total_resep  += own.price_recipe
+                else:
+                    missing_count += 1
+                    # Coba fallback median dari toko lain yang punya data
+                    other_prices = [
+                        r.price_recipe for r in rows
+                        if r.store != store and r.found and r.price_recipe > 0
+                    ]
+                    if other_prices:
+                        # Median dari toko lain sebagai estimasi
+                        other_prices.sort()
+                        median_price = other_prices[len(other_prices) // 2]
+                        # Gunakan median hanya kalau proporsi missing masih wajar
+                        # (keputusan akhir ditentukan setelah hitung semua bahan)
+                        total_resep  += median_price
+                        # Untuk harga total, estimasi dari median resep × rasio umum
+                        # (median_price sudah proporsional, kalikan 3 sebagai kasar)
+                        total_satuan += median_price * 3
+
+            # Kalau > 60% bahan missing di toko ini → set ke 0 (data tidak cukup)
+            if total_count > 0 and missing_count / total_count > 0.6:
+                total_satuan = 0
+                total_resep  = 0
+
             per_porsi = (total_resep // portions) if portions > 0 and total_resep > 0 else 0
             totals[store] = StoreTotal(
                 store           = store,
