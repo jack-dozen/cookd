@@ -11,6 +11,7 @@ komponen utama:
 
 import flet as ft
 import threading
+import asyncio
 import time
 import math
 import os
@@ -387,32 +388,21 @@ def _build_price_cards(result) -> ft.Container:
 def _build_bar_chart(result) -> ft.Container:
     """
     Bar chart perbandingan 3 toko: Total Bahan vs Harga Resep.
-    Setiap grup punya 2 bar berdampingan, lengkap dengan sumbu Y dan label X.
+
+    Setiap toko punya dua bar berdampingan (total vs resep).
+    Toko tanpa data → tampilkan placeholder 'Data N/A'.
+    Bar + label nilai tidak saling overlap karena layout pakai Stack
+    dengan posisi absolut untuk label, bukan Column tumpuk.
     """
     stores     = ["tokopedia", "alfagift", "aeon"]
     store_data = result.per_store
     cheapest   = result.cheapest_store
 
-    CHART_H    = 140   # tinggi area bar (px) — diperbesar biar label nilai tidak kepotong
-    LABEL_H    = 20    # ruang untuk label nilai di atas tiap bar
-    BAR_W      = 22    # lebar tiap bar
+    CHART_H = 140   # tinggi area bar murni (px)
+    LABEL_H = 18    # tinggi zona label nilai di atas bar — TERPISAH dari CHART_H
+    BAR_W   = 26    # lebar tiap bar
+    TOTAL_H = CHART_H + LABEL_H  # total tinggi kolom tiap grup
 
-    # Kumpulkan semua nilai untuk normalisasi
-    all_vals = []
-    for s in stores:
-        st = store_data.get(s)
-        if st:
-            if st.harga_total > 0:  all_vals.append(st.harga_total)
-            if st.harga_resep > 0:  all_vals.append(st.harga_resep)
-
-    max_val = max(all_vals) if all_vals else 1
-
-    def _norm(v: int) -> int:
-        """Normalisasi nilai ke tinggi pixel, minimum 6px agar visible."""
-        if v <= 0: return 0
-        return max(6, int((v / max_val) * CHART_H))
-
-    # ── Sumbu Y (label nilai) ─────────────────────────────────────────────────
     def _fmt_rp_short(v: int) -> str:
         if v >= 1_000_000:
             return f"Rp {v/1_000_000:.1f}jt"
@@ -420,7 +410,22 @@ def _build_bar_chart(result) -> ft.Container:
             return f"Rp {v//1_000}rb"
         return f"Rp {v}"
 
-    # Buat 4 level label sumbu Y (0, 25%, 50%, 75%, 100% dari max)
+    # Kumpulkan semua nilai > 0 untuk normalisasi
+    all_vals = []
+    for s in stores:
+        st = store_data.get(s)
+        if st:
+            if st.harga_total > 0: all_vals.append(st.harga_total)
+            if st.harga_resep > 0: all_vals.append(st.harga_resep)
+
+    max_val = max(all_vals) if all_vals else 1
+
+    def _norm(v: int) -> int:
+        """Nilai → tinggi pixel dalam CHART_H. Min 6px agar bar kelihatan."""
+        if v <= 0: return 0
+        return max(6, int((v / max_val) * CHART_H))
+
+    # ── Sumbu Y ───────────────────────────────────────────────────────────────
     y_levels = [0, 0.25, 0.5, 0.75, 1.0]
     y_axis_labels = ft.Column(
         controls=[
@@ -433,72 +438,66 @@ def _build_bar_chart(result) -> ft.Container:
             for lvl in reversed(y_levels)
         ],
         spacing=0,
-        height=CHART_H + LABEL_H,
+        height=TOTAL_H,
         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
     )
 
-    # ── Grup bar per toko ─────────────────────────────────────────────────────
+    # ── Satu bar: Stack(label di atas, bar di bawah) ──────────────────────────
+    def _bar(h: int, col: str, val: int, label_suffix: str = "") -> ft.Container:
+        """
+        Satu bar dengan label nilai di atasnya.
+
+        Kunci fix bar chart: gunakan Stack dengan ukuran tetap TOTAL_H.
+        Label nilai diletakkan di atas (top=0), bar body di bawah (bottom=0).
+        Dengan begitu, label tidak pernah 'mendorong' bar keluar area.
+        """
+        if h <= 0:
+            # Bar tidak ada datanya → kembalikan container kosong setinggi TOTAL_H
+            return ft.Container(width=BAR_W, height=TOTAL_H)
+
+        return ft.Container(
+            width=BAR_W,
+            height=TOTAL_H,
+            content=ft.Stack(
+                controls=[
+                    # Label nilai — selalu di zona atas (LABEL_H px pertama)
+                    ft.Container(
+                        content=ft.Text(
+                            _fmt_rp_short(val) + label_suffix,
+                            size=8,
+                            color=TEXT2(),
+                            text_align=ft.TextAlign.CENTER,
+                            no_wrap=True,
+                        ),
+                        width=BAR_W,
+                        height=LABEL_H,
+                        alignment=ft.Alignment(0, 1),  # bottom_center
+                        top=0,
+                    ),
+                    # Bar body — tumbuh dari bawah
+                    ft.Container(
+                        width=BAR_W,
+                        height=h,
+                        bgcolor=col,
+                        border_radius=ft.BorderRadius.only(
+                            top_left=3, top_right=3,
+                            bottom_left=0, bottom_right=0,
+                        ),
+                        bottom=0,
+                    ),
+                ],
+            ),
+        )
+
+    # ── Grup dua bar untuk satu toko ─────────────────────────────────────────
     def _build_group(store: str) -> ft.Column:
-        st = store_data.get(store)
+        st       = store_data.get(store)
         is_cheap = (store == cheapest)
         color    = STORE_COLORS[store]
+        has_data = st is not None and (st.harga_total > 0 or st.harga_resep > 0)
 
-        h_total = _norm(st.harga_total if st else 0)
-        h_resep = _norm(st.harga_resep if st else 0)
-
-        def _bar(h: int, col: str, val: int, label_suffix: str = "") -> ft.Stack:
-            """Bar tunggal dengan tooltip nilai di atas."""
-            val_label = ft.Container(
-                content=ft.Text(
-                    _fmt_rp_short(val) + label_suffix,
-                    size=8,
-                    color=TEXT2(),
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                visible=(h > 0),
-                padding=ft.padding.only(bottom=2),
-            )
-            bar_body = ft.Container(
-                width=BAR_W,
-                height=h if h > 0 else 0,
-                bgcolor=col,
-                border_radius=ft.BorderRadius.only(
-                    top_left=3, top_right=3,
-                    bottom_left=0, bottom_right=0,
-                ),
-            )
-            return ft.Column(
-                controls=[val_label, bar_body],
-                spacing=2,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            )
-
-        # Warna: toko termurah pakai warna penuh; lainnya lebih redup
-        col_total = color
-        col_resep = color + "CC" if not is_cheap else GREEN
-
-        bars = ft.Row(
-            controls=[
-                _bar(h_total, col_total, st.harga_total if st else 0),
-                _bar(h_resep, col_resep, st.harga_resep if st else 0,
-                     " ⭐" if is_cheap else ""),
-            ],
-            spacing=3,
-            alignment=ft.MainAxisAlignment.CENTER,
-            vertical_alignment=ft.CrossAxisAlignment.END,
-        )
-
-        # Wrapper dengan tinggi fixed agar semua grup sejajar
-        # PERBAIKAN: Tinggi = CHART_H + LABEL_H agar label nilai di atas bar tidak terpotong
-        bars_container = ft.Container(
-            content=bars,
-            height=CHART_H + LABEL_H,
-            alignment=ft.Alignment(0, 1),  # align bottom
-        )
-
-        # Label toko + garis sumbu X
-        label_color = GREEN if is_cheap else TEXT2()
-        label = ft.Text(
+        label_color = GREEN if is_cheap else (TEXT2() if has_data else TEXT3())
+        store_label = ft.Text(
             STORE_LABELS[store] + (" ⭐" if is_cheap else ""),
             size=10,
             color=label_color,
@@ -506,8 +505,50 @@ def _build_bar_chart(result) -> ft.Container:
             text_align=ft.TextAlign.CENTER,
         )
 
+        if not has_data:
+            # Placeholder kalau data tidak tersedia
+            placeholder = ft.Container(
+                height=TOTAL_H,
+                content=ft.Column(
+                    controls=[
+                        ft.Icon(ft.Icons.REMOVE_CIRCLE_OUTLINE, color=TEXT3(), size=16),
+                        ft.Text("Data N/A", size=9, color=TEXT3(),
+                                text_align=ft.TextAlign.CENTER),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=4,
+                ),
+                alignment=ft.Alignment(0, 0),  # center
+            )
+            return ft.Column(
+                controls=[placeholder, store_label],
+                spacing=6,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                expand=True,
+            )
+
+        h_total = _norm(st.harga_total)
+        h_resep = _norm(st.harga_resep)
+
+        # Total Bahan selalu ORANGE (sesuai legenda)
+        # Harga Resep = warna toko; kalau termurah → GREEN
+        col_total = ORANGE
+        col_resep = GREEN if is_cheap else color
+
+        bars = ft.Row(
+            controls=[
+                _bar(h_total, col_total, st.harga_total),
+                _bar(h_resep, col_resep, st.harga_resep,
+                     " ⭐" if is_cheap else ""),
+            ],
+            spacing=4,
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.END,
+        )
+
         return ft.Column(
-            controls=[bars_container, label],
+            controls=[bars, store_label],
             spacing=6,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             expand=True,
@@ -520,24 +561,16 @@ def _build_bar_chart(result) -> ft.Container:
         expand=True,
     )
 
-    # ── Area chart (sumbu Y kiri + bars) ─────────────────────────────────────
+    # ── Area chart ────────────────────────────────────────────────────────────
     chart_area = ft.Row(
         controls=[
-            ft.Container(content=y_axis_labels, width=52),
-            ft.Container(  # garis vertikal sumbu Y
-                width=1,
-                height=CHART_H + 20,
-                bgcolor=BORDER(),
-            ),
+            ft.Container(content=y_axis_labels, width=56),
+            ft.Container(width=1, height=TOTAL_H, bgcolor=BORDER()),  # sumbu Y
             ft.Container(width=8),
             ft.Column(
                 controls=[
                     groups,
-                    ft.Container(  # garis horizontal sumbu X
-                        height=1,
-                        bgcolor=BORDER(),
-                        expand=True,
-                    ),
+                    ft.Container(height=1, bgcolor=BORDER(), expand=True),  # sumbu X
                 ],
                 spacing=0,
                 expand=True,
@@ -566,8 +599,8 @@ def _build_bar_chart(result) -> ft.Container:
     legend = ft.Row(
         controls=[
             _legend_item(ORANGE, "Total Bahan"),
-            _legend_item(ORANGE + "CC", "Harga Resep"),
-            _legend_item(GREEN, "Termurah"),
+            _legend_item(AEON_COLOR, "Harga Resep"),
+            _legend_item(GREEN, "Termurah (Harga Resep)"),
         ],
         spacing=16,
     )
@@ -575,15 +608,11 @@ def _build_bar_chart(result) -> ft.Container:
     return ft.Container(
         content=ft.Column(
             controls=[
-                ft.Row(
-                    controls=[
-                        ft.Text(
-                            "Perbandingan Harga Resep — 3 Toko",
-                            color=TEXT2(),
-                            size=12,
-                            weight=ft.FontWeight.W_600,
-                        ),
-                    ],
+                ft.Text(
+                    "Perbandingan Harga Resep — 3 Toko",
+                    color=TEXT2(),
+                    size=12,
+                    weight=ft.FontWeight.W_600,
                 ),
                 ft.Container(height=12),
                 chart_area,
@@ -728,12 +757,9 @@ def run_price_calculation(
 
     def _work():
         try:
-            # Import service di sini agar tidak circular
             from zaky.PriceComparisonService import PriceComparisonService
-
             service = PriceComparisonService()
 
-            # Progress callback: update status toko di loading panel
             def _progress(msg: str):
                 parts = [p.strip() for p in msg.split("·") if p.strip()]
                 for part in parts:
@@ -749,41 +775,42 @@ def run_price_calculation(
                 from zaky.PriceComparisonService import PriceResult
                 result = PriceResult(success=False, error_message=str(ex))
             except Exception:
-                # Fallback kalau PriceComparisonService sendiri gagal diimport
                 class _FallbackResult:
                     success = False
                     error_message = str(ex)
                 result = _FallbackResult()
 
-        # Stop animasi loading
         stop_loading()
-
         print("[price_panel] Service selesai, mulai build panel hasil...")
 
-        # Ganti dengan panel hasil
         panel = build_price_panel(result, page)
-
         print("[price_panel] Panel hasil berhasil dibangun")
 
-        if price_area.current:
-            price_area.current.content = panel
-            price_area.current._price_done = True
-            # PERBAIKAN: Panggil _init_fill dulu (isi nilai kartu)
-            # BARU page.update() — semua dalam satu thread ini, tidak ada race condition
-            if hasattr(panel, "_init_fill"):
-                try:
-                    panel._init_fill()
-                except Exception as e:
-                    print(f"[price_panel] _init_fill error: {e}")
-            panel.opacity = 1
-            page.update()
+        # ── PERBAIKAN UI tidak update ──────────────────────────────────────
+        # Flet pakai asyncio event loop internal. page.update() dari thread
+        # biasa kadang tidak ter-flush ke UI sampai ada event lain (minimize, dll).
+        # Solusi: schedule update sebagai coroutine di event loop Flet,
+        # persis seperti pattern asyncio.run_coroutine_threadsafe di Gui.py.
+        async def _apply_ui():
+            if price_area.current:
+                price_area.current.content = panel
+                price_area.current._price_done = True
+                if hasattr(panel, "_init_fill"):
+                    try:
+                        panel._init_fill()
+                    except Exception as e:
+                        print(f"[price_panel] _init_fill error: {e}")
+                panel.opacity = 1
+                page.update()
+            print("[price_panel] UI berhasil diupdate")
 
-        print("[price_panel] UI berhasil diupdate")
+            if btn and btn.current:
+                btn.current.disabled = False
+                btn.current.content  = ft.Text("💰 Lihat Perbandingan Harga", color=WHITE)
+                page.update()
 
-        # Restore tombol
-        if btn and btn.current:
-            btn.current.disabled = False
-            btn.current.content  = ft.Text("💰 Lihat Perbandingan Harga", color=WHITE)
-            page.update()
+        # page.run_task() adalah cara yang benar di Flet untuk schedule
+        # coroutine dari worker thread — works di semua platform termasuk Windows
+        page.run_task(_apply_ui)
 
     threading.Thread(target=_work, daemon=True).start()
