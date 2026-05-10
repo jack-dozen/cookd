@@ -56,5 +56,5 @@ def export_selected(table_names: list[str]):
 
 
 # ── untuk testing ──
-if __name__ == '__main__':
-     export_selected(['tokped_ingredients'])
+#if __name__ == '__main__':
+#     export_selected(['tokped_ingredients'])

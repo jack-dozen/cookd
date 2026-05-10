@@ -37,7 +37,7 @@ def build_sidebar_extras(page: ft.Page) -> list:
             ],
             spacing=10,
         ),
-        padding=ft.padding.symmetric(horizontal=14, vertical=10),
+        padding=ft.Padding.symmetric(horizontal=14, vertical=10),
         border_radius=10,
         bgcolor=ft.Colors.TRANSPARENT,
         on_hover=lambda e: (

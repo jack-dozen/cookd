@@ -3,6 +3,7 @@ import logging
 import hashlib
 import sys
 import os
+from tinydb import TinyDB, Query
 from datetime import datetime
 from scrapling.fetchers import StealthyFetcher
 from recipe_scrapers import scrape_html
@@ -14,18 +15,19 @@ from recipe_scrapers._exceptions import (
 )
 
 # ── Setup logging ──────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-log = logging.getLogger(__name__)
+log = logging.getLogger("CookpadScraper")
+log.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(asctime)s [COOKPAD] %(message)s"))
+log.addHandler(handler)
+log.propagate = False  
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 BASE_URL         = "https://cookpad.com"
 SEARCH_URL       = "https://cookpad.com/id/cari/{keyword}"
-OUTPUT_FILE      = "recipes.json"
-MAX_RECIPES      = 5   # max relevant recipes to keep
-MIN_MATCH_SCORE  = 0  # discard recipes where user has <x% of ingredients
+OUTPUT_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', 'base.json')
+MAX_RECIPES      = 10   # max relevant recipes to keep
+MIN_MATCH_SCORE  = 0.01  # discard recipes where user has <x% of ingredients
 
 # ── Fetcher setup ──────────────────────────────────────────────────────────────
 StealthyFetcher.adaptive = False
@@ -45,27 +47,45 @@ def make_id(url: str) -> str:
 def now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def load_existing(filepath: str) -> list:
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            log.warning("Existing JSON file is corrupted, starting fresh.")
-    return []
+def load_existing(filepath: str):
+    db = TinyDB(filepath)
+    return db
 
-def save_recipes(recipes: list, filepath: str):
-    tmp = filepath + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(recipes, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, filepath)
-    log.info(f"Saved {len(recipes)} recipes to {filepath}")
-
-def merge_recipes(existing: list, new_recipes: list) -> list:
-    existing_map = {r["recipe_id"]: r for r in existing}
+def save_recipes(db, new_recipes: list, temp: list):
+    cookpad_table = db.table('cookpad_recipes')
+    cookpad_temp  = db.table('cookpad_temp')
+    
+    existing_urls = {r['source_url'] for r in cookpad_table.all()}
     for recipe in new_recipes:
-        existing_map[recipe["recipe_id"]] = recipe
-    return list(existing_map.values())
+        if recipe['source_url'] not in existing_urls:
+            cookpad_table.insert(recipe)
+    
+    cookpad_temp.truncate()
+    for item in temp:
+        cookpad_temp.insert({k: v for k, v in item.items() if k != 'doc_id'})
+
+def search_local(user_ingredients: list[str], db) -> list[dict]:
+    results = []
+    for recipe in db.table('cookpad_recipes').all():
+        score_result = ingredient_score(recipe["ingredients"], user_ingredients)
+        if score_result["score"] >= MIN_MATCH_SCORE:
+            r = recipe.copy()
+            r["match_score"]         = score_result["score"]
+            r["have_ingredients"]    = score_result["have"]
+            r["missing_ingredients"] = score_result["missing"]
+            results.append(r)
+    return sorted(results, key=lambda x: x["match_score"], reverse=True)[:MAX_RECIPES]
+
+def merge_recipes(base: dict, new_recipes: list) -> dict:
+    table = base.get("cookpad_recipes", {})
+    existing_urls = {r["source_url"] for r in table.values()}
+    next_id = max((int(k) for k in table.keys()), default=0) + 1
+    for recipe in new_recipes:
+        if recipe["source_url"] not in existing_urls:
+            table[str(next_id)] = recipe
+            next_id += 1
+    base["cookpad_recipes"] = table
+    return base
 
 def is_paywalled(href: str) -> bool:
     return "/premium" in href or "paywall" in href
@@ -78,11 +98,7 @@ def safe_get(scraper, field: str, default=None):
 
 
 # ── Ingredient scoring (standalone, works on a raw ingredient list) ────────────
-def ingredient_score(recipe_ingredients: list[str], user_ingredients: list[str]) -> dict:
-    """
-    Score how many of the RECIPE'S ingredients the user already has.
-    Returns score (0.0–1.0), have list, and missing list.
-    """
+def ingredient_score(recipe_ingredients: list, user_ingredients: list[str]) -> dict:
     if not recipe_ingredients:
         return {"score": 0.0, "have": [], "missing": []}
 
@@ -90,7 +106,9 @@ def ingredient_score(recipe_ingredients: list[str], user_ingredients: list[str])
     have, missing = [], []
 
     for ingr in recipe_ingredients:
-        words = ingr.lower().split()
+        # Handle both dict {"qty": ..., "name": ...} and plain string
+        text = ingr["name"].lower() if isinstance(ingr, dict) else ingr.lower()
+        words = text.split()
         meaningful = [w for w in words if len(w) > 1 and w not in SKIP_WORDS]
         if any(w in user_text for w in meaningful):
             have.append(ingr)
@@ -105,6 +123,7 @@ def ingredient_score(recipe_ingredients: list[str], user_ingredients: list[str])
 
 
 # ── Scraping ───────────────────────────────────────────────────────────────────
+
 def search_recipe(keyword: str) -> list[dict]:
     """Return recipe stubs (id, name, url) from one Cookpad search page."""
     url = SEARCH_URL.format(keyword=keyword.replace(" ", "%20"))
@@ -137,6 +156,20 @@ def search_recipe(keyword: str) -> list[dict]:
     log.info(f"     {len(stubs)} stubs found")
     return stubs
 
+def scrape_video_url(video_page_url: str) -> str:
+    """Fetch the actual .mp4 URL from a Cookpad video page."""
+    try:
+        page = StealthyFetcher.fetch(video_page_url, headless=True, network_idle=True)
+        video_el = page.css("video source")
+        if video_el:
+            return video_el[0].attrib.get("src", "")
+        # fallback: look for video tag directly
+        video_tag = page.css("video")
+        if video_tag:
+            return video_tag[0].attrib.get("src", "")
+    except Exception as e:
+        log.warning(f"Video scrape failed: {e}")
+    return ""
 
 def scrape_recipe_detail(stub: dict) -> dict | None:
     """
@@ -177,26 +210,87 @@ def scrape_recipe_detail(stub: dict) -> dict | None:
         log.warning(f"recipe-scrapers failed: {e}. Using CSS fallback.")
 
     if scraper:
-        title       = safe_get(scraper, "title",             stub["name"])
-        ingredients = safe_get(scraper, "ingredients",       [])
-        steps       = safe_get(scraper, "instructions_list", [])
-        author      = safe_get(scraper, "author",            "")
-        yields      = safe_get(scraper, "yields",            "")
-        cook_time   = safe_get(scraper, "total_time",        None)
-        image_url   = safe_get(scraper, "image",             "")
-        cook_time   = f"{cook_time} menit" if isinstance(cook_time, int) and cook_time else (str(cook_time) if cook_time else "")
+        title     = safe_get(scraper, "title",      stub["name"])
+        author    = safe_get(scraper, "author",      "")
+        yields    = safe_get(scraper, "yields",      "")
+        cook_time = safe_get(scraper, "total_time",  None)
+        image_url = safe_get(scraper, "image",       "")
+        cook_time = f"{cook_time} menit" if isinstance(cook_time, int) and cook_time else (str(cook_time) if cook_time else "")
     else:
-        # CSS fallback
-        ingredients = [
-            " ".join(li.get_all_text().replace("\n", " ").split())
-            for li in page.css("div[class*='ingredient-list'] ol li")
-            if li.get_all_text().strip()
-        ]
-        steps = [
-            p.get_all_text().strip()
-            for p in page.css("#steps ol li div[dir='auto'] p")
-            if p.get_all_text().strip()
-        ]
+        title     = stub["name"]
+        author    = ""
+        yields    = ""
+        cook_time = ""
+        image_url = ""
+
+    # Always use CSS for ingredients and steps (structured data)
+    ingredients = []
+    for li in page.css("div[class*='ingredient-list'] ol li"):
+        qty_el  = li.css("bdi")
+        name_el = li.css("span")
+        bold_el = li.css("b, strong")
+        
+        qty  = qty_el[0].text.strip() if qty_el else ""
+        
+        if name_el:
+            # Use get_all_text() to capture text inside nested <a> tags too
+            name = name_el[0].get_all_text().strip()
+        else:
+            name = ""
+        
+        if not name_el and bold_el and not qty:
+            ingredients.append({"qty": "", "name": bold_el[0].get_all_text().strip(), "is_header": True})
+            continue
+        
+        if not name:
+            name = li.get_all_text().strip()
+        
+        if name:
+            ingredients.append({"qty": qty, "name": name})
+
+    steps = []
+    for li in page.css("#steps ol li"):
+        p    = li.css("div[dir='auto'] p")
+        attachments = li.css(".step-attachments-list a.block")
+        step = {}
+        if p:
+            step["text"] = p[0].get_all_text().strip()
+        
+        images = []
+        videos = []
+        for a in attachments:
+            href = a.attrib.get("href", "")
+            picture = a.css("picture source")
+            src = picture[0].attrib.get("srcset", "").split(" ")[0] if picture else ""
+            if "/videos/production/step_videos/" in href:
+                full_href = BASE_URL + href if href.startswith("/") else href
+                mp4_url = scrape_video_url(full_href)
+                videos.append({"thumb": src, "href": mp4_url if mp4_url else full_href})
+            elif "/step_attachment/images/" in href:
+                if src:
+                    images.append(src)
+            
+        if images:
+            step["images"] = images
+        if videos:
+            step["videos"] = videos
+        if step.get("text"):
+            steps.append(step)
+
+    # Fallback for fields not covered by scraper
+    if not author:
+        author_el = page.css("span[dir='ltr'][class*='text-cookpad-12']")
+        author    = author_el[0].text.strip() if author_el else ""
+    if not yields:
+        portion_el = page.css("div[id*='serving_recipe'] [class*='text']")
+        yields     = portion_el[0].text.strip() if portion_el else ""
+    if not cook_time:
+        time_el   = page.css("div[id*='cooking_time_recipe'] [class*='text']")
+        cook_time = time_el[0].text.strip() if time_el else ""
+    if not image_url:
+        img_list  = page.css(".tofu_image img")
+        image_url = img_list[0].attrib.get("src", "") if img_list else ""
+                
         author_el  = page.css("span[dir='ltr'][class*='text-cookpad-12']")
         author     = author_el[0].text.strip() if author_el else ""
         portion_el = page.css("div[id*='serving_recipe'] [class*='text']")
@@ -206,6 +300,8 @@ def scrape_recipe_detail(stub: dict) -> dict | None:
         img_list   = page.css(".tofu_image img")
         image_url  = img_list[0].attrib.get("src", "") if img_list else ""
         title      = stub["name"]
+    if not image_url and scraper:
+        image_url = safe_get(scraper, "image", "")
 
     return {
         **stub,
@@ -213,87 +309,78 @@ def scrape_recipe_detail(stub: dict) -> dict | None:
         "ingredients": ingredients,
         "steps":       steps,
         "author":      author,
-        "portion":     yields,
-        "cook_time":   cook_time,
+        "portion":     yields if yields     else "-",
+        "cook_time":   cook_time if cook_time  else "-",
         "image_url":   image_url,
         "source":      "Cookpad",
         "scraped_at":  now(),
     }
 
 
-def find_recipe(user_ingredients: list[str]) -> list[dict]:
-    """
-    Walk through search stubs ingredient-by-ingredient, scrape each detail
-    page, and immediately score it. Only keep recipes where the user already
-    has at least MIN_MATCH_SCORE of the required ingredients.
+def find_recipe(user_ingredients: list[str], on_recipe_found=None) -> list[dict]:
+    db = TinyDB(OUTPUT_FILE)
+    cookpad_table = db.table('cookpad_recipes')
 
-    This prevents irrelevant recipes (e.g. kakap miso when searching for
-    "daging sapi") from ever making it into the final list.
-    """
-    log.info(f"Collecting relevant recipes for: {user_ingredients}")
+    # Build a url lookup for local recipes
+    local_map = {r["source_url"]: r for r in cookpad_table.all()}
 
-    # Build a deduplicated queue of stubs from all per-ingredient searches
-    seen_ids: set[str] = set()
-    stub_queue: list[dict] = []
+    results = []
+    seen_urls = set()
+
     for ingredient in user_ingredients:
-        for stub in search_recipe(ingredient):
-            if stub["recipe_id"] not in seen_ids:
-                seen_ids.add(stub["recipe_id"])
-                stub_queue.append(stub)
-
-    log.info(f"Total unique stubs to evaluate: {len(stub_queue)}")
-
-    results: list[dict] = []
-    skipped = 0
-
-    for stub in stub_queue:
         if len(results) >= MAX_RECIPES:
             break
+        for stub in search_recipe(ingredient):
+            if len(results) >= MAX_RECIPES:
+                break
+            if stub["source_url"] in seen_urls:
+                continue
+            seen_urls.add(stub["source_url"])
 
-        recipe = scrape_recipe_detail(stub)
-        if not recipe:
-            continue
+            # ── Check local first ──
+            if stub["source_url"] in local_map:
+                log.info(f"Local hit: {stub['name']}")
+                recipe = local_map[stub["source_url"]]
+            else:
+                # ── Not local → scrape detail ──
+                recipe = scrape_recipe_detail(stub)
+                if not recipe:
+                    continue
+            #log.info(f"Ingredients: {recipe['ingredients'][:2]}")            
+            score_result = ingredient_score(recipe["ingredients"], user_ingredients)
+            log.info(f"Score: {score_result['score']} for {stub['name']}")
+            if score_result["score"] < MIN_MATCH_SCORE:
+                log.info(f"Skipped (score too low)") 
+                continue
 
-        score_result = ingredient_score(recipe["ingredients"], user_ingredients)
+            recipe["match_score"]         = score_result["score"]
+            recipe["have_ingredients"]    = score_result["have"]
+            recipe["missing_ingredients"] = score_result["missing"]
+            results.append(recipe)
+            if on_recipe_found:  # ← call GUI immediately
+                on_recipe_found(recipe)
+    # Save new recipes to DB
+    
+    save_recipes(db, [r for r in results if r["source_url"] not in local_map], results)
+    db.close()
 
-        if score_result["score"] < MIN_MATCH_SCORE:
-            log.info(
-                f"  ✗ Skipping '{recipe['name']}' "
-                f"(score {score_result['score']:.0%} < {MIN_MATCH_SCORE:.0%})"
-            )
-            skipped += 1
-            continue
-
-        recipe["match_score"]         = score_result["score"]
-        recipe["have_ingredients"]    = score_result["have"]
-        recipe["missing_ingredients"] = score_result["missing"]
-        results.append(recipe)
-        log.info(
-            f"  ✓ Kept '{recipe['name']}' "
-            f"({score_result['score']:.0%} match)"
-        )
-
-    log.info(
-        f"Done — kept {len(results)} relevant recipes, "
-        f"skipped {skipped} irrelevant ones."
-    )
-    return results
-
+    return sorted(results, key=lambda x: x["match_score"], reverse=True)[:MAX_RECIPES]
 
 # ── Main ───────────────────────────────────────────────────────────────────────
-def main():
+
+def main(ingredients, on_recipe_found=None):
     print("=" * 50)
     print("  Cookpad Recipe Scraper")
     print("=" * 50)
 
-    raw = sys.argv[1]
-    if not raw:
+    if not ingredients:
         print("Tidak ada bahan yang diinput. Keluar.")
         return
 
-    user_ingredients = [k.strip() for k in raw.split(",") if k.strip()]
+    user_ingredients = ingredients if isinstance(ingredients, list) else [i.strip() for i in ingredients.split(",")]
+    print(f"Bahan yang dimasukkan: {', '.join(user_ingredients)}")
 
-    detailed = find_recipe(user_ingredients)
+    detailed = find_recipe(user_ingredients, on_recipe_found=on_recipe_found)
     if not detailed:
         print("\nTidak ada resep yang cocok ditemukan.")
         return
@@ -315,7 +402,10 @@ def main():
         print(f"\n🟡 HAMPIR LENGKAP ({len(partial)} resep):")
         for r in partial:
             percent = round(r["match_score"] * 100, 1)
-            missing_clean = [i.replace("\n", " ").strip() for i in r["missing_ingredients"]]
+            missing_clean = [
+                (i["name"] if isinstance(i, dict) else i).replace("\n", " ").strip()
+                for i in r["missing_ingredients"]
+            ]
             print(f"   {r['name']} ({percent}% bahan tersedia)")
             print(f"   Kurang: {', '.join(missing_clean)}")
 
@@ -323,16 +413,23 @@ def main():
         print(f"\n🔴 REKOMENDASI — bahan kurang banyak ({len(recommended)} resep):")
         for r in recommended:
             percent = round(r["match_score"] * 100, 1)
-            missing_clean = [i.replace("\n", " ").strip() for i in r["missing_ingredients"]]
+            missing_clean = [
+                (i["name"] if isinstance(i, dict) else i).replace("\n", " ").strip()
+                for i in r["missing_ingredients"]
+            ]
             print(f"   {r['name']} ({percent}% bahan tersedia)")
             print(f"   Kurang: {', '.join(missing_clean)}")
 
-    existing = load_existing(OUTPUT_FILE)
-    merged   = merge_recipes(existing, detailed)
-    save_recipes(merged, OUTPUT_FILE)
+    pass
 
     print(f"\nSelesai! {len(detailed)} resep disimpan ke {OUTPUT_FILE}")
     print("=" * 50)
 
+def get_temp_results(filepath: str) -> list[dict]:
+    """Read cookpad_temp from TinyDB for the GUI."""
+    db = TinyDB(filepath)
+    results = db.table('cookpad_temp').all()
+    db.close()
+    return results
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1])
