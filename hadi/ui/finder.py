@@ -24,8 +24,19 @@ COOKING_STAGES = [
     ("Recipe served! 🍽",           "Loaded"),
 ]
 
+# Floating emoji data: (emoji, base_offset_y, amplitude, period_s)
+_FLOAT_EMOJIS = [
+    ("🧄", 0.0,  10, 2.6),
+    ("🍅", 0.0,   8, 2.1),
+    ("🥚", 0.0,  12, 3.0),
+    ("🧅", 0.0,   9, 2.4),
+    ("🌶️", 0.0, 11, 2.8),
+]
+
 
 def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
+
+    # ── Loader ───────────────────────────────────────────────────────
     loader_label = ft.Text(COOKING_STAGES[0][0], color=ORANGE, size=14, italic=True)
     loader_sub   = ft.Text(COOKING_STAGES[0][1], color=TEXT2(), size=11)
     loader_ring  = ftl.Lottie(
@@ -39,6 +50,8 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             border_radius=ft.BorderRadius.all(4),
             bgcolor=BG3(),
             border=ft.Border.all(1, BORDER()),
+            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            scale=ft.Scale(scale=1.0),
         )
         for _ in range(6)
     ]
@@ -82,50 +95,118 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             if i < stage:
                 dot.bgcolor = ORANGE
                 dot.border  = ft.Border.all(1, ORANGE)
+                dot.scale   = ft.Scale(scale=1.0)
             elif i == stage:
-                dot.bgcolor = "transparent"
+                # Active dot: pulse scale
+                dot.bgcolor = ft.Colors.TRANSPARENT
                 dot.border  = ft.Border.all(2, ORANGE)
+                dot.scale   = ft.Scale(scale=1.35)
             else:
                 dot.bgcolor = BG3()
                 dot.border  = ft.Border.all(1, BORDER())
+                dot.scale   = ft.Scale(scale=1.0)
         page.update()
 
-    # ── Empty state ──────────────────────────────────────────────────
+    # ── Floating emoji animation state ───────────────────────────────
+    _float_tasks_active = {"value": False}
+    _emoji_containers: list[ft.Container] = []
+
+    async def _float_emoji_loop(container: ft.Container, amplitude: float, period: float, phase: float):
+        import math
+        step = 0.05
+        t = phase
+        while _float_tasks_active["value"]:
+            y = -math.sin(2 * math.pi * t / period) * amplitude
+            container.offset = ft.Offset(0, y / 100)
+            container.update()
+            await asyncio.sleep(step)
+            t += step
+
+    def _start_float_animations():
+        _float_tasks_active["value"] = True
+        phases = [0.0, 0.5, 1.1, 0.3, 0.8]
+        for i, c in enumerate(_emoji_containers):
+            _, _, amp, period = _FLOAT_EMOJIS[i]
+            page.run_task(_float_emoji_loop, c, amp, period, phases[i])
+
+    def _stop_float_animations():
+        _float_tasks_active["value"] = False
+        for c in _emoji_containers:
+            c.offset = ft.Offset(0, 0)
+
+    # Build floating emoji row
+    for emoji, _, amp, period in _FLOAT_EMOJIS:
+        _emoji_containers.append(
+            ft.Container(
+                content=ft.Text(emoji, size=28),
+                animate_offset=ft.Animation(60, ft.AnimationCurve.LINEAR),
+                offset=ft.Offset(0, 0),
+            )
+        )
+
+    # "or press Enter" pulsing hint
+    enter_hint = ft.Container(
+        content=ft.Text(
+            "atau tekan Enter ↵",
+            size=12,
+            color=TEXT3(),
+            font_family="Font",
+            text_align=ft.TextAlign.CENTER,
+            italic=True,
+        ),
+        animate_opacity=ft.Animation(800, ft.AnimationCurve.EASE_IN_OUT),
+        opacity=0.5,
+    )
+
+    async def _pulse_enter_hint():
+        while True:
+            enter_hint.opacity = 1.0
+            enter_hint.update()
+            await asyncio.sleep(1.2)
+            enter_hint.opacity = 0.3
+            enter_hint.update()
+            await asyncio.sleep(1.2)
+
+    # Empty state title/subtitle refs for theme rebuilding
+    empty_title = ft.Text(
+        "Masukkan bahan yang kamu punya",
+        size=18,
+        weight=ft.FontWeight.BOLD,
+        color=TEXT(),
+        font_family="Font",
+        text_align=ft.TextAlign.CENTER,
+    )
+    empty_sub = ft.Text(
+        "CookD akan carikan resep terbaik\nsesuai bahan di dapurmu 🥘",
+        size=14,
+        color=TEXT2(),
+        font_family="Font",
+        text_align=ft.TextAlign.CENTER,
+    )
+
     empty_state = ft.Container(
         visible=True,
         expand=True,
+        gradient=ft.RadialGradient(
+            center=ft.Alignment(0, 0),
+            radius=1.2,
+            colors=["#18ff6a2030", "#00000000"],
+        ),
         content=ft.Column(
             controls=[
                 ft.Text("🍳", size=72),
                 ft.Container(height=16),
-                ft.Text(
-                    "Masukkan bahan yang kamu punya",
-                    size=18,
-                    weight=ft.FontWeight.BOLD,
-                    color=TEXT(),
-                    font_family="Font",
-                    text_align=ft.TextAlign.CENTER,
-                ),
+                empty_title,
                 ft.Container(height=8),
-                ft.Text(
-                    "CookD akan carikan resep terbaik\nsesuai bahan di dapurmu 🥘",
-                    size=14,
-                    color=TEXT2(),
-                    font_family="Font",
-                    text_align=ft.TextAlign.CENTER,
-                ),
+                empty_sub,
                 ft.Container(height=24),
                 ft.Row(
-                    controls=[
-                        ft.Text("🧄", size=28),
-                        ft.Text("🍅", size=22),
-                        ft.Text("🥚", size=26),
-                        ft.Text("🧅", size=20),
-                        ft.Text("🌶️", size=24),
-                    ],
+                    controls=_emoji_containers,
                     alignment=ft.MainAxisAlignment.CENTER,
                     spacing=12,
                 ),
+                ft.Container(height=16),
+                enter_hint,
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             alignment=ft.MainAxisAlignment.CENTER,
@@ -147,14 +228,39 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         return ft.LinearGradient(
             begin=ft.Alignment(-1, -1),
             end=ft.Alignment(1, 1),
-            colors=[BG3(), BG2()],
+            colors=[BG3(), BG2(), BG3()],
+            stops=[0.0, 0.5, 1.0],
         )
 
+    def _card_hover_gradient():
+        return ft.LinearGradient(
+            begin=ft.Alignment(-1, -1),
+            end=ft.Alignment(1, 1),
+            colors=["#3d1a06", "#42190d", BG2()],
+            stops=[0.0, 0.4, 1.0],
+        )
+
+    # Track all not-found / result cards for theme rebuilds
+    _tracked_cards: list[ft.Container] = []
+
     def _not_found_card() -> ft.Container:
-        return ft.Container(
+        sad_emoji = ft.Container(
+            content=ft.Text("😔", size=52),
+            animate_offset=ft.Animation(400, ft.AnimationCurve.BOUNCE_OUT),
+            offset=ft.Offset(0, 0),
+        )
+
+        async def _shake_emoji():
+            for dx in [0.05, -0.05, 0.04, -0.04, 0.02, -0.02, 0.0]:
+                sad_emoji.offset = ft.Offset(dx, 0)
+                sad_emoji.update()
+                await asyncio.sleep(0.06)
+
+        card = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text("😔", size=40),
+                    sad_emoji,
+                    ft.Container(height=4),
                     ft.Text(
                         "Resep tidak ditemukan",
                         size=16,
@@ -169,22 +275,59 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                         font_family="Font",
                         text_align=ft.TextAlign.CENTER,
                     ),
+                    ft.Container(height=8),
+                    ft.Container(
+                        content=ft.Text(
+                            "Coba lagi →",
+                            color=ORANGE,
+                            size=13,
+                            weight=ft.FontWeight.BOLD,
+                            font_family="Font",
+                        ),
+                        bgcolor="#2a1505",
+                        border=ft.Border.all(1, ORANGE),
+                        border_radius=ft.BorderRadius.all(20),
+                        padding=ft.Padding.symmetric(horizontal=18, vertical=8),
+                        on_click=lambda e: (
+                            setattr(search_field, "value", ""),
+                            search_field.focus(),
+                            search_field.update(),
+                        ),
+                        ink=True,
+                    ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=8,
             ),
-            gradient=_card_gradient(),
+            gradient=ft.LinearGradient(
+                begin=ft.Alignment(0, -1),
+                end=ft.Alignment(0, 1),
+                colors=["#2a1010", BG2(), BG3()],
+                stops=[0.0, 0.5, 1.0],
+            ),
             border_radius=ft.BorderRadius.all(16),
-            border=ft.Border.all(1, BORDER()),
+            border=ft.Border.all(1, "#7f3030"),
             padding=ft.Padding.symmetric(horizontal=24, vertical=32),
             alignment=ft.Alignment(0, 0),
-            animate_opacity=ft.Animation(300, ft.AnimationCurve.EASE_IN),
-            animate_offset=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
-            opacity=1.0,
-            offset=ft.Offset(0, 0),
+            animate_opacity=ft.Animation(350, ft.AnimationCurve.EASE_IN),
+            animate_offset=ft.Animation(350, ft.AnimationCurve.EASE_OUT),
+            opacity=0.0,
+            offset=ft.Offset(0, 0.15),
         )
 
-    def _build_card(r: dict) -> ft.Container:
+        async def _animate_in():
+            await asyncio.sleep(0.05)
+            card.opacity = 1.0
+            card.offset  = ft.Offset(0, 0)
+            card.update()
+            await asyncio.sleep(0.1)
+            await _shake_emoji()
+
+        page.run_task(_animate_in)
+        _tracked_cards.append(card)
+        return card
+
+    def _build_card(r: dict, entrance_delay: float = 0.0) -> ft.Container:
         score     = r.get("match_score", 0)
         score_pct = f"Match {round(score * 100)}%"
         bg_score, fg_score = (
@@ -203,24 +346,40 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             ),
         )
 
+        # BUG FIX: reset hover state immediately in on_card_click so the
+        # card doesn't stay in "hovered" appearance after navigating away.
         async def on_card_click(e):
-            card.scale   = ft.Scale(scale=0.97)
-            card.bgcolor = BG3()
-            card.border  = ft.Border.all(1, BORDER())
+            card.scale    = ft.Scale(scale=0.97)
+            card.gradient = _card_gradient()
+            card.border   = ft.Border.all(1, BORDER())
             card.update()
-            await asyncio.sleep(0.1)
-            card.scale = ft.Scale(scale=1.0)
+            await asyncio.sleep(0.08)
+            card.scale    = ft.Scale(scale=1.0)
+            card.gradient = _card_gradient()
+            card.border   = ft.Border.all(1, BORDER())
             card.update()
             show_detail_fn(r)
+
+        def on_hover(e):
+            if e.data:
+                card.gradient = _card_hover_gradient()
+                card.border   = ft.Border.all(1, ORANGE)
+                thumb.border_radius = ft.BorderRadius.all(14)
+            else:
+                card.gradient = _card_gradient()
+                card.border   = ft.Border.all(1, BORDER())
+                thumb.border_radius = ft.BorderRadius.all(12)
+            card.update()
+            thumb.update()
 
         card = ft.Container(
             data=score,
             scale=ft.Scale(scale=1.0),
             animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
-            animate_opacity=ft.Animation(300, ft.AnimationCurve.EASE_IN),
-            animate_offset=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
+            animate_opacity=ft.Animation(350, ft.AnimationCurve.EASE_IN),
+            animate_offset=ft.Animation(350, ft.AnimationCurve.EASE_OUT),
             opacity=0.0,
-            offset=ft.Offset(0, 0.1),
+            offset=ft.Offset(0, 0.12),
             gradient=_card_gradient(),
             content=ft.Row(
                 controls=[
@@ -291,35 +450,29 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             border_radius=ft.BorderRadius.all(16),
             padding=ft.Padding.symmetric(horizontal=18, vertical=14),
             border=ft.Border.all(1, BORDER()),
-            on_hover=lambda e: (
-                setattr(e.control, "gradient",
-                        ft.LinearGradient(
-                            begin=ft.Alignment(-1, -1),
-                            end=ft.Alignment(1, 1),
-                            colors=["#42190d", BG2()],
-                        ) if e.data else _card_gradient()),
-                setattr(e.control, "border",
-                        ft.Border.all(1, ORANGE if e.data else BORDER())),
-                e.control.update(),
-            ),
+            on_hover=on_hover,
             on_click=on_card_click,
         )
+        _tracked_cards.append(card)
         return card
 
-    async def _animate_card_in(card: ft.Container):
-        await asyncio.sleep(0.05)
+    async def _animate_card_in(card: ft.Container, delay: float = 0.0):
+        if delay > 0:
+            await asyncio.sleep(delay)
         card.opacity = 1.0
         card.offset  = ft.Offset(0, 0)
         card.update()
 
     def on_search(e):
         async def run_search():
+            _tracked_cards.clear()
             results_column.controls.clear()
+            _stop_float_animations()
             ingredients = search_field.value.strip()
             if not ingredients:
                 return
 
-            empty_state.visible  = False
+            empty_state.visible    = False
             results_column.visible = True
             empty_state.update()
             results_column.update()
@@ -330,13 +483,16 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             user_ingredients = [k.strip() for k in ingredients.split(",") if k.strip()]
             loop = asyncio.get_event_loop()
             found_any = {"value": False}
+            card_count = {"n": 0}
 
             def on_recipe_found(recipe):
                 async def update_ui():
                     found_any["value"] = True
                     n = len(results_column.controls)
                     _set_loading_stage(min(1 + n, 4))
-                    new_card  = _build_card(recipe)
+                    delay = card_count["n"] * 0.06
+                    card_count["n"] += 1
+                    new_card  = _build_card(recipe, entrance_delay=delay)
                     insert_at = len(results_column.controls)
                     for i, ctrl in enumerate(results_column.controls):
                         if recipe["match_score"] > (ctrl.data or 0):
@@ -344,7 +500,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                             break
                     results_column.controls.insert(insert_at, new_card)
                     page.update()
-                    await _animate_card_in(new_card)
+                    await _animate_card_in(new_card, delay)
                 asyncio.run_coroutine_threadsafe(update_ui(), loop)
 
             def run():
@@ -399,17 +555,19 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         search_field.color        = TEXT()
         search_field.border_color = BORDER()
         search_field.update()
-        for ctrl in results_column.controls:
-            if not isinstance(ctrl, ft.Container):
+        # Update empty state colors
+        empty_title.color = TEXT()
+        empty_sub.color   = TEXT2()
+        empty_title.update()
+        empty_sub.update()
+        for card in _tracked_cards:
+            if not isinstance(card, ft.Container):
                 continue
-            ctrl.gradient = ft.LinearGradient(
-                begin=ft.Alignment(-1, -1),
-                end=ft.Alignment(1, 1),
-                colors=[BG3(), BG2()],
-            )
-            ctrl.border = ft.Border.all(1, BORDER())
-            ctrl.update()
-            row = getattr(ctrl, "content", None)
+            # Only reset if not currently hovered (can't detect hover state; reset to base)
+            card.gradient = _card_gradient()
+            card.border   = ft.Border.all(1, BORDER())
+            card.update()
+            row = getattr(card, "content", None)
             if not isinstance(row, ft.Row):
                 continue
             for child in row.controls:
@@ -435,6 +593,15 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         page.update()
 
     theme_mgr.add_listener(rebuild)
+
+    def on_visible_change(e):
+        # Start/stop float animations when page becomes visible/hidden
+        if container.visible:
+            if not _float_tasks_active["value"] and empty_state.visible:
+                _start_float_animations()
+            page.run_task(_pulse_enter_hint)
+        else:
+            _stop_float_animations()
 
     container = ft.Container(
         expand=True,
@@ -469,5 +636,16 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         ),
     )
 
+    # Kick off float animations when the finder page first becomes visible
+    original_visible = property(
+        lambda self: self._visible,
+        lambda self, v: setattr(self, "_visible", v),
+    )
+
     container.results_column = results_column
+
+    # Start float animations immediately (they'll self-stop when not visible)
+    _start_float_animations()
+    page.run_task(_pulse_enter_hint)
+
     return container

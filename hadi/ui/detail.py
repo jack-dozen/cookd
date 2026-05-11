@@ -26,6 +26,14 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
 
     detail_active = False
 
+    # Keep explicit refs to themed widgets for correct rebuild
+    _themed_widgets: list = []  # list of (widget, attr, fn) tuples
+
+    def _track(widget, attr: str, fn):
+        """Register a widget attribute for theme rebuild."""
+        _themed_widgets.append((widget, attr, fn))
+        return widget
+
     def on_scroll(e: ft.OnScrollEvent):
         if not detail_active:
             return
@@ -61,6 +69,13 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
     def rebuild():
         container.bgcolor = BG()
         container.update()
+        # Rebuild all tracked themed widgets
+        for widget, attr, fn in _themed_widgets:
+            try:
+                setattr(widget, attr, fn())
+                widget.update()
+            except Exception:
+                pass
 
     theme_mgr.add_listener(rebuild)
 
@@ -122,6 +137,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             on_click=confirm_open,
             ink=True,
         )
+
     def _is_header(ing: dict | str, name: str, qty: str) -> bool:
         if isinstance(ing, dict) and ing.get("is_header"):
             return True
@@ -136,71 +152,87 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         if words and all(w[0].isupper() for w in words if w):
             return True
         return False
+
     def _ingredient_card(ingredients: list) -> ft.Container:
         items = []
         for ing in ingredients:
             if isinstance(ing, str):
                 qty, name = "", ing
             elif isinstance(ing, dict):
-                qty       = ing.get("qty", "")
-                name      = ing.get("name", "")
+                qty  = ing.get("qty", "")
+                name = ing.get("name", "")
             else:
-                qty, name, = "", str(ing), False
+                qty, name = "", str(ing)
 
             if _is_header(ing, name, qty):
                 items.append(ft.Container(height=6))
-                items.append(
-                    ft.Container(
-                        content=ft.Text(
-                            name, color=ORANGE,
-                            weight=ft.FontWeight.BOLD, size=13,
-                            font_family="Font",
-                        ),
-                        padding=ft.Padding.only(left=12, top=10, bottom=6),
-                        expand=True,
-                        width=float("inf"),
-                        border=ft.Border.only(top=ft.BorderSide(1, BORDER())),
-                    )
+                header_text = ft.Text(
+                    name, color=ORANGE,
+                    weight=ft.FontWeight.BOLD, size=13,
+                    font_family="Font",
                 )
+                header_border = ft.Container(
+                    content=header_text,
+                    padding=ft.Padding.only(left=12, top=10, bottom=6),
+                    expand=True,
+                    width=float("inf"),
+                    border=ft.Border.only(top=ft.BorderSide(1, BORDER())),
+                )
+                _track(header_border, "border",
+                       lambda: ft.Border.only(top=ft.BorderSide(1, BORDER())))
+                items.append(header_border)
                 continue
 
             row_controls = [
                 ft.Container(
-                    width=6, 
+                    width=6,
                     bgcolor=ORANGE,
                     border_radius=ft.BorderRadius.all(3),
                 ),
             ]
             if qty:
-                row_controls.append(
-                    ft.Text(qty, color=TEXT(), weight=ft.FontWeight.BOLD,
-                            size=13, font_family="Font")
+                qty_text = ft.Text(
+                    qty, color=TEXT(), weight=ft.FontWeight.BOLD,
+                    size=13, font_family="Font",
                 )
-            row_controls.append(
-                ft.Text(name, color=TEXT2(), size=13, expand=True, font_family="Font")
-            )
+                _track(qty_text, "color", TEXT)
+                row_controls.append(qty_text)
 
-            items.append(
-                ft.Container(
-                    content=ft.Row(controls=row_controls, spacing=10),
-                    padding=ft.Padding.symmetric(horizontal=12, vertical=9),
-                    border_radius=ft.BorderRadius.all(8),
-                    on_hover=lambda e: (
-                        setattr(e.control, "bgcolor",
-                                BG3() if e.data else ft.Colors.TRANSPARENT),
-                        e.control.update(),
-                    ),
-                )
+            name_text = ft.Text(
+                name, color=TEXT2(), size=13, expand=True, font_family="Font",
             )
+            _track(name_text, "color", TEXT2)
+            row_controls.append(name_text)
 
-        return ft.Container(
+            row_container = ft.Container(
+                content=ft.Row(controls=row_controls, spacing=10),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=9),
+                border_radius=ft.BorderRadius.all(8),
+                on_hover=lambda e: (
+                    setattr(e.control, "bgcolor",
+                            BG3() if e.data else ft.Colors.TRANSPARENT),
+                    e.control.update(),
+                ),
+            )
+            items.append(row_container)
+
+        card = ft.Container(
             content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
-            bgcolor=BG3(),
+            gradient=ft.LinearGradient(
+                begin=ft.Alignment(0, -1),
+                end=ft.Alignment(0, 1),
+                colors=["#1a120a", BG3(), BG2()],
+                stops=[0.0, 0.3, 1.0],
+            ),
             border_radius=ft.BorderRadius.all(14),
             border=ft.Border.all(1, BORDER()),
             expand=True,
             padding=ft.Padding.symmetric(vertical=6),
+            animate_offset=ft.Animation(400, ft.AnimationCurve.EASE_OUT),
+            offset=ft.Offset(0, 0),
         )
+        _track(card, "border", lambda: ft.Border.all(1, BORDER()))
+        return card
 
     def _steps_card(steps: list) -> ft.Container:
         items = []
@@ -224,14 +256,13 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 )
 
             for vid in videos:
-                href  = vid.get("href", "")
+                href = vid.get("href", "")
                 if not href:
                     continue
 
                 vid_player = ftv.Video(
                     playlist=[ftv.VideoMedia(href)],
-                    width=140,
-                    height=110,
+                    width=140, height=110,
                     autoplay=False,
                     controls=None,
                     fit=ft.BoxFit.COVER,
@@ -293,15 +324,18 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 scroll=ft.ScrollMode.AUTO,
             ) if media_controls else None
 
-            step_controls = [
-                ft.Text(text, color=TEXT2(), size=13, font_family="Font",
-                        expand=True, selectable=True),
-            ]
+            step_text = ft.Text(
+                text, color=TEXT2(), size=13, font_family="Font",
+                expand=True, selectable=True,
+            )
+            _track(step_text, "color", TEXT2)
+
+            step_controls = [step_text]
             if media_row:
                 step_controls.append(ft.Container(height=8))
                 step_controls.append(media_row)
 
-            is_last = i == len(steps)
+            is_last  = i == len(steps)
             step_num = ft.Container(
                 content=ft.Text(
                     str(i), color=WHITE, size=12,
@@ -320,6 +354,9 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 bgcolor=BORDER(),
                 margin=ft.Margin.only(top=4),
             ) if not is_last else ft.Container(width=2)
+
+            if not is_last:
+                _track(timeline_line, "bgcolor", BORDER)
 
             items.append(
                 ft.Container(
@@ -343,13 +380,22 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 )
             )
 
-        return ft.Container(
+        card = ft.Container(
             content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
-            bgcolor=BG3(),
+            gradient=ft.LinearGradient(
+                begin=ft.Alignment(0, -1),
+                end=ft.Alignment(0, 1),
+                colors=["#120e1a", BG3(), BG2()],
+                stops=[0.0, 0.3, 1.0],
+            ),
             border_radius=ft.BorderRadius.all(14),
             border=ft.Border.all(1, BORDER()),
             expand=True,
+            animate_offset=ft.Animation(430, ft.AnimationCurve.EASE_OUT),
+            offset=ft.Offset(0, 0),
         )
+        _track(card, "border", lambda: ft.Border.all(1, BORDER()))
+        return card
 
     current_recipe: dict = {}
 
@@ -357,6 +403,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         nonlocal current_recipe, detail_active
         detail_active  = True
         current_recipe = recipe
+        _themed_widgets.clear()
         topbar.set_recipe("")
         topbar.update()
         detail_content.controls.clear()
@@ -375,25 +422,45 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         price_area_ref = ft.Ref[ft.Container]()
         kalk_btn_ref   = ft.Ref[ft.ElevatedButton]()
 
-        # Hero
+        # ── Hero ── with scale-in animation
+        hero_image = ft.Container(
+            content=ft.Image(
+                src=recipe.get("image_url", ""),
+                width=float("inf"),
+                height=460,
+                fit="cover",
+            ),
+            width=float("inf"),
+            height=460,
+            scale=ft.Scale(scale=1.06),
+            animate_scale=ft.Animation(600, ft.AnimationCurve.EASE_OUT),
+        )
+
         detail_content.controls.append(
             ft.Container(
                 height=460,
                 content=ft.Stack(
                     controls=[
-                        ft.Image(
-                            src=recipe.get("image_url", ""),
-                            width=float("inf"),
-                            height=460,
-                            fit="cover",
-                        ),
+                        hero_image,
+                        # Deep gradient layers
                         ft.Container(
                             width=float("inf"),
                             height=460,
                             gradient=ft.LinearGradient(
                                 begin=ft.Alignment(0, 1),
-                                end=ft.Alignment(0, -0.5),
-                                colors=["#F0000000", "#00000000"],
+                                end=ft.Alignment(0, -0.3),
+                                colors=["#F8000000", "#40000000", "#00000000"],
+                                stops=[0.0, 0.5, 1.0],
+                            ),
+                        ),
+                        # Warm radial glow at center-bottom
+                        ft.Container(
+                            width=float("inf"),
+                            height=460,
+                            gradient=ft.RadialGradient(
+                                center=ft.Alignment(0, 1.2),
+                                radius=1.0,
+                                colors=["#30ff6a20", "#00000000"],
                             ),
                         ),
                         ft.Container(
@@ -433,22 +500,31 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             )
         )
 
-        # Ingredients + Steps
+        # Build cards with slide-in offsets (reset to 0 via animation after render)
+        ing_card  = _ingredient_card(recipe.get("ingredients", []))
+        step_card = _steps_card(recipe.get("steps", []))
+
+        # Start offsets for slide-in
+        ing_card.offset  = ft.Offset(-0.08, 0)
+        step_card.offset = ft.Offset(0.08, 0)
+
+        bahan_label  = ft.Text("BAHAN-BAHAN",  size=16, weight=ft.FontWeight.BOLD,
+                               color=TEXT(), font_family="Font")
+        cara_label   = ft.Text("CARA MEMBUAT", size=16, weight=ft.FontWeight.BOLD,
+                               color=TEXT(), font_family="Font")
+        _track(bahan_label, "color", TEXT)
+        _track(cara_label, "color", TEXT)
+
+        # ── Ingredients + Steps ──
         detail_content.controls.append(
             ft.Container(
                 content=ft.Row(
                     controls=[
                         ft.Column(
                             controls=[
-                                ft.Text(
-                                    "BAHAN-BAHAN",
-                                    size=16,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=TEXT(),
-                                    font_family="Font",
-                                ),
+                                bahan_label,
                                 ft.Container(
-                                    content=_ingredient_card(recipe.get("ingredients", [])),
+                                    content=ing_card,
                                     height=ing_h,
                                     clip_behavior=ft.ClipBehavior.HARD_EDGE if ing_h else ft.ClipBehavior.NONE,
                                     expand=ing_h is None,
@@ -460,15 +536,9 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                         ft.Container(width=20),
                         ft.Column(
                             controls=[
-                                ft.Text(
-                                    "CARA MEMBUAT",
-                                    size=16,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=TEXT(),
-                                    font_family="Font",
-                                ),
+                                cara_label,
                                 ft.Container(
-                                    content=_steps_card(recipe.get("steps", [])),
+                                    content=step_card,
                                     height=step_h,
                                     clip_behavior=ft.ClipBehavior.HARD_EDGE if step_h else ft.ClipBehavior.NONE,
                                     expand=step_h is None,
@@ -487,7 +557,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             )
         )
 
-        # Price calculator
+        # ── Price calculator ──
         detail_content.controls.append(
             ft.Container(
                 content=ft.Column(
@@ -534,6 +604,18 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         navigate_fn("detail")
         page.update()
 
-    container.show         = show
+        # Trigger slide-in and hero scale-down after first render
+        async def _animate_in():
+            await asyncio.sleep(0.05)
+            hero_image.scale     = ft.Scale(scale=1.0)
+            ing_card.offset  = ft.Offset(0, 0)
+            step_card.offset = ft.Offset(0, 0)
+            hero_image.update()
+            ing_card.update()
+            step_card.update()
+
+        page.run_task(_animate_in)
+
+    container.show          = show
     container.detail_active = False
     return container

@@ -3,11 +3,29 @@ from rafy.theme import theme_mgr, ORANGE, ORANGE_GLOW2
 from rafy.sidebar import build_sidebar_extras
 
 
+def BG():     return theme_mgr.get("BG")
 def BG2():    return theme_mgr.get("BG2")
 def BG3():    return theme_mgr.get("BG3")
 def TEXT():   return theme_mgr.get("TEXT")
 def TEXT2():  return theme_mgr.get("TEXT2")
 def BORDER(): return theme_mgr.get("BORDER")
+
+# Richer active glow — a subtle orange gradient background
+def _active_gradient():
+    return ft.LinearGradient(
+        begin=ft.Alignment(-1, 0),
+        end=ft.Alignment(1, 0),
+        colors=["#33ff6a20", "#1aff6a20", "#00000000"],
+        stops=[0.0, 0.5, 1.0],
+    )
+
+def _sidebar_gradient():
+    return ft.LinearGradient(
+        begin=ft.Alignment(0, -1),
+        end=ft.Alignment(0, 1),
+        colors=[BG(), BG2(), BG()],
+        stops=[0.0, 0.5, 1.0],
+    )
 
 
 def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
@@ -33,17 +51,19 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
             height=28,
             bgcolor=ORANGE if is_active else ft.Colors.TRANSPARENT,
             border_radius=ft.BorderRadius.only(top_right=4, bottom_right=4),
-            animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
+            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
         )
 
         inner = ft.Container(
             content=ft.Row(controls=[icon_obj, text_obj], spacing=13),
             padding=ft.Padding.symmetric(horizontal=14, vertical=11),
             border_radius=10,
-            bgcolor=ORANGE_GLOW2 if is_active else ft.Colors.TRANSPARENT,
+            gradient=_active_gradient() if is_active else None,
+            bgcolor=ft.Colors.TRANSPARENT if is_active else ft.Colors.TRANSPARENT,
             expand=True,
-            animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
+            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             scale=ft.Scale(scale=1.0),
+            animate_scale=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
         )
 
         def on_hover(e):
@@ -53,15 +73,19 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
             icon_obj.color = ORANGE if is_hovered else TEXT2()
             text_obj.color = ORANGE if is_hovered else TEXT2()
             inner.bgcolor  = BG3() if is_hovered else ft.Colors.TRANSPARENT
+            inner.gradient = None
             icon_obj.update()
             text_obj.update()
             inner.update()
 
         async def on_click(e):
             import asyncio
-            inner.scale = ft.Scale(scale=0.95)
+            inner.scale = ft.Scale(scale=0.93)
             inner.update()
-            await asyncio.sleep(0.08)
+            await asyncio.sleep(0.07)
+            inner.scale = ft.Scale(scale=1.04)
+            inner.update()
+            await asyncio.sleep(0.07)
             inner.scale = ft.Scale(scale=1.0)
             inner.update()
             state["active_index"] = index
@@ -92,7 +116,8 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
         for item in nav_items_ref:
             is_active = state["active_index"] == item["index"]
             item["indicator"].bgcolor = ORANGE if is_active else ft.Colors.TRANSPARENT
-            item["inner"].bgcolor     = ORANGE_GLOW2 if is_active else ft.Colors.TRANSPARENT
+            item["inner"].gradient    = _active_gradient() if is_active else None
+            item["inner"].bgcolor     = ft.Colors.TRANSPARENT
             item["icon"].color        = ORANGE if is_active else TEXT2()
             item["text"].color        = ORANGE if is_active else TEXT2()
             item["indicator"].update()
@@ -120,13 +145,14 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
 
     def rebuild():
         sidebar = sidebar_ref[0]
-        sidebar.bgcolor = BG2()
-        sidebar.border  = ft.Border.only(right=ft.BorderSide(1, BORDER()))
+        sidebar.gradient = _sidebar_gradient()
+        sidebar.border   = ft.Border.only(right=ft.BorderSide(1, BORDER()))
         for item in nav_items_ref:
             is_active = state["active_index"] == item["index"]
             item["icon"].color    = ORANGE if is_active else TEXT2()
             item["text"].color    = ORANGE if is_active else TEXT2()
-            item["inner"].bgcolor = ORANGE_GLOW2 if is_active else ft.Colors.TRANSPARENT
+            item["inner"].gradient = _active_gradient() if is_active else None
+            item["inner"].bgcolor  = ft.Colors.TRANSPARENT
             item["icon"].update()
             item["text"].update()
             item["inner"].update()
@@ -163,7 +189,7 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
 
     sidebar = ft.Container(
         width=200,
-        bgcolor=BG2(),
+        gradient=_sidebar_gradient(),
         border=ft.Border.only(right=ft.BorderSide(1, BORDER())),
         animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
         content=ft.Column(
