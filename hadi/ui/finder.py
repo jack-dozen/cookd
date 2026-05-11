@@ -2,10 +2,11 @@ import asyncio
 import flet as ft
 import flet_lottie as ftl
 from hadi import CookpadScraper
-from rafy.theme import theme_mgr, ORANGE, GREEN, AMBER, WHITE
+from rafy.theme import theme_mgr, ORANGE, ORANGE_GLOW, GREEN, AMBER, WHITE
 
 
 def BG():     return theme_mgr.get("BG")
+def BG2():    return theme_mgr.get("BG2")
 def BG3():    return theme_mgr.get("BG3")
 def BG4():    return theme_mgr.get("BG4")
 def TEXT():   return theme_mgr.get("TEXT")
@@ -25,13 +26,6 @@ COOKING_STAGES = [
 
 
 def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
-    """
-    Returns the Finder page container.
-    show_detail_fn(recipe) navigates to and populates the detail page.
-    The returned container also exposes:
-    container.results_column  — for theme-rebuild access in gui.py
-    """
-
     loader_label = ft.Text(COOKING_STAGES[0][0], color=ORANGE, size=14, italic=True)
     loader_sub   = ft.Text(COOKING_STAGES[0][1], color=TEXT2(), size=11)
     loader_ring  = ftl.Lottie(
@@ -40,8 +34,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         scale=ft.Scale(scale=1.2),
     )
     loader_dots = [
-        ft.Container(width=8, height=8, border_radius=ft.BorderRadius.all(4),
-                    bgcolor=BG3(), border=ft.Border.all(1, BORDER()))
+        ft.Container(
+            width=8, height=8,
+            border_radius=ft.BorderRadius.all(4),
+            bgcolor=BG3(),
+            border=ft.Border.all(1, BORDER()),
+        )
         for _ in range(6)
     ]
 
@@ -94,73 +92,99 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
     results_column = ft.Column(
         controls=[],
-        spacing=8,
+        spacing=10,
         scroll=ft.ScrollMode.AUTO,
         expand=True,
     )
 
     def _build_card(r: dict) -> ft.Container:
         score     = r.get("match_score", 0)
-        score_pct = f"{round(score * 100)}% cocok"
+        score_pct = f"Match {round(score * 100)}%"
         bg_score, fg_score = (
-            ("#1B3D28", GREEN)    if score >= 0.8 else
-            ("#3D2E0A", AMBER)   if score >= 0.5 else
-            ("#3D1A1A", "#C0392B")
+            ("#1B3D28", GREEN)     if score >= 0.8 else
+            ("#3D2E0A", AMBER)    if score >= 0.5 else
+            ("#3D1A1A", "#ef4444")
         )
 
-        def on_card_click(e):
+        thumb = ft.Container(
+            width=96, height=96,
+            border_radius=ft.BorderRadius.all(12),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            content=ft.Image(
+                src=r.get("image_url", ""),
+                width=96, height=96, fit="cover",
+            ),
+        )
+
+        async def on_card_click(e):
+            card.scale  = ft.Scale(scale=0.98)
             card.bgcolor = BG3()
             card.border  = ft.Border.all(1, BORDER())
+            card.update()
+            await asyncio.sleep(0.08)
+            card.scale = ft.Scale(scale=1.0)
             card.update()
             show_detail_fn(r)
 
         card = ft.Container(
             data=score,
+            scale=ft.Scale(scale=1.0),
+            animate_scale=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
             content=ft.Row(
                 controls=[
-                    ft.Container(
-                        width=90, height=90,
-                        border_radius=ft.BorderRadius.all(8),
-                        clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                        content=ft.Image(
-                            src=r.get("image_url", ""),
-                            width=90, height=90, fit="cover",
-                        ),
-                    ),
+                    thumb,
                     ft.Column(
                         controls=[
-                            ft.Text(r["name"], color=TEXT(), weight=ft.FontWeight.BOLD, size=15),
-                            ft.Row(controls=[
-                                ft.Icon(ft.Icons.PEOPLE_OUTLINE, color=TEXT2(), size=13),
-                                ft.Text(r.get("portion", ""),    color=TEXT2(), size=12),
-                                ft.Text("·",                     color=TEXT3(), size=12),
-                                ft.Icon(ft.Icons.TIMER_OUTLINED, color=TEXT2(), size=13),
-                                ft.Text(r.get("cook_time", ""),  color=TEXT2(), size=12),
-                            ], spacing=4),
+                            ft.Text(
+                                r["name"],
+                                color=TEXT(),
+                                weight=ft.FontWeight.BOLD,
+                                size=16,
+                                font_family="Font",
+                            ),
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.PEOPLE_OUTLINE, color=TEXT2(), size=14),
+                                    ft.Text(r.get("portion", ""),    color=TEXT2(), size=13),
+                                    ft.Text("·",                     color=TEXT3(), size=13),
+                                    ft.Icon(ft.Icons.TIMER_OUTLINED, color=TEXT2(), size=14),
+                                    ft.Text(r.get("cook_time", ""),  color=TEXT2(), size=13),
+                                ],
+                                spacing=4,
+                            ),
                             ft.Container(
-                                content=ft.Text(r.get("source", "Cookpad"), color=TEXT3(), size=11),
-                                bgcolor=BG4(), border_radius=4,
+                                content=ft.Text(
+                                    r.get("source", "Cookpad"),
+                                    color=TEXT3(), size=12,
+                                ),
+                                bgcolor=BG4(),
+                                border_radius=ft.BorderRadius.all(6),
                                 padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                             ),
                         ],
-                        spacing=6,
+                        spacing=7,
                         expand=True,
                     ),
                     ft.Column(
                         controls=[
                             ft.Container(
-                                content=ft.Text(score_pct, color=fg_score, size=12,
-                                                weight=ft.FontWeight.BOLD),
+                                content=ft.Text(
+                                    score_pct,
+                                    color=fg_score,
+                                    size=12,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
                                 bgcolor=bg_score,
                                 border_radius=ft.BorderRadius.all(20),
                                 padding=ft.Padding.symmetric(horizontal=10, vertical=5),
                             ),
                             ft.OutlinedButton(
-                                "Lihat",
+                                "Lihat →",
                                 style=ft.ButtonStyle(
                                     color=ORANGE,
                                     side=ft.BorderSide(1, ORANGE),
                                     mouse_cursor=ft.MouseCursor.CLICK,
+                                    shape=ft.RoundedRectangleBorder(radius=10),
                                 ),
                                 on_click=lambda e, rec=r: show_detail_fn(rec),
                             ),
@@ -169,16 +193,18 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                         horizontal_alignment=ft.CrossAxisAlignment.END,
                     ),
                 ],
-                spacing=14,
+                spacing=16,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             bgcolor=BG3(),
-            border_radius=ft.BorderRadius.all(15),
-            padding=ft.Padding.symmetric(horizontal=20, vertical=15),
+            border_radius=ft.BorderRadius.all(16),
+            padding=ft.Padding.symmetric(horizontal=18, vertical=14),
             border=ft.Border.all(1, BORDER()),
             on_hover=lambda e: (
-                setattr(e.control, "bgcolor", "#42190d" if e.data else BG3()),
-                setattr(e.control, "border", ft.Border.all(1, ORANGE if e.data else BORDER())),
+                setattr(e.control, "bgcolor",
+                        BG2() if e.data else BG3()),
+                setattr(e.control, "border",
+                        ft.Border.all(1, ORANGE if e.data else BORDER())),
                 e.control.update(),
             ),
             on_click=on_card_click,
@@ -214,7 +240,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
             def run():
                 CookpadScraper.main(user_ingredients, on_recipe_found=on_recipe_found)
-            
+
             await asyncio.get_event_loop().run_in_executor(None, run)
             _set_loading_stage(-1)
             page.update()
@@ -222,14 +248,74 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         page.run_task(run_search)
 
     search_field = ft.TextField(
-        hint_text="cth: bawang putih, tomat...",
+        hint_text="cth: bawang putih, tomat, telur...",
+        hint_style=ft.TextStyle(color=TEXT3()),
         bgcolor=BG3(),
         color=TEXT(),
         focused_border_color=ORANGE,
         border_color=BORDER(),
+        border_radius=ft.BorderRadius.all(14),
+        content_padding=ft.Padding.symmetric(horizontal=20, vertical=14),
         expand=True,
         on_submit=on_search,
     )
+
+    search_btn = ft.ElevatedButton(
+        content=ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.SEARCH, color=WHITE, size=16),
+                ft.Text("Cari", color=WHITE, weight=ft.FontWeight.BOLD),
+            ],
+            spacing=6,
+            tight=True,
+        ),
+        style=ft.ButtonStyle(
+            bgcolor=ORANGE,
+            shape=ft.RoundedRectangleBorder(radius=14),
+            mouse_cursor=ft.MouseCursor.CLICK,
+            padding=ft.Padding.symmetric(horizontal=24, vertical=14),
+        ),
+        on_click=on_search,
+    )
+
+    def rebuild():
+        container.bgcolor         = BG()
+        search_field.bgcolor      = BG3()
+        search_field.color        = TEXT()
+        search_field.border_color = BORDER()
+        search_field.update()
+        for ctrl in results_column.controls:
+            if not isinstance(ctrl, ft.Container):
+                continue
+            ctrl.bgcolor = BG3()
+            ctrl.border  = ft.Border.all(1, BORDER())
+            ctrl.update()
+            row = getattr(ctrl, "content", None)
+            if not isinstance(row, ft.Row):
+                continue
+            for child in row.controls:
+                if isinstance(child, ft.Column):
+                    for item in child.controls:
+                        if isinstance(item, ft.Text):
+                            item.color = TEXT() if item.weight == ft.FontWeight.BOLD else TEXT2()
+                            item.update()
+                        elif isinstance(item, ft.Container):
+                            item.bgcolor = BG4()
+                            item.update()
+                            if isinstance(getattr(item, "content", None), ft.Text):
+                                item.content.color = TEXT3()
+                                item.content.update()
+                        elif isinstance(item, ft.Row):
+                            for sub in item.controls:
+                                if isinstance(sub, ft.Text):
+                                    sub.color = TEXT2()
+                                    sub.update()
+                                elif isinstance(sub, ft.Icon):
+                                    sub.color = TEXT2()
+                                    sub.update()
+        page.update()
+
+    theme_mgr.add_listener(rebuild)
 
     container = ft.Container(
         expand=True,
@@ -238,21 +324,17 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         content=ft.Column(
             controls=[
                 ft.Container(
-                    content=ft.Row(controls=[
-                        search_field,
-                        ft.ElevatedButton(
-                            "Cari", bgcolor=ORANGE, color=WHITE,
-                            on_click=on_search,
-                            style=ft.ButtonStyle(mouse_cursor=ft.MouseCursor.CLICK),
-                        ),
-                    ]),
-                    padding=ft.Padding.all(20),
+                    content=ft.Row(
+                        controls=[search_field, search_btn],
+                        spacing=10,
+                    ),
+                    padding=ft.Padding.symmetric(horizontal=24, vertical=18),
                 ),
                 sticky_loader,
                 ft.Container(
                     content=results_column,
-                    padding=ft.Padding.symmetric(horizontal=20),
-                    margin=ft.Margin.only(top=12),
+                    padding=ft.Padding.symmetric(horizontal=24),
+                    margin=ft.Margin.only(top=4),
                     expand=True,
                 ),
             ],
@@ -261,5 +343,5 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         ),
     )
 
-    container.results_column = results_column  # exposed for gui.py theme rebuild
+    container.results_column = results_column
     return container
