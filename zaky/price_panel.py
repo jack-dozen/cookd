@@ -737,7 +737,6 @@ def run_price_calculation(
     """
     # Guard: kalau sudah ada hasil, scroll ke sana
     if price_area.current and getattr(price_area.current, "_price_done", False):
-        price_area.current.scroll_to(offset=0)
         return
 
     recipe_id = recipe.get("recipe_id") or recipe.get("id", "")
