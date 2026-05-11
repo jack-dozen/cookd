@@ -9,12 +9,22 @@ def BORDER(): return theme_mgr.get("BORDER")
 
 
 PAGE_TITLES = {
-    "home":       ("Home",     "Selamat datang di CookD"),
+    "home":       ("Home",        "Selamat datang di CookD"),
     "finder":     ("Finder",      "Cari resep dari bahan yang kamu punya"),
     "my-recipes": ("My Recipes",  "Resep yang kamu simpan"),
     "for-you":    ("For You",     "Rekomendasi untukmu"),
     "info":       ("Info",        "Informasi aplikasi"),
 }
+
+
+def _topbar_gradient():
+    """Horizontal gradient: faint orange warmth on the left, BG2 on the right."""
+    return ft.LinearGradient(
+        begin=ft.Alignment(-1, 0),
+        end=ft.Alignment(1, 0),
+        colors=["#18ff6a20", BG2(), BG2()],
+        stops=[0.0, 0.35, 1.0],
+    )
 
 
 def build_topbar(navigate_fn) -> ft.Container:
@@ -26,6 +36,7 @@ def build_topbar(navigate_fn) -> ft.Container:
         color=TEXT(),
         weight=ft.FontWeight.BOLD,
         font_family="Font",
+        animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
 
     sub_text = ft.Text(
@@ -33,6 +44,7 @@ def build_topbar(navigate_fn) -> ft.Container:
         size=13,
         color=TEXT2(),
         font_family="Font",
+        animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
 
     back_btn_container = ft.Container(
@@ -47,6 +59,7 @@ def build_topbar(navigate_fn) -> ft.Container:
         visible=False,
         padding=0,
         margin=ft.Margin.only(right=8),
+        animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
 
     container = ft.Container(
@@ -63,17 +76,17 @@ def build_topbar(navigate_fn) -> ft.Container:
             alignment=ft.MainAxisAlignment.START,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
-        bgcolor=BG2(),
+        gradient=_topbar_gradient(),
         padding=ft.Padding.only(left=20, right=28, top=14, bottom=14),
         border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
         animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
 
     def rebuild():
-        container.bgcolor = BG2()
-        container.border  = ft.Border.only(bottom=ft.BorderSide(1, BORDER()))
-        title_text.color  = TEXT()
-        sub_text.color    = TEXT2()
+        container.gradient = _topbar_gradient()
+        container.border   = ft.Border.only(bottom=ft.BorderSide(1, BORDER()))
+        title_text.color   = TEXT()
+        sub_text.color     = TEXT2()
         container.update()
         title_text.update()
         sub_text.update()
