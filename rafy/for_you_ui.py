@@ -170,7 +170,7 @@ def _thumbnail(url: str, width: int, height: int) -> ft.Container:
             src=url or "",
             width=width,
             height=height,
-            fit=ft.ImageFit.COVER,
+            fit=ft.BoxFit.COVER,
             error_content=ft.Container(
                 bgcolor=BG4(),
                 content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3(), size=28),
@@ -191,10 +191,10 @@ def _ghost_badge(text: str) -> ft.Container:
     """Badge transparan putih — untuk hero card."""
     return ft.Container(
         content=ft.Text(text, color=WHITE, size=11, weight=ft.FontWeight.W_500),
-        bgcolor=ft.colors.with_opacity(0.22, WHITE),
+        bgcolor=ft.Colors.with_opacity(0.22, WHITE),
         border_radius=ft.BorderRadius.all(20),
         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
-        border=ft.Border.all(1, ft.colors.with_opacity(0.35, WHITE)),
+        border=ft.Border.all(1, ft.Colors.with_opacity(0.35, WHITE)),
     )
 
 
@@ -213,7 +213,7 @@ def _build_hero(recipe: dict, on_detail) -> ft.Container:
                 src=img_url or "",
                 width=float("inf"),
                 height=220,
-                fit=ft.ImageFit.COVER,
+                fit=ft.BoxFit.COVER,
                 error_content=ft.Container(
                     bgcolor=BG4(),
                     content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3(), size=48),
@@ -255,13 +255,13 @@ def _build_hero(recipe: dict, on_detail) -> ft.Container:
             # Tombol kanan bawah
             ft.Container(
                 content=ft.ElevatedButton(
-                    text="Lihat Resep →",
-                    bgcolor=ft.colors.with_opacity(0.18, WHITE),
+                    ft.Text("Lihat Resep →"),
+                    bgcolor=ft.Colors.with_opacity(0.18, WHITE),
                     color=WHITE,
                     on_click=lambda e: on_detail(recipe),
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=20),
-                        side=ft.BorderSide(1, ft.colors.with_opacity(0.5, WHITE)),
+                        side=ft.BorderSide(1, ft.Colors.with_opacity(0.5, WHITE)),
                         padding=ft.Padding.symmetric(horizontal=14, vertical=6),
                     ),
                 ),
@@ -342,9 +342,9 @@ def _build_ranked_row(rank: int, recipe: dict, on_detail, on_save) -> ft.Contain
                     on_click=_toggle,
                 ),
                 ft.ElevatedButton(
-                    text="Lihat",
+                    content=ft.Text("Lihat"),
                     color=ORANGE,
-                    bgcolor=ft.colors.with_opacity(0, ORANGE),
+                    bgcolor=ft.Colors.with_opacity(0, ORANGE),
                     on_click=lambda e: on_detail(recipe),
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),

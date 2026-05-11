@@ -209,7 +209,7 @@ def build_ingredient_list(result, page: ft.Page) -> ft.Container:
                 ft.Container(
                     content=ft.Text("klik bahan untuk detail & link beli",
                                     color=ORANGE, size=10),
-                    bgcolor=ft.colors.with_opacity(0.12, ORANGE),
+                    bgcolor=ft.Colors.with_opacity(0.12, ORANGE),
                     border_radius=ft.BorderRadius.all(20),
                     padding=ft.Padding.symmetric(horizontal=8, vertical=3),
                 ),
