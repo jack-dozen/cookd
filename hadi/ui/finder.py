@@ -90,12 +90,99 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                 dot.border  = ft.Border.all(1, BORDER())
         page.update()
 
+    # ── Empty state ──────────────────────────────────────────────────
+    empty_state = ft.Container(
+        visible=True,
+        expand=True,
+        content=ft.Column(
+            controls=[
+                ft.Text("🍳", size=72),
+                ft.Container(height=16),
+                ft.Text(
+                    "Masukkan bahan yang kamu punya",
+                    size=18,
+                    weight=ft.FontWeight.BOLD,
+                    color=TEXT(),
+                    font_family="Font",
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                ft.Container(height=8),
+                ft.Text(
+                    "CookD akan carikan resep terbaik\nsesuai bahan di dapurmu 🥘",
+                    size=14,
+                    color=TEXT2(),
+                    font_family="Font",
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                ft.Container(height=24),
+                ft.Row(
+                    controls=[
+                        ft.Text("🧄", size=28),
+                        ft.Text("🍅", size=22),
+                        ft.Text("🥚", size=26),
+                        ft.Text("🧅", size=20),
+                        ft.Text("🌶️", size=24),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=12,
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,
+            expand=True,
+        ),
+        animate_opacity=ft.Animation(400, ft.AnimationCurve.EASE_IN_OUT),
+        opacity=1.0,
+    )
+
     results_column = ft.Column(
         controls=[],
         spacing=10,
         scroll=ft.ScrollMode.AUTO,
         expand=True,
+        visible=False,
     )
+
+    def _card_gradient():
+        return ft.LinearGradient(
+            begin=ft.Alignment(-1, -1),
+            end=ft.Alignment(1, 1),
+            colors=[BG3(), BG2()],
+        )
+
+    def _not_found_card() -> ft.Container:
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text("😔", size=40),
+                    ft.Text(
+                        "Resep tidak ditemukan",
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        color=TEXT(),
+                        font_family="Font",
+                    ),
+                    ft.Text(
+                        "Coba bahan lain atau tambah lebih banyak bahan",
+                        size=13,
+                        color=TEXT2(),
+                        font_family="Font",
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+            ),
+            gradient=_card_gradient(),
+            border_radius=ft.BorderRadius.all(16),
+            border=ft.Border.all(1, BORDER()),
+            padding=ft.Padding.symmetric(horizontal=24, vertical=32),
+            alignment=ft.Alignment(0, 0),
+            animate_opacity=ft.Animation(300, ft.AnimationCurve.EASE_IN),
+            animate_offset=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
+            opacity=1.0,
+            offset=ft.Offset(0, 0),
+        )
 
     def _build_card(r: dict) -> ft.Container:
         score     = r.get("match_score", 0)
@@ -117,11 +204,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         )
 
         async def on_card_click(e):
-            card.scale  = ft.Scale(scale=0.98)
+            card.scale   = ft.Scale(scale=0.97)
             card.bgcolor = BG3()
             card.border  = ft.Border.all(1, BORDER())
             card.update()
-            await asyncio.sleep(0.08)
+            await asyncio.sleep(0.1)
             card.scale = ft.Scale(scale=1.0)
             card.update()
             show_detail_fn(r)
@@ -129,7 +216,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         card = ft.Container(
             data=score,
             scale=ft.Scale(scale=1.0),
-            animate_scale=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            animate_opacity=ft.Animation(300, ft.AnimationCurve.EASE_IN),
+            animate_offset=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
+            opacity=0.0,
+            offset=ft.Offset(0, 0.1),
+            gradient=_card_gradient(),
             content=ft.Row(
                 controls=[
                     thumb,
@@ -196,13 +288,16 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                 spacing=16,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            bgcolor=BG3(),
             border_radius=ft.BorderRadius.all(16),
             padding=ft.Padding.symmetric(horizontal=18, vertical=14),
             border=ft.Border.all(1, BORDER()),
             on_hover=lambda e: (
-                setattr(e.control, "bgcolor",
-                        BG2() if e.data else BG3()),
+                setattr(e.control, "gradient",
+                        ft.LinearGradient(
+                            begin=ft.Alignment(-1, -1),
+                            end=ft.Alignment(1, 1),
+                            colors=["#42190d", BG2()],
+                        ) if e.data else _card_gradient()),
                 setattr(e.control, "border",
                         ft.Border.all(1, ORANGE if e.data else BORDER())),
                 e.control.update(),
@@ -211,6 +306,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         )
         return card
 
+    async def _animate_card_in(card: ft.Container):
+        await asyncio.sleep(0.05)
+        card.opacity = 1.0
+        card.offset  = ft.Offset(0, 0)
+        card.update()
+
     def on_search(e):
         async def run_search():
             results_column.controls.clear()
@@ -218,14 +319,21 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             if not ingredients:
                 return
 
+            empty_state.visible  = False
+            results_column.visible = True
+            empty_state.update()
+            results_column.update()
+
             _set_loading_stage(0)
             page.update()
 
             user_ingredients = [k.strip() for k in ingredients.split(",") if k.strip()]
             loop = asyncio.get_event_loop()
+            found_any = {"value": False}
 
             def on_recipe_found(recipe):
                 async def update_ui():
+                    found_any["value"] = True
                     n = len(results_column.controls)
                     _set_loading_stage(min(1 + n, 4))
                     new_card  = _build_card(recipe)
@@ -236,6 +344,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                             break
                     results_column.controls.insert(insert_at, new_card)
                     page.update()
+                    await _animate_card_in(new_card)
                 asyncio.run_coroutine_threadsafe(update_ui(), loop)
 
             def run():
@@ -243,6 +352,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
             await asyncio.get_event_loop().run_in_executor(None, run)
             _set_loading_stage(-1)
+
+            if not found_any["value"]:
+                not_found = _not_found_card()
+                results_column.controls.append(not_found)
+                page.update()
+
             page.update()
 
         page.run_task(run_search)
@@ -287,8 +402,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         for ctrl in results_column.controls:
             if not isinstance(ctrl, ft.Container):
                 continue
-            ctrl.bgcolor = BG3()
-            ctrl.border  = ft.Border.all(1, BORDER())
+            ctrl.gradient = ft.LinearGradient(
+                begin=ft.Alignment(-1, -1),
+                end=ft.Alignment(1, 1),
+                colors=[BG3(), BG2()],
+            )
+            ctrl.border = ft.Border.all(1, BORDER())
             ctrl.update()
             row = getattr(ctrl, "content", None)
             if not isinstance(row, ft.Row):
@@ -321,6 +440,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         expand=True,
         bgcolor=BG(),
         visible=False,
+        animate_opacity=ft.Animation(300, ft.AnimationCurve.EASE_IN_OUT),
         content=ft.Column(
             controls=[
                 ft.Container(
@@ -332,10 +452,16 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                 ),
                 sticky_loader,
                 ft.Container(
-                    content=results_column,
+                    expand=True,
                     padding=ft.Padding.symmetric(horizontal=24),
                     margin=ft.Margin.only(top=4),
-                    expand=True,
+                    content=ft.Stack(
+                        controls=[
+                            empty_state,
+                            results_column,
+                        ],
+                        expand=True,
+                    ),
                 ),
             ],
             spacing=0,
