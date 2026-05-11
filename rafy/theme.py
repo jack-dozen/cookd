@@ -1,6 +1,12 @@
 """
 theme.py — CookD
 Semua konstanta warna, font, dan konfigurasi tema terpusat di sini.
+Import dari modul lain dengan: from rafy.theme import theme_mgr, T
+
+Cara pakai live update:
+    color = theme_mgr.get("BG")
+    theme_mgr.add_listener(rebuild_fn)
+    theme_mgr.toggle(page)
 """
 
 import flet as ft
@@ -61,29 +67,51 @@ FONT_PATH   = "fonts/Poppins-Regular.ttf"
 # THEME MANAGER
 # ─────────────────────────────────────────────────────────────────────
 class ThemeManager:
+    """
+    Singleton yang menyimpan state tema aktif dan memberitahu semua
+    listener ketika tema berubah.
+
+    Cara pakai:
+        from rafy.theme import theme_mgr
+
+        # baca warna
+        color = theme_mgr.get("BG")
+
+        # daftar listener rebuild
+        theme_mgr.add_listener(my_rebuild_fn)s
+
+        # toggle (panggil dari on_change Switch)
+        theme_mgr.toggle(page)
+    """
     def __init__(self):
         self._current: dict[str, str] = DARK.copy()
         self._listeners: list = []
-
+        
+    # ── Query ─────────────────────────────────────────────────────────
     def get(self, key: str) -> str:
         return self._current.get(key, "#FF00FF")
 
     def is_dark(self) -> bool:
         return self._current["BG"] == DARK["BG"]
 
+    # ── Mutation ──────────────────────────────────────────────────────
     def toggle(self, page: ft.Page | None = None):
+        """Ganti antara dark dan light, lalu panggil semua listener."""
         self._current.update(LIGHT if self.is_dark() else DARK)
         if page:
             self._apply_to_page(page)
         self._notify()
 
     def _apply_to_page(self, page: ft.Page):
+        """Terapkan tema ke ft.Page — bgcolor + theme_mode."""
         page.bgcolor    = self._current["BG"]
         page.theme_mode = ft.ThemeMode.DARK if self.is_dark() else ft.ThemeMode.LIGHT
         page.fonts      = {FONT_FAMILY: FONT_PATH}
         page.theme      = ft.Theme(font_family=FONT_FAMILY)
 
+    # ── Listener registry ─────────────────────────────────────────────
     def add_listener(self, fn):
+        """Daftarkan fungsi callback yang dipanggil saat tema berubah."""
         if fn not in self._listeners:
             self._listeners.append(fn)
 
@@ -98,10 +126,12 @@ class ThemeManager:
                 pass
 
 
+# Global singleton — import dan pakai langsung
 theme_mgr = ThemeManager()
 
-
+# Shortcut helper (snapshot baca langsung dari manager)
 def T(key: str) -> str:
+    """Shortcut: T('BG') == theme_mgr.get('BG')"""
     return theme_mgr.get(key)
 
 
@@ -109,6 +139,7 @@ def T(key: str) -> str:
 # MATCH SCORE
 # ─────────────────────────────────────────────────────────────────────
 def match_color(score: float) -> tuple[str, str]:
+    """Return (bg_color, text_color) berdasarkan score 0.0–1.0."""
     pct = score * 100
     if pct >= 80:
         return "#1B3D28", GREEN
@@ -122,6 +153,16 @@ def match_color(score: float) -> tuple[str, str]:
 # THEME TOGGLE WIDGET
 # ─────────────────────────────────────────────────────────────────────
 def build_theme_toggle(page: ft.Page, show_label: bool = True) -> ft.Container:
+    """
+    Buat widget toggle dark/light mode.
+
+    Params:
+        page        : ft.Page aktif
+        show_label  : tampilkan label "Dark mode" / "Light mode" (default True)
+
+    Return:
+        ft.Container berisi ikon + label + Switch
+    """
     switch = ft.Switch(
         value=not theme_mgr.is_dark(),
         active_color=ORANGE,
