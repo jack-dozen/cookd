@@ -1,582 +1,454 @@
-# rafy/for_you_ui.py
+"""
+for_you_ui.py
+════════════════════════════════════════════════════════════════
+Halaman ResepForYou — rekomendasi resep berbasis aktivitas user.
+
+Algoritma:
+  • Resep Hari Ini  : scraped_at terbaru + match_score tertinggi
+  • Resep Bulan Ini : skor = match_score×0.6 + frekuensi_kalkulasi×0.4 (top 5)
+
+Cara pakai (di Gui.py):
+    from rafy.for_you_ui import build_for_you_page
+
+    content = build_for_you_page(
+        page=page,
+        on_detail=lambda r: navigate_to_detail(r),
+        on_save=lambda r, saved: save_recipe(r, saved),
+    )
+════════════════════════════════════════════════════════════════
+"""
+
 import flet as ft
-from datetime import datetime
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from rafy.theme import theme_mgr, ORANGE, WHITE
+import os
+import sys
+from datetime import datetime, date
+from collections import Counter
 
-def BG()     -> str: return theme_mgr.get("BG")
-def BG2()    -> str: return theme_mgr.get("BG2")
-def BG3()    -> str: return theme_mgr.get("BG3")
-def BG4()    -> str: return theme_mgr.get("BG4")
-def TEXT()   -> str: return theme_mgr.get("TEXT")
-def TEXT2()  -> str: return theme_mgr.get("TEXT2")
-def TEXT3()  -> str: return theme_mgr.get("TEXT3")
-def BORDER() -> str: return theme_mgr.get("BORDER")
+# ── Path resolver ──────────────────────────────────────────────────────────────
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_HERE)
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
+from rafy.theme import (
+    theme_mgr, ORANGE, GREEN, AMBER, WHITE,
+)
+from tinydb import TinyDB
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DUMMY DATA — 12 resep, rotasi tiap hari
-# ─────────────────────────────────────────────────────────────────────────────
-RECIPES = [
-    {
-        "name":        "Rendang Daging Sapi",
-        "author":      "Uni Farah",
-        "portion":     "11 porsi",
-        "cook_time":   "67 menit",
-        "image_url":   "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "1 kg daging sapi",
-            "400 ml santan kental",
-            "5 siung bawang putih",
-            "8 siung bawang merah",
-            "3 batang serai",
-            "3 lembar daun jeruk",
-            "2 cm lengkuas",
-            "2 cm jahe",
-            "10 buah cabai merah",
-            "Garam secukupnya",
-        ],
-        "steps": [
-            "Haluskan bumbu: bawang putih, bawang merah, cabai, jahe, dan lengkuas.",
-            "Tumis bumbu halus bersama serai dan daun jeruk hingga harum.",
-            "Masukkan daging sapi, aduk rata hingga daging berubah warna.",
-            "Tuang santan kental, masak dengan api sedang sambil terus diaduk.",
-            "Kecilkan api, masak hingga santan mengering dan daging berwarna cokelat gelap.",
-            "Koreksi rasa, angkat dan sajikan.",
-        ],
-    },
-    {
-        "name":        "Nasi Goreng Kampung Spesial",
-        "author":      "Bunda Sari",
-        "portion":     "2 porsi",
-        "cook_time":   "20 menit",
-        "image_url":   "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "2 piring nasi putih dingin",
-            "2 butir telur",
-            "3 siung bawang putih",
-            "5 siung bawang merah",
-            "2 sdm kecap manis",
-            "1 sdt garam",
-            "1 sdt merica",
-            "2 sdm minyak goreng",
-            "Cabai rawit secukupnya",
-            "Daun bawang secukupnya",
-        ],
-        "steps": [
-            "Iris tipis bawang merah, bawang putih, dan cabai rawit.",
-            "Panaskan minyak, tumis bawang hingga harum dan kekuningan.",
-            "Masukkan telur, orak-arik hingga setengah matang.",
-            "Masukkan nasi, aduk rata dengan bumbu.",
-            "Tambahkan kecap manis, garam, dan merica. Aduk hingga merata.",
-            "Tambahkan daun bawang, aduk sebentar lalu angkat dan sajikan.",
-        ],
-    },
-    {
-        "name":        "Soto Ayam Lamongan",
-        "author":      "Mbak Dewi",
-        "portion":     "6 porsi",
-        "cook_time":   "50 menit",
-        "image_url":   "https://images.unsplash.com/photo-1555126634-323283e090fa?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "1 ekor ayam kampung",
-            "2 liter air",
-            "5 siung bawang putih",
-            "8 siung bawang merah",
-            "2 cm kunyit",
-            "2 cm jahe",
-            "2 batang serai",
-            "3 lembar daun salam",
-            "Garam dan merica secukupnya",
-            "Daun bawang dan seledri",
-        ],
-        "steps": [
-            "Rebus ayam dalam air hingga matang, angkat dan suwir-suwir.",
-            "Haluskan bawang putih, bawang merah, kunyit, dan jahe.",
-            "Tumis bumbu halus bersama serai dan daun salam hingga harum.",
-            "Masukkan bumbu ke dalam kaldu ayam, didihkan.",
-            "Koreksi rasa dengan garam dan merica.",
-            "Sajikan dengan suwiran ayam, taburan daun bawang, dan seledri.",
-        ],
-    },
-    {
-        "name":        "Gado-gado Jakarta",
-        "author":      "Mpok Tini",
-        "portion":     "4 porsi",
-        "cook_time":   "30 menit",
-        "image_url":   "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "200 g kacang tanah goreng",
-            "3 siung bawang putih",
-            "5 buah cabai merah",
-            "2 sdm gula merah",
-            "1 sdm kecap manis",
-            "Garam secukupnya",
-            "Air secukupnya",
-            "Sayuran rebus (kangkung, tauge, kol)",
-            "Tahu dan tempe goreng",
-            "Lontong secukupnya",
-        ],
-        "steps": [
-            "Haluskan kacang tanah, bawang putih, dan cabai.",
-            "Masak bumbu kacang dengan air, gula merah, kecap, dan garam.",
-            "Aduk hingga saus mengental dan matang.",
-            "Susun sayuran rebus, tahu, tempe, dan lontong di piring.",
-            "Siram dengan saus kacang, sajikan segera.",
-        ],
-    },
-    {
-        "name":        "Semur Daging Kentang",
-        "author":      "Ibu Ratna",
-        "portion":     "4 porsi",
-        "cook_time":   "45 menit",
-        "image_url":   "https://images.unsplash.com/photo-1574484284002-952d92456975?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "500 g daging sapi",
-            "3 buah kentang",
-            "5 siung bawang putih",
-            "6 siung bawang merah",
-            "4 sdm kecap manis",
-            "1 sdt pala bubuk",
-            "1 sdt merica",
-            "Garam secukupnya",
-            "Minyak goreng",
-            "Air secukupnya",
-        ],
-        "steps": [
-            "Potong daging dan kentang sesuai selera.",
-            "Tumis bawang merah dan putih hingga harum.",
-            "Masukkan daging, masak hingga berubah warna.",
-            "Tambahkan kecap manis, pala, merica, dan garam.",
-            "Tuang air, masak hingga daging empuk.",
-            "Masukkan kentang, masak hingga matang dan kuah mengental.",
-        ],
-    },
-    {
-        "name":        "Ayam Bakar Taliwang",
-        "author":      "Kak Rohani",
-        "portion":     "4 porsi",
-        "cook_time":   "60 menit",
-        "image_url":   "https://images.unsplash.com/photo-1562802378-063ec186a863?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "1 ekor ayam muda",
-            "10 buah cabai merah keriting",
-            "5 buah cabai rawit",
-            "6 siung bawang putih",
-            "8 siung bawang merah",
-            "1 sdt terasi bakar",
-            "2 sdm minyak kelapa",
-            "Garam dan gula secukupnya",
-            "Air jeruk limau",
-        ],
-        "steps": [
-            "Belah ayam menjadi dua bagian, geprek sedikit.",
-            "Haluskan semua bumbu cabai, bawang, dan terasi.",
-            "Lumuri ayam dengan bumbu, diamkan 30 menit.",
-            "Bakar ayam di atas bara api sambil dibolak-balik.",
-            "Olesi dengan sisa bumbu setiap kali membalik.",
-            "Bakar hingga matang dan sedikit gosong di bagian pinggir.",
-        ],
-    },
-    {
-        "name":        "Opor Ayam Kuning",
-        "author":      "Bunda Lia",
-        "portion":     "6 porsi",
-        "cook_time":   "55 menit",
-        "image_url":   "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "1 ekor ayam potong",
-            "500 ml santan",
-            "5 siung bawang putih",
-            "8 siung bawang merah",
-            "3 cm kunyit",
-            "2 cm jahe",
-            "2 batang serai",
-            "3 lembar daun jeruk",
-            "Garam dan gula secukupnya",
-        ],
-        "steps": [
-            "Haluskan bawang putih, bawang merah, kunyit, dan jahe.",
-            "Tumis bumbu halus bersama serai dan daun jeruk.",
-            "Masukkan ayam, aduk rata dengan bumbu.",
-            "Tuang santan encer, masak hingga mendidih.",
-            "Tambahkan santan kental, masak dengan api kecil.",
-            "Koreksi rasa, sajikan dengan taburan bawang goreng.",
-        ],
-    },
-    {
-        "name":        "Bakso Kuah Gurih",
-        "author":      "Pak Bambang",
-        "portion":     "5 porsi",
-        "cook_time":   "90 menit",
-        "image_url":   "https://images.unsplash.com/photo-1569050467447-ce54b3bbc37d?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "500 g daging sapi giling",
-            "100 g tepung tapioka",
-            "2 siung bawang putih",
-            "1 sdt garam",
-            "1 sdt merica",
-            "1 butir telur putih",
-            "1 liter kaldu sapi",
-            "Daun bawang dan seledri",
-            "Bihun atau mie secukupnya",
-        ],
-        "steps": [
-            "Campurkan daging giling, tepung tapioka, telur, bawang, garam, dan merica.",
-            "Uleni hingga adonan kalis dan bisa dibentuk.",
-            "Rebus air hingga mendidih, bentuk adonan menjadi bulatan.",
-            "Masukkan bakso ke dalam air mendidih, rebus hingga mengapung.",
-            "Didihkan kaldu sapi, beri bumbu garam dan merica.",
-            "Sajikan bakso dalam mangkuk dengan kuah, mie, dan taburan daun bawang.",
-        ],
-    },
-    {
-        "name":        "Capcay Kuah Seafood",
-        "author":      "Chef Andi",
-        "portion":     "4 porsi",
-        "cook_time":   "25 menit",
-        "image_url":   "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "200 g udang kupas",
-            "100 g cumi-cumi",
-            "Wortel, kol, sawi, jagung muda",
-            "5 siung bawang putih",
-            "1 sdm saus tiram",
-            "1 sdm kecap asin",
-            "1 sdt merica",
-            "Garam secukupnya",
-            "Maizena untuk pengental",
-        ],
-        "steps": [
-            "Tumis bawang putih hingga harum.",
-            "Masukkan udang dan cumi, masak hingga berubah warna.",
-            "Tambahkan sayuran keras seperti wortel dan jagung muda.",
-            "Masukkan sayuran lainnya, aduk rata.",
-            "Bumbui dengan saus tiram, kecap asin, garam, dan merica.",
-            "Kentalkan dengan larutan maizena, sajikan panas.",
-        ],
-    },
-    {
-        "name":        "Gulai Kambing Padang",
-        "author":      "Uda Herman",
-        "portion":     "8 porsi",
-        "cook_time":   "75 menit",
-        "image_url":   "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "1 kg daging kambing",
-            "600 ml santan kental",
-            "10 buah cabai merah",
-            "8 siung bawang putih",
-            "10 siung bawang merah",
-            "3 cm kunyit",
-            "2 cm jahe",
-            "3 batang serai",
-            "Daun kunyit dan daun jeruk",
-            "Garam secukupnya",
-        ],
-        "steps": [
-            "Cuci bersih daging kambing, potong sesuai selera.",
-            "Haluskan semua bumbu cabai, bawang, kunyit, dan jahe.",
-            "Tumis bumbu halus bersama serai, daun kunyit, dan daun jeruk.",
-            "Masukkan daging kambing, aduk hingga tercampur rata.",
-            "Tuang santan, masak dengan api sedang sambil diaduk.",
-            "Kecilkan api, masak hingga daging empuk dan kuah mengental.",
-        ],
-    },
-    {
-        "name":        "Tumis Kangkung Belacan",
-        "author":      "Kak Mira",
-        "portion":     "3 porsi",
-        "cook_time":   "15 menit",
-        "image_url":   "https://images.unsplash.com/photo-1625938144755-652e08e359b7?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "1 ikat kangkung",
-            "1 sdt terasi",
-            "5 buah cabai merah",
-            "3 siung bawang putih",
-            "5 siung bawang merah",
-            "Garam dan gula secukupnya",
-            "Minyak goreng",
-        ],
-        "steps": [
-            "Petik kangkung, cuci bersih.",
-            "Haluskan bawang merah, bawang putih, cabai, dan terasi.",
-            "Panaskan minyak, tumis bumbu hingga harum.",
-            "Masukkan kangkung, aduk cepat dengan api besar.",
-            "Bumbui dengan garam dan gula.",
-            "Angkat segera agar kangkung tidak layu terlalu lama.",
-        ],
-    },
-    {
-        "name":        "Ikan Bakar Bumbu Rujak",
-        "author":      "Bapak Surya",
-        "portion":     "4 porsi",
-        "cook_time":   "40 menit",
-        "image_url":   "https://images.unsplash.com/photo-1535399831218-d5bd36d1a6b3?w=900&q=80",
-        "source":      "Cookpad",
-        "ingredients": [
-            "2 ekor ikan kakap",
-            "8 buah cabai merah",
-            "5 buah cabai rawit",
-            "6 siung bawang putih",
-            "4 siung bawang merah",
-            "2 buah tomat",
-            "1 sdm gula merah",
-            "Garam secukupnya",
-            "Air jeruk nipis",
-        ],
-        "steps": [
-            "Bersihkan ikan, beri irisan dan lumuri air jeruk nipis.",
-            "Haluskan bumbu cabai, bawang, tomat, dan gula merah.",
-            "Lumuri ikan dengan bumbu rujak, diamkan 20 menit.",
-            "Bakar ikan di atas bara api sambil dibolak-balik.",
-            "Olesi bumbu setiap membalik ikan.",
-            "Bakar hingga matang dan bumbu sedikit kering.",
-        ],
-    },
-]
+_DB_PATH  = os.path.join(_ROOT, "data", "base.json")
+_db_cache = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ROTASI HARIAN
-# ─────────────────────────────────────────────────────────────────────────────
-def get_daily_recipes() -> tuple[dict, list[dict]]:
-    """
-    Rotasi berdasarkan hari ke-berapa dalam setahun.
-    Return: (resep_hari_ini, [5 resep mingguan])
-    """
-    day = datetime.now().timetuple().tm_yday  # 1–365
-    n   = len(RECIPES)
-
-    # Resep hari ini — berputar tiap hari
-    today_idx   = day % n
-    today       = RECIPES[today_idx]
-
-    # 5 resep mingguan — ambil 5 berikutnya, tidak ada duplikat dengan today
-    weekly = []
-    for i in range(1, n):
-        idx = (today_idx + i) % n
-        weekly.append(RECIPES[idx])
-        if len(weekly) == 5:
-            break
-
-    return today, weekly
+def _get_db() -> TinyDB:
+    global _db_cache
+    if _db_cache is None:
+        _db_cache = TinyDB(_DB_PATH)
+    return _db_cache
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# UI COMPONENTS
-# ─────────────────────────────────────────────────────────────────────────────
-def build_for_you_page(on_recipe_click) -> ft.Container:
-    """
-    Bangun seluruh halaman For You.
-    on_recipe_click(recipe: dict) — callback ke show_detail() di Gui.py
-    """
-    today, weekly = get_daily_recipes()
+# ── Theme helpers ──────────────────────────────────────────────────────────────
+def BG():     return theme_mgr.get("BG")
+def BG3():    return theme_mgr.get("BG3")
+def BG4():    return theme_mgr.get("BG4")
+def TEXT():   return theme_mgr.get("TEXT")
+def TEXT2():  return theme_mgr.get("TEXT2")
+def TEXT3():  return theme_mgr.get("TEXT3")
+def BORDER(): return theme_mgr.get("BORDER")
 
-    # ── Hero card — Resep Hari Ini ──
-    hero = ft.Container(
-        height=260,
-        content=ft.Stack(
-            controls=[
-                ft.Image(
-                    src=today["image_url"],
-                    width=float("inf"),
-                    height=260,
-                    fit=ft.ImageFit.COVER,
-                ),
-                ft.Container(
-                    width=float("inf"),
-                    height=260,
-                    gradient=ft.LinearGradient(
-                        begin=ft.Alignment(0, 1),
-                        end=ft.Alignment(0, -1),
-                        colors=["#EE000000", "#22000000"],
-                    ),
-                ),
-                ft.Container(
-                    bottom=0, left=0, right=0,
-                    padding=ft.padding.symmetric(horizontal=24, vertical=16),
-                    content=ft.Column(
-                        controls=[
-                            ft.Text(
-                                today["name"],
-                                size=22,
-                                weight=ft.FontWeight.BOLD,
-                                color=WHITE,
-                            ),
-                            ft.Row(
-                                controls=[
-                                    ft.Container(
-                                        content=ft.Text(f"👥 {today['portion']}", size=12, color=WHITE),
-                                        bgcolor="#44000000",
-                                        border_radius=ft.BorderRadius.all(20),
-                                        padding=ft.padding.symmetric(horizontal=10, vertical=4),
-                                    ),
-                                    ft.Container(
-                                        content=ft.Text(f"⏱ {today['cook_time']}", size=12, color=WHITE),
-                                        bgcolor="#44000000",
-                                        border_radius=ft.BorderRadius.all(20),
-                                        padding=ft.padding.symmetric(horizontal=10, vertical=4),
-                                    ),
-                                    ft.Container(
-                                        content=ft.Text(today["source"], size=12, color=WHITE),
-                                        bgcolor="#44000000",
-                                        border_radius=ft.BorderRadius.all(20),
-                                        padding=ft.padding.symmetric(horizontal=10, vertical=4),
-                                    ),
-                                ],
-                                spacing=6,
-                            ),
-                        ],
-                        spacing=8,
-                    ),
-                ),
-                # Tombol Lihat Resep
-                ft.Container(
-                    top=16, right=16,
-                    content=ft.ElevatedButton(
-                        "Lihat Resep →",
-                        bgcolor=ORANGE,
-                        color=WHITE,
-                        style=ft.ButtonStyle(
-                            shape=ft.RoundedRectangleBorder(radius=20),
-                        ),
-                        on_click=lambda e: on_recipe_click(today),
-                    ),
-                ),
-            ],
-        ),
-        clip_behavior=ft.ClipBehavior.HARD_EDGE,
-        border_radius=ft.BorderRadius.all(12),
-        on_click=lambda e: on_recipe_click(today),
-        ink=True,
-    )
 
-    # ── List item — Resep Mingguan ──
-    def build_weekly_item(rank: int, recipe: dict) -> ft.Container:
-        return ft.Container(
-            content=ft.Row(
-                controls=[
-                    # Rank number
-                    ft.Container(
-                        content=ft.Text(
-                            str(rank),
-                            size=16,
-                            weight=ft.FontWeight.BOLD,
-                            color=ORANGE if rank == 1 else TEXT2(),
-                        ),
-                        width=28,
-                        alignment=ft.alignment.center,
-                    ),
-                    # Thumbnail
-                    ft.Container(
-                        width=64,
-                        height=64,
-                        content=ft.Image(
-                            src=recipe["image_url"],
-                            width=64,
-                            height=64,
-                            fit=ft.ImageFit.COVER,
-                        ),
-                        border_radius=ft.BorderRadius.all(8),
-                        clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                    ),
-                    # Info
-                    ft.Column(
-                        controls=[
-                            ft.Text(
-                                recipe["name"],
-                                size=14,
-                                weight=ft.FontWeight.BOLD,
-                                color=TEXT(),
-                                max_lines=1,
-                                overflow=ft.TextOverflow.ELLIPSIS,
-                            ),
-                            ft.Text(
-                                f"👥 {recipe['portion']} · ⏱ {recipe['cook_time']} · {recipe['source']}",
-                                size=12,
-                                color=TEXT2(),
-                            ),
-                        ],
-                        spacing=4,
-                        expand=True,
-                    ),
-                    # Tombol lihat
-                    ft.TextButton(
-                        "Lihat",
-                        style=ft.ButtonStyle(color=ORANGE),
-                        on_click=lambda e, r=recipe: on_recipe_click(r),
-                    ),
-                ],
-                spacing=12,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
-            bgcolor=BG3(),
-            on_click=lambda e, r=recipe: on_recipe_click(r),
-            ink=True,
-            on_hover=lambda e: (
-                setattr(e.control, "bgcolor", BG4() if e.data else BG3()),
-                e.control.update()
-            ),
+# ══════════════════════════════════════════════════════════════════════════════
+# DATA LAYER
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _load_all_recipes() -> list[dict]:
+    try:
+        return _get_db().table("cookpad_recipes").all()
+    except Exception as e:
+        print(f"[for_you_ui] Gagal baca cookpad_recipes: {e}")
+        return []
+
+
+def _load_result_frequency() -> dict[str, int]:
+    """Hitung berapa kali tiap recipe_id muncul di tabel results."""
+    try:
+        results = _get_db().table("results").all()
+        freq    = Counter(
+            r.get("recipe_id", "") for r in results if r.get("recipe_id")
         )
+        return dict(freq)
+    except Exception as e:
+        print(f"[for_you_ui] Gagal baca results: {e}")
+        return {}
 
-    weekly_list = ft.Column(
-        controls=[
-            build_weekly_item(i + 1, r)
-            for i, r in enumerate(weekly)
-        ],
-        spacing=0,
+
+def _parse_scraped_at(r: dict) -> date:
+    try:
+        return datetime.strptime(r.get("scraped_at", ""), "%Y-%m-%d %H:%M:%S").date()
+    except Exception:
+        return date.min
+
+
+def _get_resep_hari_ini(recipes: list[dict]) -> dict | None:
+    """
+    1. Cari tanggal scraped_at paling baru.
+    2. Dari grup tanggal itu, ambil match_score tertinggi.
+    """
+    if not recipes:
+        return None
+    latest_date  = max(_parse_scraped_at(r) for r in recipes)
+    latest_group = [r for r in recipes if _parse_scraped_at(r) == latest_date]
+    return max(latest_group, key=lambda r: r.get("match_score", 0))
+
+
+def _get_resep_bulan_ini(
+    recipes   : list[dict],
+    freq      : dict[str, int],
+    exclude_id: str = "",
+) -> list[dict]:
+    """
+    Top 5 resep bulan ini.
+    skor = match_score × 0.6 + (frekuensi / max_frekuensi) × 0.4
+    Fallback ke semua resep jika bulan ini kosong.
+    """
+    now = datetime.now()
+
+    def _in_month(r: dict) -> bool:
+        try:
+            d = datetime.strptime(r.get("scraped_at", ""), "%Y-%m-%d %H:%M:%S")
+            return d.year == now.year and d.month == now.month
+        except Exception:
+            return False
+
+    pool = [r for r in recipes if r.get("recipe_id") != exclude_id]
+    monthly = [r for r in pool if _in_month(r)]
+    if not monthly:
+        monthly = pool   # fallback
+
+    if not monthly:
+        return []
+
+    max_freq = max(freq.values()) if freq else 1
+
+    def _score(r: dict) -> float:
+        ms = r.get("match_score", 0)
+        f  = freq.get(r.get("recipe_id", ""), 0)
+        return ms * 0.6 + (f / max_freq) * 0.4
+
+    ranked = sorted(monthly, key=_score, reverse=True)
+
+    # Deduplicate by recipe_id, ambil top 5
+    seen, result = set(), []
+    for r in ranked:
+        rid = r.get("recipe_id", "")
+        if rid and rid not in seen:
+            seen.add(rid)
+            result.append(r)
+        if len(result) >= 5:
+            break
+    return result
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# UI HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _fmt_score(score: float) -> str:
+    return f"⭐ {score * 5:.1f}"
+
+
+def _fmt_portion(s) -> str:
+    return f"👥 {s}" if s and s != "-" else "👥 —"
+
+
+def _fmt_time(s) -> str:
+    return f"⏱ {s}" if s and s != "-" else "⏱ —"
+
+
+def _thumbnail(url: str, width: int, height: int) -> ft.Container:
+    return ft.Container(
+        content=ft.Image(
+            src=url or "",
+            width=width,
+            height=height,
+            fit=ft.ImageFit.COVER,
+            error_content=ft.Container(
+                bgcolor=BG4(),
+                content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3(), size=28),
+                alignment=ft.Alignment(0, 0),
+                width=width,
+                height=height,
+            ),
+        ),
+        width=width,
+        height=height,
+        border_radius=ft.BorderRadius.all(10),
+        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        bgcolor=BG4(),
     )
+
+
+def _ghost_badge(text: str) -> ft.Container:
+    """Badge transparan putih — untuk hero card."""
+    return ft.Container(
+        content=ft.Text(text, color=WHITE, size=11, weight=ft.FontWeight.W_500),
+        bgcolor=ft.colors.with_opacity(0.22, WHITE),
+        border_radius=ft.BorderRadius.all(20),
+        padding=ft.Padding.symmetric(horizontal=10, vertical=4),
+        border=ft.Border.all(1, ft.colors.with_opacity(0.35, WHITE)),
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HERO CARD — Resep Hari Ini
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _build_hero(recipe: dict, on_detail) -> ft.Container:
+    name    = recipe.get("name", "Resep")
+    img_url = recipe.get("image_url", "")
 
     return ft.Container(
-        expand=True,
-        bgcolor=BG(),
-        content=ft.Column(
-            controls=[
-                # ── Resep Hari Ini ──
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Text("Resep Hari Ini 🔥", size=16, weight=ft.FontWeight.BOLD, color=TEXT()),
-                            hero,
-                        ],
-                        spacing=12,
-                    ),
-                    padding=ft.padding.symmetric(horizontal=24, vertical=20),
+        content=ft.Stack([
+            # Gambar
+            ft.Image(
+                src=img_url or "",
+                width=float("inf"),
+                height=220,
+                fit=ft.ImageFit.COVER,
+                error_content=ft.Container(
+                    bgcolor=BG4(),
+                    content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3(), size=48),
+                    alignment=ft.Alignment(0, 0),
+                    width=float("inf"),
+                    height=220,
                 ),
-                # ── Resep Mingguan ──
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Text("Trending Minggu Ini 📅", size=16, weight=ft.FontWeight.BOLD, color=TEXT()),
-                            ft.Container(
-                                content=weekly_list,
-                                border_radius=ft.BorderRadius.all(10),
-                                border=ft.Border.all(1, BORDER()),
-                                clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                            ),
-                        ],
-                        spacing=12,
-                    ),
-                    padding=ft.padding.only(left=24, right=24, bottom=24),
+            ),
+            # Gradient gelap bawah → atas
+            ft.Container(
+                width=float("inf"),
+                height=220,
+                gradient=ft.LinearGradient(
+                    begin=ft.Alignment(0, 1),
+                    end=ft.Alignment(0, -0.2),
+                    colors=["#DD000000", "#00000000"],
                 ),
-            ],
-            spacing=0,
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-        ),
+            ),
+            # Teks + badge di bawah
+            ft.Container(
+                content=ft.Column([
+                    ft.Text(
+                        name, color=WHITE, size=21,
+                        weight=ft.FontWeight.W_800,
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ),
+                    ft.Container(height=6),
+                    ft.Row([
+                        _ghost_badge(_fmt_portion(recipe.get("portion", "-"))),
+                        _ghost_badge(_fmt_time(recipe.get("cook_time", "-"))),
+                        _ghost_badge(_fmt_score(recipe.get("match_score", 0))),
+                    ], spacing=6),
+                ], spacing=0, tight=True),
+                padding=ft.Padding.all(16),
+                alignment=ft.Alignment(-1, 1),
+                height=220,
+            ),
+            # Tombol kanan bawah
+            ft.Container(
+                content=ft.ElevatedButton(
+                    text="Lihat Resep →",
+                    bgcolor=ft.colors.with_opacity(0.18, WHITE),
+                    color=WHITE,
+                    on_click=lambda e: on_detail(recipe),
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=20),
+                        side=ft.BorderSide(1, ft.colors.with_opacity(0.5, WHITE)),
+                        padding=ft.Padding.symmetric(horizontal=14, vertical=6),
+                    ),
+                ),
+                alignment=ft.Alignment(1, 1),
+                padding=ft.Padding.all(14),
+                height=220,
+            ),
+        ]),
+        height=220,
+        border_radius=ft.BorderRadius.all(14),
+        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        on_click=lambda e: on_detail(recipe),
+        ink=True,
+        animate=ft.Animation(180, ft.AnimationCurve.EASE_IN_OUT),
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RANKED ROW — Resep Bulan Ini
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _build_ranked_row(rank: int, recipe: dict, on_detail, on_save) -> ft.Container:
+    name    = recipe.get("name", "Resep")
+    portion = recipe.get("portion", "-")
+    ctime   = recipe.get("cook_time", "-")
+    source  = recipe.get("source", "Cookpad")
+    img_url = recipe.get("image_url", "")
+
+    # Warna nomor ranking: 1=orange, 2=abu, 3=amber, sisanya=redup
+    rank_colors = {1: ORANGE, 2: TEXT2(), 3: AMBER}
+    rank_color  = rank_colors.get(rank, TEXT3())
+
+    heart_ref = ft.Ref[ft.IconButton]()
+
+    def _toggle(e):
+        btn   = heart_ref.current
+        saved = not getattr(btn, "_saved", False)
+        btn._saved     = saved
+        btn.icon       = ft.Icons.FAVORITE if saved else ft.Icons.FAVORITE_BORDER
+        btn.icon_color = "#E74C3C" if saved else TEXT2()
+        on_save(recipe, saved)
+        e.page.update()
+
+    return ft.Container(
+        content=ft.Row([
+            # Nomor
+            ft.Container(
+                content=ft.Text(
+                    str(rank), color=rank_color, size=20,
+                    weight=ft.FontWeight.W_800,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                width=28,
+            ),
+            # Thumbnail
+            _thumbnail(img_url, 68, 68),
+            # Info
+            ft.Column([
+                ft.Text(
+                    name, color=TEXT(), size=14,
+                    weight=ft.FontWeight.BOLD,
+                    max_lines=2,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                ),
+                ft.Text(
+                    f"👥 {portion}  ⏱ {ctime}  · {source}",
+                    color=TEXT2(), size=11,
+                ),
+            ], spacing=4, expand=True),
+            # Aksi
+            ft.Row([
+                ft.IconButton(
+                    ref=heart_ref,
+                    icon=ft.Icons.FAVORITE_BORDER,
+                    icon_color=TEXT2(),
+                    icon_size=18,
+                    tooltip="Simpan ke My Recipes",
+                    on_click=_toggle,
+                ),
+                ft.ElevatedButton(
+                    text="Lihat",
+                    color=ORANGE,
+                    bgcolor=ft.colors.with_opacity(0, ORANGE),
+                    on_click=lambda e: on_detail(recipe),
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                        side=ft.BorderSide(1.5, ORANGE),
+                        padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+                    ),
+                ),
+            ], spacing=2, tight=True),
+        ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        bgcolor=BG3(),
+        border=ft.Border.all(1, BORDER()),
+        border_radius=ft.BorderRadius.all(10),
+        padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+        on_click=lambda e: on_detail(recipe),
+        ink=True,
+        animate=ft.Animation(150, ft.AnimationCurve.EASE_IN_OUT),
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMPTY STATE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _build_empty(message: str = "Belum ada resep") -> ft.Container:
+    return ft.Container(
+        content=ft.Column([
+            ft.Icon(ft.Icons.SEARCH_OFF_ROUNDED, color=TEXT3(), size=44),
+            ft.Text(message, color=TEXT2(), size=14, weight=ft.FontWeight.BOLD),
+            ft.Text(
+                "Cari resep dulu di Recipe Finder\nagar muncul di sini.",
+                color=TEXT3(), size=12, text_align=ft.TextAlign.CENTER,
+            ),
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+           spacing=8, tight=True),
+        padding=ft.Padding.all(40),
+        alignment=ft.Alignment(0, 0),
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN — build_for_you_page
+# ══════════════════════════════════════════════════════════════════════════════
+
+def build_for_you_page(
+    page      : ft.Page,
+    on_detail : callable,
+    on_save   : callable,
+) -> ft.Column:
+    """
+    Bangun halaman ResepForYou.
+
+    Args:
+        page      : ft.Page aktif
+        on_detail : fn(recipe: dict) → buka halaman detail
+        on_save   : fn(recipe: dict, saved: bool) → simpan / hapus dari my_recipes
+    """
+    recipes   = _load_all_recipes()
+    freq      = _load_result_frequency()
+    hari_ini  = _get_resep_hari_ini(recipes)
+    bulan_ini = _get_resep_bulan_ini(
+        recipes, freq,
+        exclude_id=hari_ini.get("recipe_id", "") if hari_ini else "",
+    )
+
+    controls: list[ft.Control] = []
+
+    # ── Resep Hari Ini ────────────────────────────────────────────────────────
+    controls.append(
+        ft.Text("Resep Hari Ini 🔥", color=TEXT(), size=15,
+                weight=ft.FontWeight.BOLD)
+    )
+
+    controls.append(
+        _build_hero(hari_ini, on_detail)
+        if hari_ini else _build_empty("Belum ada resep hari ini")
+    )
+
+    controls.append(ft.Container(height=20))
+
+    # ── Resep Bulan Ini ───────────────────────────────────────────────────────
+    controls.append(
+        ft.Row([
+            ft.Text("Resep Bulan Ini 📅", color=TEXT(), size=15,
+                    weight=ft.FontWeight.BOLD),
+            ft.Container(
+                content=ft.Text(
+                    "kecocokan + frekuensi",
+                    color=TEXT3(), size=10,
+                ),
+                bgcolor=BG4(),
+                border_radius=ft.BorderRadius.all(20),
+                padding=ft.Padding.symmetric(horizontal=8, vertical=3),
+            ),
+        ], spacing=8)
+    )
+
+    if bulan_ini:
+        for i, recipe in enumerate(bulan_ini, start=1):
+            controls.append(_build_ranked_row(i, recipe, on_detail, on_save))
+    else:
+        controls.append(_build_empty("Belum ada resep bulan ini"))
+
+    return ft.Column(
+        controls=controls,
+        spacing=10,
+        scroll=ft.ScrollMode.AUTO,
     )
