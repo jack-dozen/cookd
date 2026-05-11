@@ -414,6 +414,8 @@ def _extract_ingredient_strings(recipe: dict) -> list[str]:
 
 def _read_tokped(keyword: str, qty_gram: float) -> IngredientStorePrice:
     """Tokopedia tidak simpan 'unit' → parse dari nama produk."""
+    if not _is_valid_keyword(keyword):
+        return _make_failed(keyword, "tokopedia")
     try:
         with _db_lock:
             row = _get_db().table("tokped_ingredients").get(Query().keyword == keyword)
@@ -434,6 +436,8 @@ def _read_tokped(keyword: str, qty_gram: float) -> IngredientStorePrice:
 
 def _read_alfagift(keyword: str, qty_gram: float) -> IngredientStorePrice:
     """Skip jika price = 0 (scraping gagal)."""
+    if not _is_valid_keyword(keyword):
+        return _make_failed(keyword, "alfagift")
     try:
         with _db_lock:
             row = _get_db().table("alfagift_ingredients").get(Query().keyword == keyword)
@@ -454,6 +458,8 @@ def _read_alfagift(keyword: str, qty_gram: float) -> IngredientStorePrice:
 
 def _read_aeon(keyword: str, qty_gram: float) -> IngredientStorePrice:
     """Skip jika price = 0."""
+    if not _is_valid_keyword(keyword):
+        return _make_failed(keyword, "aeon")
     try:
         with _db_lock:
             row = _get_db().table("aeon_ingredients").get(Query().keyword == keyword)
@@ -737,8 +743,8 @@ class PriceComparisonService:
                         # (median_price sudah proporsional, kalikan 3 sebagai kasar)
                         total_satuan += median_price * 3
 
-            # Kalau > 60% bahan missing di toko ini → set ke 0 (data tidak cukup)
-            if total_count > 0 and missing_count / total_count > 0.6:
+            # Kalau > 80% bahan missing di toko ini → set ke 0 (data tidak cukup)
+            if total_count > 0 and missing_count / total_count > 0.8:
                 total_satuan = 0
                 total_resep  = 0
 

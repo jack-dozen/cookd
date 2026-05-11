@@ -71,6 +71,18 @@ def _is_data_fresh(db_path: str, keyword: str) -> bool | None:
 
 
 def _scrape_keyword(keyword, db_path):
+    # Guard: skip keyword tidak valid (angka saja, terlalu pendek, dll)
+    import re as _re_guard
+    if not keyword or len(keyword.strip()) < 2:
+        print(f"[{keyword}] SKIP — keyword terlalu pendek.")
+        return
+    if _re_guard.fullmatch(r"[\d\s\-/.,]+", keyword):
+        print(f"[{keyword}] SKIP — keyword hanya angka/simbol.")
+        return
+    if _re_guard.match(r"^\d+[\-\s]+\d", keyword):
+        print(f"[{keyword}] SKIP — keyword format range angka.")
+        return
+
     print(f"[{keyword}] Memulai scraping...")
     options = wb.ChromeOptions()
     # Atur posisi window agar tidak menimpa UI utama (misal ke kanan layar)
