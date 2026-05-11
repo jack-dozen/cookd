@@ -978,7 +978,7 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
         if on_view_recipe:
             on_view_recipe(recipe)
         else:
-            navigate("detail")
+            navigate("detail", recipe)
 
         recipe = {
             "recipe_id":   saved.get("recipe_id", ""),

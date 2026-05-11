@@ -1,9 +1,11 @@
 import flet as ft
-from tinydb.utils import D
-from fadhil.my_recipes import MyRecipesPage,on_view_recipe
-from hadi.ui import detail
-from rafy.theme import theme_mgr, ORANGE, GREEN, WHITE
+from fadhil.my_recipes import MyRecipesPage
+from rafy.theme import theme_mgr, ORANGE, WHITE
 from zaky.info import InfoPage
+from rafy.for_you_ui  import build_for_you_page
+from rafy.snackbar    import show_snack
+import uuid
+from tinydb import TinyDB, Query
 
 from hadi.ui.topbar  import build_topbar
 from hadi.ui.sidebar import build_sidebar
@@ -11,9 +13,6 @@ from hadi.ui.detail  import build_detail_page
 from hadi.ui.finder  import build_finder_page
 
 
-# ─────────────────────────────────────────────────────────────────────
-# COLORS (thin wrappers so every module stays in sync with the theme)
-# ─────────────────────────────────────────────────────────────────────
 def BG():     return theme_mgr.get("BG")
 def BG2():    return theme_mgr.get("BG2")
 def BG3():    return theme_mgr.get("BG3")
@@ -51,10 +50,53 @@ def main(page: ft.Page):
             container.visible = (key == name)
         if name != "detail":
             topbar.set_recipe(None)
+            topbar.set_page(name)
             topbar.update()
         if name == "detail" and recipe:
             pages["detail"].show(recipe)
         page.update()
+        
+    # ══════════════════════════════════════════════════════════════════
+    #  FOR YOU - RAFY
+    # ══════════════════════════════════════════════════════════════════
+    def _on_detail_foryou(recipe):
+        navigate("detail", recipe)
+        topbar.update()
+    def save_to_my_recipes(recipe: dict, saved: bool):
+        
+        db    = TinyDB("./data/base.json")
+        table = db.table("my_recipes")
+        q     = Query()
+        if saved:
+            if not table.get(q.recipe_id == recipe.get("recipe_id", "")):
+                table.insert({
+                    "saved_id"   : uuid.uuid4().hex[:12],
+                    "recipe_id"  : recipe.get("recipe_id", ""),
+                    "recipe_name": recipe.get("name", ""),
+                    "notes"      : "",
+                    "ingredients_all": [
+                        i.get("name", "") for i in recipe.get("ingredients", [])
+                    ],
+                    "steps"      : [s.get("text", "") for s in recipe.get("steps", [])],
+                    "source_url" : recipe.get("source_url", ""),
+                    "image_url"  : recipe.get("image_url", ""),
+                    "cook_time"  : recipe.get("cook_time", 0),
+                    "portion"    : recipe.get("portion", 4),
+                    "source"     : recipe.get("source", "Cookpad"),
+                    "saved_at"   : __import__("datetime").datetime.now()
+                                .strftime("%Y-%m-%d %H:%M:%S"),
+                })
+                show_snack(page, "Resep disimpan! ✓", "success")
+            else:
+                show_snack(page, "Resep sudah ada di My Recipes", "info")
+        else:
+            table.remove(q.recipe_id == recipe.get("recipe_id", ""))
+            show_snack(page, "Resep dihapus dari My Recipes", "warning")
+
+    # ══════════════════════════════════════════════════════════════════
+    #  TOPBAR
+    # ══════════════════════════════════════════════════════════════════
+    topbar = build_topbar(navigate)
 
     # ══════════════════════════════════════════════════════════════════
     #  PAGES
@@ -69,12 +111,17 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Text("Work In Progress", color=TEXT2(),
-                                        font_family="Font", weight=ft.FontWeight.BOLD),
+                                ft.Text(
+                                    "Work In Progress",
+                                    color=TEXT2(),
+                                    font_family="Font",
+                                    weight=ft.FontWeight.BOLD,
+                                ),
                                 ft.Text(
                                     "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
                                     "Cras condimentum, lorem nec porttitor tincidunt.",
-                                    color=TEXT2(), font_family="Font",
+                                    color=TEXT2(),
+                                    font_family="Font",
                                 ),
                             ],
                             spacing=0,
@@ -86,21 +133,34 @@ def main(page: ft.Page):
                 scroll=ft.ScrollMode.AUTO,
             ),
         )
-    # ══════════════════════════════════════════════════════════════════
-    #  TOPBAR
-    # ══════════════════════════════════════════════════════════════════
-    topbar = build_topbar(navigate)       
 
-    # ══════════════════════════════════════════════════════════════════
-    #  PAGES
-    # ══════════════════════════════════════════════════════════════════
     pages["detail"]     = build_detail_page(page, navigate, topbar)
     pages["finder"]     = build_finder_page(page, show_detail_fn=pages["detail"].show)
     pages["home"]       = make_placeholder("Home")
-    pages["my-recipes"] = MyRecipesPage(page, navigate, on_view_recipe=pages["detail"].show)
-    pages["for-you"]    = make_placeholder("For You")
+    pages["my-recipes"] = MyRecipesPage(page, navigate)
     pages["info"]       = InfoPage(page)
     pages["home"].visible = True
+    pages["for-you"] = ft.Container(
+        expand=True,
+        bgcolor=BG(),
+        visible=False,
+        content=ft.Column(
+            controls=[
+                ft.Container(
+                    content=build_for_you_page(
+                        page=page,
+                        on_detail=_on_detail_foryou,
+                        on_save=save_to_my_recipes,
+                    ),
+                    padding=ft.Padding.symmetric(horizontal=24, vertical=20),
+                    expand=True,
+                )
+            ],
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+        ),
+    )
+
 
     # ══════════════════════════════════════════════════════════════════
     #  SIDEBAR
@@ -108,36 +168,18 @@ def main(page: ft.Page):
     sidebar = build_sidebar(page, navigate)
 
     # ══════════════════════════════════════════════════════════════════
-    #  SNACKBAR
-    # ══════════════════════════════════════════════════════════════════
-    snack = ft.SnackBar(
-        content  = ft.Text("Saved", color=GREEN),
-        bgcolor  = BG3(),
-        duration = 3000,
-    )
-    
-    # ══════════════════════════════════════════════════════════════════
     #  THEME REBUILD LISTENER
     # ══════════════════════════════════════════════════════════════════
     def rebuild_on_theme_change():
         page.bgcolor    = BG()
         sidebar.bgcolor = BG2()
         topbar.bgcolor  = BG2()
+        topbar.border   = ft.Border.only(bottom=ft.BorderSide(1, BORDER()))
 
-        results_column = pages["finder"].results_column
-        for ctrl in results_column.controls:
-            if isinstance(ctrl, ft.Container):
-                ctrl.bgcolor = BG3()
-                ctrl.border  = ft.Border.all(1, BORDER())
+        for p in pages.values():
+            if hasattr(p, "bgcolor"):
+                p.bgcolor = BG()
 
-        def update_colors(ctrl):
-            if isinstance(ctrl, ft.Text):
-                ctrl.color = TEXT()
-            if hasattr(ctrl, "controls"):
-                for c in ctrl.controls:
-                    update_colors(c)
-
-        update_colors(results_column)
         page.update()
 
     theme_mgr.add_listener(rebuild_on_theme_change)
@@ -152,7 +194,6 @@ def main(page: ft.Page):
         vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         controls=[
             sidebar,
-            ft.VerticalDivider(width=5, color=BORDER()),
             ft.Column(
                 controls=[
                     topbar,
@@ -169,6 +210,8 @@ def main(page: ft.Page):
     )
 
     page.add(root)
+    topbar.set_page("home")
+    topbar.update()
     pages["my-recipes"].refresh()
 
     def window_resized(e):
