@@ -118,7 +118,8 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         while _float_tasks_active["value"]:
             y = -math.sin(2 * math.pi * t / period) * amplitude
             container.offset = ft.Offset(0, y / 100)
-            container.update()
+            if container.page:
+                container.update()
             await asyncio.sleep(step)
             t += step
 
@@ -161,10 +162,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     async def _pulse_enter_hint():
         while True:
             enter_hint.opacity = 1.0
-            enter_hint.update()
+            if enter_hint.page:
+                enter_hint.update()
             await asyncio.sleep(1.2)
             enter_hint.opacity = 0.3
-            enter_hint.update()
+            if enter_hint.page:
+                enter_hint.update()
             await asyncio.sleep(1.2)
 
     # Empty state title/subtitle refs for theme rebuilding
@@ -190,7 +193,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         gradient=ft.RadialGradient(
             center=ft.Alignment(0, 0),
             radius=1.2,
-            colors=["#18ff6a2030", "#00000000"],
+            colors=["#18206a20", "#00000000"],  # AA RR GG BB
         ),
         content=ft.Column(
             controls=[
@@ -253,7 +256,8 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         async def _shake_emoji():
             for dx in [0.05, -0.05, 0.04, -0.04, 0.02, -0.02, 0.0]:
                 sad_emoji.offset = ft.Offset(dx, 0)
-                sad_emoji.update()
+                if sad_emoji.page:
+                    sad_emoji.update()
                 await asyncio.sleep(0.06)
 
         card = ft.Container(
@@ -620,6 +624,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                 sticky_loader,
                 ft.Container(
                     expand=True,
+                    bgcolor=ft.Colors.TRANSPARENT,
                     padding=ft.Padding.symmetric(horizontal=24),
                     margin=ft.Margin.only(top=4),
                     content=ft.Stack(

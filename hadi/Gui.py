@@ -141,25 +141,25 @@ def main(page: ft.Page):
     pages["info"]       = InfoPage(page)
     pages["home"].visible = True
     pages["for-you"] = ft.Container(
-    expand=True,
-    bgcolor=BG(),
-    visible=False,
-    content=ft.Column(
-        controls=[
-            ft.Container(
-                content=build_for_you_page(
-                    page=page,
-                    on_detail=_on_detail_foryou,
-                    on_save=save_to_my_recipes,
-                ),
-                padding=ft.Padding.symmetric(horizontal=24, vertical=20),
-                expand=True,
-            )
-        ],
         expand=True,
-        scroll=ft.ScrollMode.AUTO,
-    ),
-)
+        bgcolor=BG(),
+        visible=False,
+        content=ft.Column(
+            controls=[
+                ft.Container(
+                    content=build_for_you_page(
+                        page=page,
+                        on_detail=_on_detail_foryou,
+                        on_save=save_to_my_recipes,
+                    ),
+                    padding=ft.Padding.symmetric(horizontal=24, vertical=20),
+                    expand=True,
+                )
+            ],
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+        ),
+    )
 
 
     # ══════════════════════════════════════════════════════════════════
