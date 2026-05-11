@@ -27,6 +27,8 @@ from rafy.theme import (
     theme_mgr, ORANGE, GREEN, AMBER, BLUE, WHITE, BLACK,
     TOK_COLOR, ALFA_COLOR, AEON_COLOR,
 )
+from rafy.ingredient_price_list import build_ingredient_list
+from rafy.snackbar import show_snack
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -665,6 +667,7 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
 
     print("[price_panel] Mulai build price cards...")
     cards_widget = _build_price_cards(result)
+    ingr_list    = build_ingredient_list(result, page)
     print("[price_panel] Price cards selesai")
 
     print("[price_panel] Mulai build bar chart...")
@@ -689,6 +692,7 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
                 ),
                 cards_widget,
                 ft.Container(height=14),
+                ingr_list,
                 chart_widget,
                 ft.Container(height=8),
                 disclaimer,
@@ -774,6 +778,7 @@ def run_price_calculation(
             try:
                 from zaky.PriceComparisonService import PriceResult
                 result = PriceResult(success=False, error_message=str(ex))
+                show_snack(page, f"Kalkulasi gagal: {ex}", "error")
             except Exception:
                 class _FallbackResult:
                     success = False
