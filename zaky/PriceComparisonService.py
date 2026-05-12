@@ -207,6 +207,8 @@ def _is_valid_keyword(keyword: str) -> bool:
 
 def _clean_keyword(text: str) -> str:
     text  = _STRIP_SUFFIX.sub("", text).strip()
+    # Hapus titik/tanda baca di akhir nama bahan
+    text  = re.sub(r"[.。,;:]+$", "", text).strip()
     words = [w for w in text.split()
              if w.lower() not in _STRIP_WORDS
              and w.lower() not in _STRIP_DESCRIPTOR
@@ -390,26 +392,70 @@ def _load_recipe(recipe_id: str) -> Optional[dict]:
     return None
 
 
-def _extract_ingredient_strings(recipe: dict) -> list[str]:
-    ingredients = recipe.get("ingredients", [])
-    if not ingredients:
-        return []
-    if all(isinstance(item, str) for item in ingredients):
-        return ingredients
-    normalized: list[str] = []
-    for item in ingredients:
-        if isinstance(item, dict):
-            qty  = str(item.get("qty", "")).strip()
-            name = str(item.get("name", "")).strip()
-            if qty and name:
-                normalized.append(f"{qty} {name}")
-            elif name:
-                normalized.append(name)
-            elif qty:
-                normalized.append(qty)
-        else:
-            normalized.append(str(item).strip())
-    return normalized
+def _parse_qty_from_str(qty_str: str) -> tuple[float, str]:
+    """
+    Ambil angka dan satuan dari string qty seperti '225 gram', '1 kg', '8 siung'.
+    Return (qty_float, unit_str). Kalau tidak ada angka → (1.0, '').
+    """
+    if not qty_str:
+        return 1.0, ""
+    s = qty_str.strip()
+    # Pecahan: "1/2 kg"
+    m = re.match(r"^(\d+)/(\d+)\s*([a-zA-Z]*)", s)
+    if m:
+        qty  = int(m.group(1)) / int(m.group(2))
+        unit = _normalize_unit(m.group(3))
+        return qty, unit
+    # Desimal: "1,5 sdm"
+    m = re.match(r"^(\d+[.,]\d+)\s*([a-zA-Z]*)", s)
+    if m:
+        qty  = float(m.group(1).replace(",", "."))
+        unit = _normalize_unit(m.group(2))
+        return qty, unit
+    # Range angka: "120-130 ml" → ambil angka pertama
+    m = re.match(r"^(\d+)-\d+\s*([a-zA-Z]*)", s)
+    if m:
+        qty  = float(m.group(1))
+        unit = _normalize_unit(m.group(2))
+        return qty, unit
+    # Bulat: "225 gram" atau "2"
+    m = re.match(r"^(\d+)\s*([a-zA-Z]*)", s)
+    if m:
+        qty  = float(m.group(1))
+        unit = _normalize_unit(m.group(2))
+        return qty, unit
+    return 1.0, ""
+
+
+def _parse_ingredient_item(item) -> ParsedIngredient:
+    """
+    Parse satu ingredient — bisa dict {qty, name} atau string lama.
+    Untuk dict: keyword dari name, qty_gram dari qty (tidak perlu re-parse string gabungan).
+    Untuk string: fallback ke parse_ingredient() yang lama.
+    """
+    if isinstance(item, dict):
+        qty_str  = str(item.get("qty", "")).strip()
+        name_str = str(item.get("name", "")).strip()
+        keyword  = _clean_keyword(name_str)
+        qty, unit = _parse_qty_from_str(qty_str)
+        # Kalau unit tidak dikenal atau kosong, default buah
+        if not unit or (unit not in _UNIT_TO_GRAM and unit not in _UNIT_ALIAS):
+            unit = "buah"
+        qty_gram = to_gram(qty, unit)
+        return ParsedIngredient(
+            raw          = f"{qty_str} {name_str}".strip(),
+            keyword      = keyword,
+            qty_gram     = qty_gram,
+            qty_original = qty,
+            unit_original= unit,
+        )
+    else:
+        return parse_ingredient(str(item).strip())
+
+
+def _extract_ingredients(recipe: dict) -> list:
+    """Kembalikan list ingredients apa adanya (list of dict atau list of str)."""
+    return recipe.get("ingredients", [])
 
 
 def _read_tokped(keyword: str, qty_gram: float) -> IngredientStorePrice:
@@ -527,6 +573,104 @@ def _save_results(recipe_id: str, result: PriceResult) -> None:
 # MAIN SERVICE
 # ══════════════════════════════════════════════════════════════════════════════
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CACHE HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+_RESULT_FRESH_DAYS  = 7   # hasil kalkulasi dianggap valid selama 7 hari
+_SCRAPE_FRESH_DAYS  = 7   # data scraping per-keyword dianggap fresh selama 7 hari
+
+
+def _load_cached_result(recipe_id: str) -> Optional[PriceResult]:
+    """
+    Coba load hasil kalkulasi dari tabel 'results'.
+    Kalau ada dan masih fresh (< _RESULT_FRESH_DAYS) → reconstruct PriceResult.
+    Kalau tidak ada / sudah stale → return None (harus scrape ulang).
+    """
+    try:
+        with _db_lock:
+            row = _get_db().table("results").get(Query().recipe_id == recipe_id)
+        if not row:
+            return None
+
+        calc_at = row.get("calculated_at", "")
+        if calc_at:
+            dt = datetime.strptime(calc_at, "%Y-%m-%d %H:%M:%S")
+            age_days = (datetime.now() - dt).days
+            if age_days > _RESULT_FRESH_DAYS:
+                print(f"[Cache] Hasil lama ({age_days} hari), akan scrape ulang.")
+                return None
+
+        # Reconstruct per_ingredient
+        per_ingredient: dict[str, list[IngredientStorePrice]] = {}
+        for keyword, store_list in row.get("per_ingredient", {}).items():
+            per_ingredient[keyword] = [
+                IngredientStorePrice(
+                    keyword      = keyword,
+                    store        = s["store"],
+                    name         = s.get("name", ""),
+                    price        = s.get("price", 0),
+                    price_recipe = s.get("price_recipe", 0),
+                    url          = s.get("url", ""),
+                    found        = s.get("found", False),
+                )
+                for s in store_list
+            ]
+
+        # Reconstruct per_store
+        per_store: dict[str, StoreTotal] = {}
+        for store_name, st in row.get("per_store", {}).items():
+            per_store[store_name] = StoreTotal(
+                store           = store_name,
+                harga_total     = st.get("harga_total", 0),
+                harga_resep     = st.get("harga_resep", 0),
+                harga_per_porsi = st.get("harga_per_porsi", 0),
+                is_cheapest     = st.get("is_cheapest", False),
+            )
+
+        valid    = [s for s in per_store.values() if s.harga_resep > 0]
+        cheapest = min(valid, key=lambda s: s.harga_resep).store if valid else ""
+
+        print(f"[Cache] ✓ Hasil ditemukan (dihitung {calc_at}), langsung pakai.")
+        return PriceResult(
+            per_ingredient = per_ingredient,
+            per_store      = per_store,
+            cheapest_store = cheapest,
+            portions       = row.get("portions", 1),
+            recipe_name    = row.get("recipe_name", ""),
+            success        = True,
+        )
+    except Exception as e:
+        print(f"[Cache] Gagal load cache: {e}")
+        return None
+
+
+def _keywords_need_scraping(keywords: list[str]) -> list[str]:
+    """
+    Cek keyword mana yang belum ada / sudah stale di DB.
+    Return hanya keyword yang perlu di-scrape ulang.
+    """
+    need = []
+    cutoff = datetime.now()
+    for kw in keywords:
+        fresh_count = 0
+        for table_name in ["tokped_ingredients", "alfagift_ingredients", "aeon_ingredients"]:
+            try:
+                with _db_lock:
+                    row = _get_db().table(table_name).get(Query().keyword == kw)
+                if row and row.get("price", 0) > 0 and row.get("timestamp"):
+                    dt = datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
+                    if (cutoff - dt).days <= _SCRAPE_FRESH_DAYS:
+                        fresh_count += 1
+            except Exception:
+                pass
+        if fresh_count == 0:
+            # Tidak ada satupun toko yang punya data fresh → perlu scrape
+            need.append(kw)
+    return need
+
+
 class PriceComparisonService:
 
     def run(
@@ -548,18 +692,18 @@ class PriceComparisonService:
                 error_message=f"Resep '{recipe_id}' tidak ditemukan di database."
             )
 
-        ingredient_strings = _extract_ingredient_strings(recipe)
-        portion_str        = recipe.get("portion", "")
-        recipe_name        = recipe.get("name", "")
-        portions           = _parse_portions(portion_str)
+        ingredients = _extract_ingredients(recipe)
+        portion_str = recipe.get("portion", "")
+        recipe_name = recipe.get("name", "")
+        portions    = _parse_portions(portion_str)
 
-        if not ingredient_strings:
+        if not ingredients:
             return PriceResult(success=False, error_message="Resep tidak punya bahan.")
 
-        log(f"Resep: {recipe_name} | {len(ingredient_strings)} bahan | {portions} porsi")
+        log(f"Resep: {recipe_name} | {len(ingredients)} bahan | {portions} porsi")
 
         # Parse + filter keyword valid
-        parsed = [parse_ingredient(ing) for ing in ingredient_strings]
+        parsed = [_parse_ingredient_item(ing) for ing in ingredients]
         parsed_valid = [p for p in parsed if _is_valid_keyword(p.keyword)]
         invalid = [p for p in parsed if not _is_valid_keyword(p.keyword)]
         if invalid:
@@ -578,10 +722,22 @@ class PriceComparisonService:
 
         log(f"Keywords ({len(keywords)}): {keywords}")
 
-        try:
-            self._scrape_parallel(keywords, log)
-        except Exception as e:
-            return PriceResult(success=False, error_message=f"Scraping gagal: {e}")
+        # ── Optimasi 1: Cek cache hasil kalkulasi sebelumnya ─────────────────
+        cached = _load_cached_result(recipe_id)
+        if cached:
+            log("Menggunakan hasil kalkulasi sebelumnya ✓")
+            return cached
+
+        # ── Optimasi 2: Scrape hanya keyword yang belum ada / stale ──────────
+        to_scrape = _keywords_need_scraping(keywords)
+        if not to_scrape:
+            log("Semua data bahan sudah tersedia, skip scraping ✓")
+        else:
+            log(f"Perlu scraping {len(to_scrape)}/{len(keywords)} keyword baru...")
+            try:
+                self._scrape_parallel(to_scrape, log)
+            except Exception as e:
+                return PriceResult(success=False, error_message=f"Scraping gagal: {e}")
 
         log("Scraping selesai, mulai kalkulasi harga...")
 
