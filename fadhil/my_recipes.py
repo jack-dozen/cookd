@@ -453,58 +453,185 @@ def _make_photo_widget(page: ft.Page, initial_data=""):
 
 def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
 
-    name_field        = _field("Nama Resep *")
-    portion_field     = _field("Porsi", hint="cth: 4",
-                                keyboard_type=ft.KeyboardType.NUMBER)
-    cook_time_field   = _field("Waktu Masak (menit)", hint="cth: 30",
-                                keyboard_type=ft.KeyboardType.NUMBER)
-    ingredients_field = _field(
-        "Bahan-bahan",
-        multiline=True, min_lines=4, max_lines=8,
-        hint="Satu baris = satu bahan\ncth:\n2 butir telur\n1 sdt garam",
-    )
-    steps_field = _field(
-        "Langkah-langkah",
-        multiline=True, min_lines=4, max_lines=8,
-        hint="Satu baris = satu langkah\ncth:\nCincang bawang putih\nTumis hingga harum",
-    )
-    notes_field = _field(
+    name_field      = _field("Nama Resep *")
+    portion_field   = _field("Porsi", hint="cth: 4",
+                              keyboard_type=ft.KeyboardType.NUMBER)
+    cook_time_field = _field("Waktu Masak (menit)", hint="cth: 30",
+                              keyboard_type=ft.KeyboardType.NUMBER)
+    notes_field     = _field(
         "Catatan (opsional)",
         multiline=True, min_lines=2, max_lines=3,
         hint="Catatan pribadi kamu...",
     )
     error_text = ft.Text("", color=RED, size=11)
-
     photo_widget, get_photo_data = _make_photo_widget(page)
 
-    def on_save(e):
-        ingredients = [l.strip() for l in (ingredients_field.value or "").splitlines() if l.strip()]
-        steps       = [l.strip() for l in (steps_field.value or "").splitlines() if l.strip()]
-        image_data  = get_photo_data() or ""
+    # ── BAHAN INPUT ──
+    ingredients_qty_fields = []
+    ingredients_name_fields = []
 
-        row, err = SavedController.do_save(
-            recipe_name   = name_field.value or "",
-            notes         = notes_field.value or "",
-            ingredients   = ingredients,
-            steps         = steps,
-            portion_str   = portion_field.value or "",
-            cook_time_str = cook_time_field.value or "",
-            image_data    = image_data,
+    def _make_ingredient_row(qty_val="", name_val=""):
+        qty_field = ft.TextField(
+            hint_text="cth: 2 sdm",
+            value=qty_val,
+            width=100,
+            bgcolor=BG3, color=TEXT,
+            hint_style=ft.TextStyle(color=TEXT3),
+            border_color=BORDER, focused_border_color=ORANGE,
+            content_padding=ft.Padding.all(8), text_size=12,
         )
-        if err:
-            error_text.value = err
-            error_text.update()
-            return
+        name_field = ft.TextField(
+            hint_text="Nama bahan",
+            value=name_val,
+            expand=True,
+            bgcolor=BG3, color=TEXT,
+            hint_style=ft.TextStyle(color=TEXT3),
+            border_color=BORDER, focused_border_color=ORANGE,
+            content_padding=ft.Padding.all(8), text_size=12,
+        )
+        ingredients_qty_fields.append(qty_field)
+        ingredients_name_fields.append(name_field)
+        return qty_field, name_field
 
-        dialog.open = False
-        page.update()
-        if row:
-            on_saved(row)
+    def _rebuild_ingredients():
+        ingredients_column.controls.clear()
+        for qf, nf in zip(ingredients_qty_fields, ingredients_name_fields):
+            row = ft.Row(
+                controls=[
+                    qf, nf,
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE, icon_color=RED, icon_size=16,
+                        tooltip="Hapus bahan",
+                        on_click=lambda e, q=qf, n=nf: _remove_ingredient(q, n),
+                    ),
+                ],
+                spacing=6,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+            ingredients_column.controls.append(row)
 
-    def on_cancel(e):
-        dialog.open = False
-        page.update()
+    def _remove_ingredient(qf, nf):
+        if qf in ingredients_qty_fields:
+            ingredients_qty_fields.remove(qf)
+        if nf in ingredients_name_fields:
+            ingredients_name_fields.remove(nf)
+        _rebuild_ingredients()
 
+    def _add_ingredient_row(e=None, qty="", name=""):
+        _make_ingredient_row(qty, name)
+        _rebuild_ingredients()
+
+    ingredients_column = ft.Column(spacing=6, controls=[])
+
+    add_ingredient_btn = ft.TextButton(
+        "+ Tambah Bahan",
+        icon=ft.Icons.ADD,
+        style=ft.ButtonStyle(color=ORANGE),
+        on_click=_add_ingredient_row,
+    )
+
+    for _ in range(3):
+        _add_ingredient_row()
+
+    # ── STEPS INPUT ──
+    steps_data = []
+
+    def _make_step_row(text_val="", images=None):
+        images = images or []
+        step_field = ft.TextField(
+            hint_text="cth: Tumis bawang hingga harum",
+            value=text_val,
+            multiline=True, min_lines=1, max_lines=3,
+            expand=True,
+            bgcolor=BG3, color=TEXT,
+            hint_style=ft.TextStyle(color=TEXT3),
+            border_color=BORDER, focused_border_color=ORANGE,
+            content_padding=ft.Padding.all(8), text_size=12,
+        )
+        step_data = {"field": step_field, "images": images}
+        steps_data.append(step_data)
+        return step_data
+
+    def _build_step_row(sd):
+        images_row = ft.Row(spacing=6, controls=[])
+        for img in sd["images"]:
+            images_row.controls.append(
+                ft.Container(
+                    content=ft.Image(src=img, width=50, height=50,
+                                     fit="cover",
+                                     border_radius=ft.BorderRadius.all(6)),
+                    width=50, height=50,
+                )
+            )
+
+        def _pick_step_photo(e, imgs=sd["images"], imrow=images_row):
+            def _on_file(path):
+                data = _path_to_base64(path)
+                if data:
+                    imgs.append(data)
+                    imrow.controls.append(
+                        ft.Container(
+                            content=ft.Image(src=data, width=50, height=50,
+                                             fit="cover",
+                                             border_radius=ft.BorderRadius.all(6)),
+                            width=50, height=50,
+                        )
+                    )
+                    imrow.update()
+            _open_file_dialog(_on_file)
+
+        return ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        sd["field"],
+                        ft.IconButton(
+                            icon=ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED,
+                            icon_color=TEXT2, icon_size=18,
+                            tooltip="Tambah foto (opsional)",
+                            on_click=_pick_step_photo,
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE, icon_color=RED, icon_size=16,
+                            tooltip="Hapus langkah",
+                            on_click=lambda e, s=sd: _remove_step(s),
+                        ),
+                    ],
+                    spacing=6,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                images_row,
+            ],
+            spacing=4,
+        )
+
+    def _rebuild_steps():
+        steps_column.controls.clear()
+        for sd in steps_data:
+            steps_column.controls.append(_build_step_row(sd))
+
+    def _remove_step(sd):
+        if sd in steps_data:
+            steps_data.remove(sd)
+        _rebuild_steps()
+
+    def _add_step_row(e=None):
+        _make_step_row()
+        _rebuild_steps()
+
+    steps_column = ft.Column(spacing=10, controls=[])
+
+    add_step_btn = ft.TextButton(
+        "+ Tambah Langkah",
+        icon=ft.Icons.ADD,
+        style=ft.ButtonStyle(color=ORANGE),
+        on_click=_add_step_row,
+    )
+
+    for _ in range(3):
+        _add_step_row()
+
+    # ═══ DIALOG DIBUAT DULU ═══
     dialog = ft.AlertDialog(
         modal   = True,
         bgcolor = BG2,
@@ -543,9 +670,11 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
                     name_field,
                     ft.Row(controls=[portion_field, cook_time_field], spacing=10),
                     _section_label("BAHAN-BAHAN"),
-                    ingredients_field,
+                    ingredients_column,
+                    add_ingredient_btn,
                     _section_label("LANGKAH-LANGKAH"),
-                    steps_field,
+                    steps_column,
+                    add_step_btn,
                     _section_label("CATATAN"),
                     notes_field,
                     error_text,
@@ -556,7 +685,7 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
             ft.TextButton(
                 "Batal",
                 style    = ft.ButtonStyle(color=TEXT3),
-                on_click = on_cancel,
+                on_click = lambda e: _cancel(),
             ),
             ft.ElevatedButton(
                 "💾  Simpan Resep",
@@ -566,62 +695,40 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
                     shape   = ft.RoundedRectangleBorder(radius=8),
                     padding = ft.Padding.symmetric(horizontal=20, vertical=12),
                 ),
-                on_click = on_save,
+                on_click = lambda e: _save(),
             ),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
-    return dialog
 
-# ══════════════════════════════════════════════════════════════════════════════
-# DIALOG: Edit Resep
-# ══════════════════════════════════════════════════════════════════════════════
+    # ═══ BARU DEFINE on_save / on_cancel ═══
+    def _save():
+        ingredients = []
+        for qf, nf in zip(ingredients_qty_fields, ingredients_name_fields):
+            qty = (qf.value or "").strip()
+            name = (nf.value or "").strip()
+            if name:
+                ingredients.append({"qty": qty, "name": name})
 
-def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
+        steps = []
+        for sd in steps_data:
+            text = (sd["field"].value or "").strip()
+            if text:
+                step_dict = {"text": text}
+                if sd["images"]:
+                    step_dict["images"] = sd["images"]
+                steps.append(step_dict)
 
-    name_field        = _field("Nama Resep *", value=saved.get("recipe_name", ""))
-    portion_field     = _field("Porsi", value=_to_str(saved.get("portion")),
-                                hint="cth: 4", keyboard_type=ft.KeyboardType.NUMBER)
-    cook_time_field   = _field("Waktu Masak (menit)", value=_to_str(saved.get("cook_time")),
-                                hint="cth: 30", keyboard_type=ft.KeyboardType.NUMBER)
-    ingredients_field = _field(
-        "Bahan-bahan",
-        value="\n".join(saved.get("ingredients_all", [])),
-        multiline=True, min_lines=4, max_lines=8,
-        hint="Satu baris = satu bahan",
-    )
-    steps_field = _field(
-        "Langkah-langkah",
-        value="\n".join(saved.get("steps", [])),
-        multiline=True, min_lines=4, max_lines=8,
-        hint="Satu baris = satu langkah",
-    )
-    notes_field = _field(
-        "Catatan",
-        value=saved.get("notes", ""),
-        multiline=True, min_lines=2, max_lines=3,
-        hint="Catatan pribadi kamu...",
-    )
-    error_text = ft.Text("", color=RED, size=11)
+        image_data = get_photo_data() or ""
 
-    photo_widget, get_photo_data = _make_photo_widget(
-        page, initial_data=saved.get("image_data", ""),
-    )
-
-    def on_save(e):
-        ingredients = [l.strip() for l in (ingredients_field.value or "").splitlines() if l.strip()]
-        steps       = [l.strip() for l in (steps_field.value or "").splitlines() if l.strip()]
-        new_img     = get_photo_data()  # None=tidak berubah, ""=hapus, str=baru
-
-        ok, err = SavedController.do_edit(
-            saved_id      = saved["saved_id"],
+        row, err = SavedController.do_save(
             recipe_name   = name_field.value or "",
             notes         = notes_field.value or "",
             ingredients   = ingredients,
             steps         = steps,
             portion_str   = portion_field.value or "",
             cook_time_str = cook_time_field.value or "",
-            image_data    = new_img,
+            image_data    = image_data,
         )
         if err:
             error_text.value = err
@@ -630,13 +737,232 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
 
         dialog.open = False
         page.update()
-        if ok:
-            on_saved()
+        if row:
+            on_saved(row)
 
-    def on_cancel(e):
+    def _cancel():
         dialog.open = False
         page.update()
 
+    return dialog
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DIALOG: Edit Resep
+# ══════════════════════════════════════════════════════════════════════════════
+
+def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
+
+    name_field      = _field("Nama Resep *", value=saved.get("recipe_name", ""))
+    portion_field   = _field("Porsi", value=_to_str(saved.get("portion")),
+                              hint="cth: 4", keyboard_type=ft.KeyboardType.NUMBER)
+    cook_time_field = _field("Waktu Masak (menit)", value=_to_str(saved.get("cook_time")),
+                              hint="cth: 30", keyboard_type=ft.KeyboardType.NUMBER)
+    notes_field     = _field(
+        "Catatan",
+        value=saved.get("notes", ""),
+        multiline=True, min_lines=2, max_lines=3,
+        hint="Catatan pribadi kamu...",
+    )
+    error_text = ft.Text("", color=RED, size=11)
+    photo_widget, get_photo_data = _make_photo_widget(
+        page, initial_data=saved.get("image_data", ""),
+    )
+
+    # ── BAHAN INPUT ──
+    ingredients_qty_fields = []
+    ingredients_name_fields = []
+
+    def _make_ingredient_row(qty_val="", name_val=""):
+        qty_field = ft.TextField(
+            hint_text="cth: 2 sdm",
+            value=qty_val,
+            width=100,
+            bgcolor=BG3, color=TEXT,
+            hint_style=ft.TextStyle(color=TEXT3),
+            border_color=BORDER, focused_border_color=ORANGE,
+            content_padding=ft.Padding.all(8), text_size=12,
+        )
+        name_field = ft.TextField(
+            hint_text="Nama bahan",
+            value=name_val,
+            expand=True,
+            bgcolor=BG3, color=TEXT,
+            hint_style=ft.TextStyle(color=TEXT3),
+            border_color=BORDER, focused_border_color=ORANGE,
+            content_padding=ft.Padding.all(8), text_size=12,
+        )
+        ingredients_qty_fields.append(qty_field)
+        ingredients_name_fields.append(name_field)
+        return qty_field, name_field
+
+    def _rebuild_ingredients():
+        ingredients_column.controls.clear()
+        for qf, nf in zip(ingredients_qty_fields, ingredients_name_fields):
+            row = ft.Row(
+                controls=[
+                    qf, nf,
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE, icon_color=RED, icon_size=16,
+                        tooltip="Hapus bahan",
+                        on_click=lambda e, q=qf, n=nf: _remove_ingredient(q, n),
+                    ),
+                ],
+                spacing=6,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+            ingredients_column.controls.append(row)
+
+    def _remove_ingredient(qf, nf):
+        if qf in ingredients_qty_fields:
+            ingredients_qty_fields.remove(qf)
+        if nf in ingredients_name_fields:
+            ingredients_name_fields.remove(nf)
+        _rebuild_ingredients()
+
+    def _add_ingredient_row(e=None, qty="", name=""):
+        _make_ingredient_row(qty, name)
+        _rebuild_ingredients()
+
+    ingredients_column = ft.Column(spacing=6, controls=[])
+
+    add_ingredient_btn = ft.TextButton(
+        "+ Tambah Bahan",
+        icon=ft.Icons.ADD,
+        style=ft.ButtonStyle(color=ORANGE),
+        on_click=_add_ingredient_row,
+    )
+
+    # Pre-populate ingredients
+    existing_ingredients = saved.get("ingredients_all", [])
+    if existing_ingredients:
+        for ing in existing_ingredients:
+            if isinstance(ing, dict):
+                _make_ingredient_row(
+                    qty_val=ing.get("qty", ""),
+                    name_val=ing.get("name", ""),
+                )
+            elif isinstance(ing, str):
+                parts = ing.split(" ", 1)
+                qty = parts[0] if len(parts) > 1 else ""
+                name = parts[1] if len(parts) > 1 else parts[0]
+                _make_ingredient_row(qty_val=qty, name_val=name)
+        _rebuild_ingredients()
+    else:
+        for _ in range(3):
+            _add_ingredient_row()
+
+    # ── STEPS INPUT ──
+    steps_data = []
+
+    def _make_step_row(text_val="", images=None):
+        images = images or []
+        step_field = ft.TextField(
+            hint_text="cth: Tumis bawang hingga harum",
+            value=text_val,
+            multiline=True, min_lines=1, max_lines=3,
+            expand=True,
+            bgcolor=BG3, color=TEXT,
+            hint_style=ft.TextStyle(color=TEXT3),
+            border_color=BORDER, focused_border_color=ORANGE,
+            content_padding=ft.Padding.all(8), text_size=12,
+        )
+        step_data = {"field": step_field, "images": images}
+        steps_data.append(step_data)
+        return step_data
+
+    def _build_step_row(sd):
+        images_row = ft.Row(spacing=6, controls=[])
+        for img in sd["images"]:
+            images_row.controls.append(
+                ft.Container(
+                    content=ft.Image(src=img, width=50, height=50,
+                                     fit="cover",
+                                     border_radius=ft.BorderRadius.all(6)),
+                    width=50, height=50,
+                )
+            )
+
+        def _pick_step_photo(e, imgs=sd["images"], imrow=images_row):
+            def _on_file(path):
+                data = _path_to_base64(path)
+                if data:
+                    imgs.append(data)
+                    imrow.controls.append(
+                        ft.Container(
+                            content=ft.Image(src=data, width=50, height=50,
+                                             fit="cover",
+                                             border_radius=ft.BorderRadius.all(6)),
+                            width=50, height=50,
+                        )
+                    )
+                    imrow.update()
+            _open_file_dialog(_on_file)
+
+        return ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        sd["field"],
+                        ft.IconButton(
+                            icon=ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED,
+                            icon_color=TEXT2, icon_size=18,
+                            tooltip="Tambah foto (opsional)",
+                            on_click=_pick_step_photo,
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE, icon_color=RED, icon_size=16,
+                            tooltip="Hapus langkah",
+                            on_click=lambda e, s=sd: _remove_step(s),
+                        ),
+                    ],
+                    spacing=6,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                images_row,
+            ],
+            spacing=4,
+        )
+
+    def _rebuild_steps():
+        steps_column.controls.clear()
+        for sd in steps_data:
+            steps_column.controls.append(_build_step_row(sd))
+
+    def _remove_step(sd):
+        if sd in steps_data:
+            steps_data.remove(sd)
+        _rebuild_steps()
+
+    def _add_step_row(e=None):
+        _make_step_row()
+        _rebuild_steps()
+
+    steps_column = ft.Column(spacing=10, controls=[])
+
+    add_step_btn = ft.TextButton(
+        "+ Tambah Langkah",
+        icon=ft.Icons.ADD,
+        style=ft.ButtonStyle(color=ORANGE),
+        on_click=_add_step_row,
+    )
+
+    # Pre-populate steps
+    existing_steps = saved.get("steps", [])
+    if existing_steps:
+        for step in existing_steps:
+            if isinstance(step, dict):
+                _make_step_row(
+                    text_val=step.get("text", ""),
+                    images=step.get("images", []),
+                )
+            elif isinstance(step, str):
+                _make_step_row(text_val=step)
+        _rebuild_steps()
+    else:
+        for _ in range(3):
+            _add_step_row()
+
+    # ═══ DIALOG DIBUAT DULU ═══
     title_name = saved.get("recipe_name", "")
     if len(title_name) > 32:
         title_name = title_name[:32] + "…"
@@ -679,9 +1005,11 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
                     name_field,
                     ft.Row(controls=[portion_field, cook_time_field], spacing=10),
                     _section_label("BAHAN-BAHAN"),
-                    ingredients_field,
+                    ingredients_column,
+                    add_ingredient_btn,
                     _section_label("LANGKAH-LANGKAH"),
-                    steps_field,
+                    steps_column,
+                    add_step_btn,
                     _section_label("CATATAN"),
                     notes_field,
                     error_text,
@@ -692,7 +1020,7 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
             ft.TextButton(
                 "Batal",
                 style    = ft.ButtonStyle(color=TEXT3),
-                on_click = on_cancel,
+                on_click = lambda e: _cancel(),
             ),
             ft.ElevatedButton(
                 "💾  Simpan Perubahan",
@@ -702,11 +1030,56 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
                     shape   = ft.RoundedRectangleBorder(radius=8),
                     padding = ft.Padding.symmetric(horizontal=20, vertical=12),
                 ),
-                on_click = on_save,
+                on_click = lambda e: _save(),
             ),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
+
+    # ═══ BARU DEFINE on_save / on_cancel ═══
+    def _save():
+        ingredients = []
+        for qf, nf in zip(ingredients_qty_fields, ingredients_name_fields):
+            qty = (qf.value or "").strip()
+            name = (nf.value or "").strip()
+            if name:
+                ingredients.append({"qty": qty, "name": name})
+
+        steps = []
+        for sd in steps_data:
+            text = (sd["field"].value or "").strip()
+            if text:
+                step_dict = {"text": text}
+                if sd["images"]:
+                    step_dict["images"] = sd["images"]
+                steps.append(step_dict)
+
+        new_img = get_photo_data()
+
+        ok, err = SavedController.do_edit(
+            saved_id      = saved["saved_id"],
+            recipe_name   = name_field.value or "",
+            notes         = notes_field.value or "",
+            ingredients   = ingredients,
+            steps         = steps,
+            portion_str   = portion_field.value or "",
+            cook_time_str = cook_time_field.value or "",
+            image_data    = new_img,
+        )
+        if err:
+            error_text.value = err
+            error_text.update()
+            return
+
+        dialog.open = False
+        page.update()
+        if ok:
+            on_saved()
+
+    def _cancel():
+        dialog.open = False
+        page.update()
+
     return dialog
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -950,9 +1323,8 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
         ingredients = []
         for ing in raw_ingredients:
             if isinstance(ing, dict):
-                ingredients.append(ing)  # sudah dict, kirim langsung
+                ingredients.append(ing)
             else:
-                # konversi string jadi dict dengan format yang Gui.py harapkan
                 ingredients.append({"qty": "", "name": str(ing)})
 
         raw_steps = saved.get("steps", [])
@@ -964,38 +1336,32 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
                 steps.append({"text": str(step), "images": []})
 
         recipe = {
-            "recipe_id":   saved.get("recipe_id", ""),
-            "name":        saved.get("recipe_name", ""),
-            "author":      "",
-            "ingredients": ingredients,
-            "steps":       steps,
-            "image_url":   saved.get("image_data", "") or saved.get("image_url", ""),
-            "cook_time":   _fmt_time(saved.get("cook_time")),
-            "portion":     _fmt_portion(saved.get("portion")),
-            "source_url":  saved.get("source_url", ""),
-            "source":      saved.get("source", ""),
+            "recipe_id":      saved.get("recipe_id", ""),
+            "name":           saved.get("recipe_name", ""),
+            "author":         "",
+            "ingredients":    ingredients,              # ← format Cookpad
+            "steps":          steps,
+            "image_url":      saved.get("image_data", "") or saved.get("image_url", ""),
+            "cook_time":      _fmt_time(saved.get("cook_time")),
+            "portion":        _fmt_portion(saved.get("portion")),
+            "source_url":     saved.get("source_url", ""),
+            "source":         saved.get("source", ""),
         }
+
+        # ═══ TAMBAHIN INI ═══
+        # Update DB dengan field "ingredients" (format Cookpad)
+        # supaya PriceComparisonService bisa baca
+        update_recipe(saved["saved_id"], {
+            "ingredients": ingredients,
+            "steps": steps,
+        })
+        # ═══════════════════
+
         if on_view_recipe:
             on_view_recipe(recipe)
         else:
             navigate("detail", recipe)
-
-        recipe = {
-            "recipe_id":   saved.get("recipe_id", ""),
-            "name":        saved.get("recipe_name", ""),
-            "author":      "",
-            "ingredients": ingredients,
-            "steps":       steps,
-            "image_url":   saved.get("image_data", "") or saved.get("image_url", ""),
-            "cook_time":   _fmt_time(saved.get("cook_time")),
-            "portion":     _fmt_portion(saved.get("portion")),
-            "source":      saved.get("source", ""),
-        }
-        if on_view_recipe:
-            on_view_recipe(recipe)
-        else:
-            navigate("detail")
-
+            
     def _on_edit(saved: dict):
         def on_saved():
             show_snack(f"✓ '{saved.get('recipe_name')}' diperbarui!")
