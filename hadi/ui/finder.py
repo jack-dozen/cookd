@@ -111,24 +111,19 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     _float_tasks_active = {"value": False}
     _emoji_containers: list[ft.Container] = []
 
-    async def _float_emoji_loop(container: ft.Container, amplitude: float, period: float, phase: float):
-        import math
-        step = 0.05
-        t = phase
+    async def _float_all_emojis_loop():
+        toggles = [i % 2 == 0 for i in range(len(_emoji_containers))]
         while _float_tasks_active["value"]:
-            y = -math.sin(2 * math.pi * t / period) * amplitude
-            container.offset = ft.Offset(0, y / 100)
-            if container.page:
-                container.update()
-            await asyncio.sleep(step)
-            t += step
+            for i, c in enumerate(_emoji_containers):
+                _, _, amp, period = _FLOAT_EMOJIS[i]
+                c.offset = ft.Offset(0, (amp if toggles[i] else -amp) / 100)
+                toggles[i] = not toggles[i]
+            page.update()
+            await asyncio.sleep(1.3)
 
     def _start_float_animations():
         _float_tasks_active["value"] = True
-        phases = [0.0, 0.5, 1.1, 0.3, 0.8]
-        for i, c in enumerate(_emoji_containers):
-            _, _, amp, period = _FLOAT_EMOJIS[i]
-            page.run_task(_float_emoji_loop, c, amp, period, phases[i])
+        page.run_task(_float_all_emojis_loop)
 
     def _stop_float_animations():
         _float_tasks_active["value"] = False
@@ -140,7 +135,10 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         _emoji_containers.append(
             ft.Container(
                 content=ft.Text(emoji, size=28),
-                animate_offset=ft.Animation(60, ft.AnimationCurve.LINEAR),
+                animate_offset=ft.Animation(
+                    int(period * 500),
+                    ft.AnimationCurve.EASE_IN_OUT,
+                ),
                 offset=ft.Offset(0, 0),
             )
         )
@@ -320,7 +318,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         )
 
         async def _animate_in():
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.01)
             card.opacity = 1.0
             card.offset  = ft.Offset(0, 0)
             card.update()
