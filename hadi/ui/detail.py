@@ -69,7 +69,6 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
     def rebuild():
         container.bgcolor = BG()
         container.update()
-        # Rebuild all tracked themed widgets
         for widget, attr, fn in _themed_widgets:
             try:
                 setattr(widget, attr, fn())
@@ -79,6 +78,50 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
 
     theme_mgr.add_listener(rebuild)
 
+    # ── Lightbox ──────────────────────────────────────────────────────────────
+    def _open_lightbox(src: str):
+        """Floating zoom overlay — tap anywhere to close."""
+        def close(e):
+            if lightbox in page.overlay:
+                page.overlay.remove(lightbox)
+                page.update()
+
+        img_container = ft.Container(
+            content=ft.Image(
+                src=src,
+                fit=ft.BoxFit.CONTAIN,
+                width=page.window.width * 0.88,
+                height=page.window.height * 0.82,
+            ),
+            border_radius=ft.BorderRadius.all(14),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            scale=ft.Scale(scale=0.88),
+            animate_scale=ft.Animation(260, ft.AnimationCurve.EASE_OUT),
+        )
+
+        lightbox = ft.Container(
+            expand=True,
+            bgcolor="#CC000000",
+            alignment=ft.Alignment.CENTER,
+            content=ft.GestureDetector(
+                mouse_cursor=ft.MouseCursor.CLICK,
+                on_tap=close,
+                content=img_container,
+            ),
+        )
+
+        page.overlay.append(lightbox)
+        page.update()
+
+        # pop the scale up after first render for the zoom-in feel
+        async def _pop():
+            await asyncio.sleep(0.02)
+            img_container.scale = ft.Scale(scale=1.0)
+            img_container.update()
+
+        page.run_task(_pop)
+
+    # ── Meta pills ────────────────────────────────────────────────────────────
     def _meta_pill(icon, text):
         return ft.Container(
             content=ft.Row(
@@ -118,9 +161,11 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             dlg.open = True
             page.update()
 
-        return ft.Container(
-            content=ft.GestureDetector(
-                mouse_cursor=ft.MouseCursor.CLICK,
+        # GestureDetector wraps the whole pill so the cursor works everywhere
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap=confirm_open,
+            content=ft.Container(
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.OPEN_IN_NEW, color=ORANGE, size=15),
@@ -129,15 +174,15 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                     spacing=6,
                     tight=True,
                 ),
+                bgcolor=ORANGE_GLOW2,
+                border=ft.Border.all(1, ORANGE),
+                border_radius=ft.BorderRadius.all(20),
+                padding=ft.Padding.symmetric(horizontal=14, vertical=8),
+                ink=True,
             ),
-            bgcolor=ORANGE_GLOW2,
-            border=ft.Border.all(1, ORANGE),
-            border_radius=ft.BorderRadius.all(20),
-            padding=ft.Padding.symmetric(horizontal=14, vertical=8),
-            on_click=confirm_open,
-            ink=True,
         )
 
+    # ── Helpers ───────────────────────────────────────────────────────────────
     def _is_header(ing: dict | str, name: str, qty: str) -> bool:
         if isinstance(ing, dict) and ing.get("is_header"):
             return True
@@ -153,6 +198,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             return True
         return False
 
+    # ── Ingredient card ───────────────────────────────────────────────────────
     def _ingredient_card(ingredients: list) -> ft.Container:
         items = []
         for ing in ingredients:
@@ -190,7 +236,6 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                     border_radius=ft.BorderRadius.all(3),
                 ),
             ]
-            #ing text
             if qty:
                 qty_text = ft.Text(
                     qty, color=TEXT(), weight=ft.FontWeight.BOLD,
@@ -200,7 +245,8 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 row_controls.append(qty_text)
 
             name_text = ft.Text(
-                name, color=TEXT(), size=14, expand=True, weight=ft.FontWeight.W_500, font_family="Font",
+                name, color=TEXT(), size=14, expand=True,
+                weight=ft.FontWeight.W_500, font_family="Font",
             )
             _track(name_text, "color", TEXT)
             row_controls.append(name_text)
@@ -222,7 +268,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 begin=ft.Alignment(0, -1),
                 end=ft.Alignment(0, 1),
                 colors=["#30ff6a0a", "#00ff6a0a"],
-                stops=[0.0, 0.05,],
+                stops=[0.0, 0.05],
             )
 
         card = ft.Container(
@@ -239,6 +285,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         _track(card, "gradient", _ing_gradient)
         return card
 
+    # ── Steps card ────────────────────────────────────────────────────────────
     def _steps_card(steps: list) -> ft.Container:
         items = []
         for i, step in enumerate(steps, start=1):
@@ -248,18 +295,29 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
 
             media_controls = []
 
+            # ── Step images with lightbox ──
             for src in images:
                 if any(skip in src for skip in ["video.thumbnail", "/step_videos/", ".mp4", ".webm", ".mov"]):
                     continue
+                img_src = src  # capture for closure
                 media_controls.append(
                     ft.Container(
-                        content=ft.Image(src=src, width=140, height=110, fit="cover"),
+                        content=ft.GestureDetector(
+                            mouse_cursor=ft.MouseCursor.CLICK,
+                            on_tap=lambda e, s=img_src: _open_lightbox(s),
+                            content=ft.Image(
+                                src=img_src,
+                                width=140, height=110,
+                                fit=ft.BoxFit.COVER,
+                            ),
+                        ),
                         width=140, height=110,
                         border_radius=ft.BorderRadius.all(10),
                         clip_behavior=ft.ClipBehavior.HARD_EDGE,
                     )
                 )
 
+            # ── Step videos ──
             for vid in videos:
                 href = vid.get("href", "")
                 if not href:
@@ -328,9 +386,10 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 spacing=8,
                 scroll=ft.ScrollMode.AUTO,
             ) if media_controls else None
-            #step text  
+
             step_text = ft.Text(
-                text, color=TEXT(), size=15, font_family="Font",weight=ft.FontWeight.W_500,
+                text, color=TEXT(), size=15, font_family="Font",
+                weight=ft.FontWeight.W_500,
                 expand=True, selectable=True,
             )
             _track(step_text, "color", TEXT)
@@ -374,7 +433,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                             ),
                             ft.Column(
                                 controls=step_controls,
-                                spacing=4,
+                                spacing=6,
                                 expand=True,
                             ),
                         ],
@@ -408,6 +467,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
 
     current_recipe: dict = {}
 
+    # ── Show ──────────────────────────────────────────────────────────────────
     def show(recipe: dict):
         nonlocal current_recipe, detail_active
         detail_active  = True
@@ -417,11 +477,11 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         topbar.update()
         detail_content.controls.clear()
 
-        ingredient_count = len(recipe.get("ingredients", []))
-        steps_count      = len(recipe.get("steps", []))
-        MAX_HEIGHT       = page.window.height - 220
-        ITEM_HEIGHT      = 100
-        STEP_HEIGHT      = 150
+        ingredient_count  = len(recipe.get("ingredients", []))
+        steps_count       = len(recipe.get("steps", []))
+        MAX_HEIGHT        = page.window.height - 220
+        ITEM_HEIGHT       = 100
+        STEP_HEIGHT       = 150
         ingredient_height = min(ingredient_count * ITEM_HEIGHT, MAX_HEIGHT)
         steps_height      = min(steps_count * STEP_HEIGHT, MAX_HEIGHT)
 
@@ -431,13 +491,19 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         price_area_ref = ft.Ref[ft.Container]()
         kalk_btn_ref   = ft.Ref[ft.ElevatedButton]()
 
-        # ── Hero ── with scale-in animation
+        # ── Hero image with lightbox on click ──
+        hero_img = ft.Image(
+            src=recipe.get("image_url", ""),
+            width=float("inf"),
+            height=460,
+            fit=ft.BoxFit.COVER,
+        )
+
         hero_image = ft.Container(
-            content=ft.Image(
-                src=recipe.get("image_url", ""),
-                width=float("inf"),
-                height=460,
-                fit="cover",
+            content=ft.GestureDetector(
+                mouse_cursor=ft.MouseCursor.CLICK,
+                on_tap=lambda e, s=recipe.get("image_url", ""): _open_lightbox(s),
+                content=hero_img,
             ),
             width=float("inf"),
             height=460,
@@ -509,18 +575,18 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             )
         )
 
-        # Build cards with slide-in offsets (reset to 0 via animation after render)
+        # Build cards with slide-in offsets
         ing_card  = _ingredient_card(recipe.get("ingredients", []))
         step_card = _steps_card(recipe.get("steps", []))
         ing_card.offset  = ft.Offset(-0.08, 0)
         step_card.offset = ft.Offset(0.08, 0)
 
         bahan_label = ft.Text("BAHAN-BAHAN",  size=15, weight=ft.FontWeight.BOLD,
-                            color=TEXT(), font_family="Font",
-                            style=ft.TextStyle(letter_spacing=1.5))
+                              color=TEXT(), font_family="Font",
+                              style=ft.TextStyle(letter_spacing=1.5))
         cara_label  = ft.Text("CARA MEMBUAT", size=15, weight=ft.FontWeight.BOLD,
-                            color=TEXT(), font_family="Font",
-                            style=ft.TextStyle(letter_spacing=1.5))
+                              color=TEXT(), font_family="Font",
+                              style=ft.TextStyle(letter_spacing=1.5))
         _track(bahan_label, "color", TEXT2)
         _track(cara_label,  "color", TEXT2)
 
@@ -617,7 +683,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         # Trigger slide-in and hero scale-down after first render
         async def _animate_in():
             await asyncio.sleep(0.05)
-            hero_image.scale     = ft.Scale(scale=1.0)
+            hero_image.scale = ft.Scale(scale=1.0)
             ing_card.offset  = ft.Offset(0, 0)
             step_card.offset = ft.Offset(0, 0)
             hero_image.update()

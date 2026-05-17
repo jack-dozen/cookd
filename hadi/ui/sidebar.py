@@ -14,7 +14,7 @@ def _active_gradient():
     return ft.LinearGradient(
         begin=ft.Alignment(-1, 0),
         end=ft.Alignment(1, 0),
-        colors=["#44ff6a20", "#22ff6a20", "#00ff6a20"],
+        colors=["#50f04f23", "#20f04f23", "#00f04f23"],
         stops=[0.0, 0.5, 1.0],
     )
 
