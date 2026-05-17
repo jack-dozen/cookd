@@ -28,7 +28,6 @@ def _fmt_rp(v: int) -> str:
 
 
 def _build_ingr_popup(page: ft.Page, keyword: str, store_prices: list) -> None:
-    """Buka bottom sheet dengan harga 3 toko + tombol Beli."""
 
     def _store_card(isp) -> ft.Container:
         if not isp.found or isp.price <= 0:
@@ -50,7 +49,6 @@ def _build_ingr_popup(page: ft.Page, keyword: str, store_prices: list) -> None:
                 opacity=0.5,
             )
 
-        # Cari termurah dari yang found
         found_prices = [s.price_recipe for s in store_prices
                         if s.found and s.price_recipe > 0]
         is_cheapest = found_prices and isp.price_recipe == min(found_prices)
@@ -64,6 +62,7 @@ def _build_ingr_popup(page: ft.Page, keyword: str, store_prices: list) -> None:
             visible=is_cheapest,
         )
 
+   
         def _open_url(e, url=isp.url):
             page.launch_url(url)
 
@@ -81,13 +80,14 @@ def _build_ingr_popup(page: ft.Page, keyword: str, store_prices: list) -> None:
                     ft.Text(isp.name, color=TEXT2(), size=11,
                             max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                     ft.Row([
-                        ft.Text(_fmt_rp(isp.price_recipe), color=GREEN if is_cheapest else ORANGE,
+                        ft.Text(_fmt_rp(isp.price_recipe),
+                                color=GREEN if is_cheapest else ORANGE,
                                 size=15, weight=ft.FontWeight.BOLD),
                         cheapest_badge,
                     ], spacing=6),
                 ], spacing=2, expand=True),
                 ft.ElevatedButton(
-                    text="Beli",
+                    "Beli",
                     bgcolor=GREEN if is_cheapest else ORANGE,
                     color=WHITE,
                     on_click=_open_url,
@@ -103,29 +103,35 @@ def _build_ingr_popup(page: ft.Page, keyword: str, store_prices: list) -> None:
             padding=ft.Padding.all(12),
         )
 
-    bs = ft.BottomSheet(
+    def _close(e):
+        dlg.open = False
+        page.update()
+
+    dlg = ft.AlertDialog(
+        modal=True,
+        bgcolor=BG3(),
+        shape=ft.RoundedRectangleBorder(radius=16),
+        title=ft.Row([
+            ft.Text(keyword.title(), color=TEXT(), size=16,
+                    weight=ft.FontWeight.BOLD, expand=True),
+            ft.IconButton(ft.Icons.CLOSE, icon_color=TEXT2(), on_click=_close),
+        ]),
         content=ft.Container(
             content=ft.Column([
-                ft.Row([
-                    ft.Text(keyword.title(), color=TEXT(), size=16,
-                            weight=ft.FontWeight.BOLD, expand=True),
-                    ft.IconButton(ft.Icons.CLOSE, icon_color=TEXT2(),
-                                  on_click=lambda e: setattr(bs, "open", False) or page.update()),
-                ]),
                 ft.Text("Bandingkan harga dari 3 toko — klik Beli untuk membeli",
                         color=TEXT3(), size=11),
                 ft.Divider(color=BORDER()),
                 *[_store_card(isp) for isp in store_prices],
-                ft.Container(height=8),
-            ], spacing=10, tight=True),
-            padding=ft.Padding.all(20),
-            bgcolor=BG3(),
+                ft.Container(height=4),
+            ], spacing=10, tight=True,
+               scroll=ft.ScrollMode.AUTO),   # ← scroll kalau bahan banyak
+            width=500,
         ),
         open=True,
     )
-    page.overlay.append(bs)
-    page.update()
 
+    page.overlay.append(dlg)
+    page.update()
 
 def build_ingredient_list(result, page: ft.Page) -> ft.Container:
     """
