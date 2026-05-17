@@ -119,8 +119,6 @@ def build_topbar(navigate_fn) -> ft.Container:
             title_text.value           = ""
             sub_text.visible           = False
             back_btn_container.visible = True
-        elif name == "my-recipes":
-            build_topbar.visible = False
         else:
             title_text.value           = name
             sub_text.visible           = False

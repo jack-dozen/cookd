@@ -55,7 +55,6 @@ def main(page: ft.Page):
             topbar.set_recipe(None)
             topbar.set_page(name)
             topbar.update()
-        topbar.visible = (name != "my-recipes")
         if name == "detail" and recipe:
             pages["detail"].show(recipe)
         page.update()
@@ -169,7 +168,7 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════
     #  SIDEBAR
     # ══════════════════════════════════════════════════════════════════
-    sidebar = build_sidebar(page, navigate)
+    sidebar = build_sidebar(page, navigate, on_import_done=lambda: pages["my-recipes"].refresh())
 
     # ══════════════════════════════════════════════════════════════════
     #  THEME REBUILD LISTENER

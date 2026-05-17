@@ -28,7 +28,7 @@ def _sidebar_gradient():
     )
 
 
-def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
+def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Container:
     state = {"active_index": 1}
     PAGE_NAMES = ["home", "finder", "my-recipes", "for-you", "info"]
     nav_items_ref: list = []
@@ -198,7 +198,7 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
                 build_nav_item(ft.Icons.BOOK_OUTLINED,   "My Recipes", 3),
                 build_nav_item(ft.Icons.STAR_OUTLINE,    "For You",    4),
                 build_nav_item(ft.Icons.INFO_OUTLINE,    "Info",       5),
-                *build_sidebar_extras(page),
+                *build_sidebar_extras(page, on_import_done=on_import_done),
             ],
             spacing=1,
             expand=True,
