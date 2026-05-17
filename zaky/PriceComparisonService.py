@@ -841,14 +841,19 @@ class PriceComparisonService:
                     except: pass
             _progress()
 
+        # ── Tahap 1: jalankan Tokopedia + Alfagift paralel ────────────────────────
         _progress()
-        threads = [
+        batch1 = [
             threading.Thread(target=_run_tokopedia, daemon=True),
             threading.Thread(target=_run_alfagift,  daemon=True),
-            threading.Thread(target=_run_aeon,      daemon=True),
         ]
-        for t in threads: t.start()
-        for t in threads: t.join()
+        for t in batch1: t.start()
+        for t in batch1: t.join()   # tunggu keduanya selesai nulis ke DB
+
+        # ── Tahap 2: baru jalankan AEON sendiri ───────────────────────────────────
+        batch2 = threading.Thread(target=_run_aeon, daemon=True)
+        batch2.start()
+        batch2.join()
 
     def _calc_store_totals(
         self,
