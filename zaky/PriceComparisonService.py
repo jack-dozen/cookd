@@ -40,14 +40,21 @@ _DB_PATH = os.path.join(_ROOT, "data", "base.json")
 
 # ── TinyDB cache (buka sekali, reuse) ─────────────────────────────────────────
 _db_cache = None
-_db_lock  = threading.Lock()
+# RLock (reentrant) — boleh di-acquire berkali-kali oleh thread yang sama,
+# sehingga pola "with _db_lock: ... _get_db() ..." tidak deadlock.
+_db_lock  = threading.RLock()
 
 def _get_db() -> TinyDB:
     global _db_cache
     with _db_lock:
         if _db_cache is None:
-            _db_cache = TinyDB(_DB_PATH)
+            _db_cache = TinyDB(_DB_PATH, encoding="utf-8")
     return _db_cache
+
+
+def _get_db_nolock() -> TinyDB:
+    """Alias ke _get_db() — RLock sudah reentrant, tidak perlu versi terpisah."""
+    return _get_db()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -178,7 +185,10 @@ _STRIP_DESCRIPTOR = {
     "segar", "halus", "kasar", "mentah", "matang", "kering", "basah",
     "has", "dalam", "luar", "fillet", "filet", "utuh",
     "premium", "pilihan", "asli", "lokal", "impor", "organik",
-    "bubuk", "instan", "sachet", "panas",
+    "panas",
+    # CATATAN: "bubuk", "instan", "sachet" SENGAJA tidak distrip —
+    # kata ini penting untuk membedakan produk (mis. "bawang putih bubuk"
+    # vs "bawang putih segar"), sehingga keyword scraping lebih akurat.
 }
 
 _STRIP_SUFFIX = re.compile(
@@ -450,7 +460,7 @@ def _read_tokped(keyword: str, qty_gram: float) -> IngredientStorePrice:
     try:
         with _db_lock:
             row = _get_db().table("tokped_ingredients").get(Query().keyword == keyword)
-        if row and row.get("price") and int(row["price"]) > 0:
+        if row is not None and row.get("price") is not None and int(row["price"]) > 0:
             p    = int(row["price"])
             name = row.get("name", "")
             unit = row.get("unit", "")
@@ -471,7 +481,7 @@ def _read_alfagift(keyword: str, qty_gram: float) -> IngredientStorePrice:
     try:
         with _db_lock:
             row = _get_db().table("alfagift_ingredients").get(Query().keyword == keyword)
-        if row and row.get("price") and int(row["price"]) > 0:
+        if row is not None and row.get("price") is not None and int(row["price"]) > 0:
             p    = int(row["price"])
             name = row.get("name", "")
             unit = row.get("unit", "")
@@ -492,7 +502,7 @@ def _read_aeon(keyword: str, qty_gram: float) -> IngredientStorePrice:
     try:
         with _db_lock:
             row = _get_db().table("aeon_ingredients").get(Query().keyword == keyword)
-        if row and row.get("price") and int(row["price"]) > 0:
+        if row is not None and row.get("price") is not None and int(row["price"]) > 0:
             p    = int(row["price"])
             name = row.get("name", "")
             unit = row.get("unit", "")
@@ -624,28 +634,34 @@ def _keywords_need_scraping(keywords: list[str]) -> list[str]:
     """
     Keyword tanpa field 'timestamp' (data scraper lama) dianggap stale
     dan masuk daftar scrape ulang — ditandai secara eksplisit lewat log.
+
+    PENTING: acquire _db_lock sekali di luar loop untuk menghindari deadlock
+    dengan _get_db() yang juga menggunakan _db_lock yang sama.
     """
     need = []
     cutoff = datetime.now()
-    for kw in keywords:
-        fresh_count = 0
-        for table_name in ["tokped_ingredients", "alfagift_ingredients", "aeon_ingredients"]:
-            try:
-                with _db_lock:
-                    row = _get_db().table(table_name).get(Query().keyword == kw)
-                if row and row.get("price", 0) > 0:
-                    ts = row.get("timestamp")
-                    if not ts:
-                        # Data lama tanpa timestamp → paksa scrape ulang
-                        print(f"[Cache] '{kw}' di {table_name}: tidak ada timestamp, anggap stale.")
-                        continue
-                    dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-                    if (cutoff - dt).days <= _SCRAPE_FRESH_DAYS:
-                        fresh_count += 1
-            except Exception:
-                pass
-        if fresh_count == 0:
-            need.append(kw)
+    # Acquire lock satu kali di luar semua loop
+    with _db_lock:
+        db = _get_db_nolock()
+        for kw in keywords:
+            fresh_count = 0
+            for table_name in ["tokped_ingredients", "alfagift_ingredients", "aeon_ingredients"]:
+                try:
+                    row = db.table(table_name).get(Query().keyword == kw)
+                    # Cukup cek row ada + timestamp fresh — price=0 tetap dihitung
+                    # sebagai "sudah pernah discrape" agar tidak scrape ulang terus.
+                    if row is not None:
+                        ts = row.get("timestamp")
+                        if not ts:
+                            print(f"[Cache] '{kw}' di {table_name}: tidak ada timestamp, anggap stale.")
+                            continue
+                        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                        if (cutoff - dt).days <= _SCRAPE_FRESH_DAYS:
+                            fresh_count += 1
+                except Exception:
+                    pass
+            if fresh_count == 0:
+                need.append(kw)
     return need
 
 

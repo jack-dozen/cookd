@@ -13,6 +13,7 @@ import threading
 
 import flet as ft
 from tinydb import TinyDB, Query
+from rafy.snackbar import show_snack
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIG
@@ -107,27 +108,19 @@ def import_my_recipes(page: ft.Page, on_done=None):
         on_done : callback(imported: int, skipped: int) dipanggil setelah selesai
     """
 
-    def show_snack(msg: str, color=GREEN):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(msg, color=color),
-            bgcolor=BG2,
-            duration=3500,
-        )
-        page.snack_bar.open = True
-        page.update()
-
     def on_path_chosen(path: str):
         try:
             imported, skipped = _load_from_file(path)
             msg = f"✓ {imported} resep diimport"
             if skipped > 0:
                 msg += f" ({skipped} dilewati karena sudah ada)"
-            show_snack(msg, color=GREEN if imported > 0 else AMBER)
+            tipe = "success" if imported > 0 else "warning"
+            show_snack(page, msg, tipe)
             if on_done:
                 on_done(imported, skipped)
         except ValueError as ex:
-            show_snack(f"File tidak valid: {ex}", color=RED)
+            show_snack(page, f"File tidak valid: {ex}", "error")
         except Exception as ex:
-            show_snack(f"Import gagal: {ex}", color=RED)
+            show_snack(page, f"Import gagal: {ex}", "error")
 
     _open_file_dialog(on_path_chosen)
