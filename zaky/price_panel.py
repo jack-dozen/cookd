@@ -379,6 +379,43 @@ def _build_price_cards(result) -> ft.Container:
         dd.on_select = lambda e: (_fill(e.control.value), page.update())
         _fill(dd.value)
 
+    # ── Theme rebuild ─────────────────────────────────────────────────────────
+    header_text = header.controls[0]
+
+    def _rebuild_cards():
+        # Header
+        header_text.color = TEXT()
+        header_text.update()
+        # Dropdown
+        dd.bgcolor       = BG4()
+        dd.border_color  = BORDER()
+        dd.color         = TEXT()
+        dd.update()
+        # Cards — re-fill untuk update bgcolor/border card_resep
+        _fill(dd.value if dd.value else (cheapest or "tokopedia"))
+        # card_total dan card_p tidak punya ref, update via _card containers
+        card_total.bgcolor = BG4()
+        card_total.border  = ft.Border.all(1, BORDER())
+        card_total.update()
+        card_p.bgcolor = BG4()
+        card_p.border  = ft.Border.all(1, BORDER())
+        card_p.update()
+        # label dan sub-text di tiap card
+        for card in [card_total, card_r, card_p]:
+            col = card.content
+            if isinstance(col, ft.Column):
+                for ctrl in col.controls:
+                    if isinstance(ctrl, ft.Row):
+                        for c in ctrl.controls:
+                            if isinstance(c, ft.Text):
+                                c.color = TEXT2()
+                                c.update()
+                    elif isinstance(ctrl, ft.Text) and ctrl.size == 10:
+                        ctrl.color = TEXT3()
+                        ctrl.update()
+
+    theme_mgr.add_listener(_rebuild_cards)
+
     container._init_fill = _init_fill
     return container
 
@@ -607,15 +644,20 @@ def _build_bar_chart(result) -> ft.Container:
         spacing=16,
     )
 
-    return ft.Container(
+    chart_title = ft.Text(
+        "Perbandingan Harga Resep — 3 Toko",
+        color=TEXT2(),
+        size=12,
+        weight=ft.FontWeight.W_600,
+    )
+
+    # Y-axis labels — kumpulkan semua ft.Text dari y_axis_labels
+    y_axis_col = y_axis_labels
+
+    chart_container = ft.Container(
         content=ft.Column(
             controls=[
-                ft.Text(
-                    "Perbandingan Harga Resep — 3 Toko",
-                    color=TEXT2(),
-                    size=12,
-                    weight=ft.FontWeight.W_600,
-                ),
+                chart_title,
                 ft.Container(height=12),
                 chart_area,
                 ft.Container(height=10),
@@ -628,6 +670,30 @@ def _build_bar_chart(result) -> ft.Container:
         border_radius=ft.BorderRadius.all(10),
         padding=ft.Padding.all(14),
     )
+
+    # ── Theme rebuild ─────────────────────────────────────────────────────────
+    def _rebuild_chart():
+        chart_title.color         = TEXT2()
+        chart_container.bgcolor   = BG4()
+        chart_container.border    = ft.Border.all(1, BORDER())
+        chart_title.update()
+        chart_container.update()
+        # Y axis labels
+        for ctrl in y_axis_col.controls:
+            if isinstance(ctrl, ft.Text):
+                ctrl.color = TEXT3()
+                ctrl.update()
+        # Legend texts
+        for row in legend.controls:
+            if isinstance(row, ft.Row):
+                for c in row.controls:
+                    if isinstance(c, ft.Text):
+                        c.color = TEXT2()
+                        c.update()
+
+    theme_mgr.add_listener(_rebuild_chart)
+
+    return chart_container
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -647,7 +713,7 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
         ft.Container siap ditambah ke detail_content
     """
     if not result.success:
-        return ft.Container(
+        err_container = ft.Container(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.ERROR_OUTLINE, color=AMBER, size=18),
@@ -664,6 +730,7 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
             border_radius=ft.BorderRadius.all(10),
             padding=ft.Padding.all(16),
         )
+        return err_container
 
     print("[price_panel] Mulai build price cards...")
     cards_widget = _build_price_cards(result)
@@ -673,6 +740,12 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
     print("[price_panel] Mulai build bar chart...")
     chart_widget = _build_bar_chart(result)
     print("[price_panel] Bar chart selesai")
+
+    divider = ft.Container(
+        height=1,
+        bgcolor=BORDER(),
+        margin=ft.Margin(left=0, top=0, right=0, bottom=20),
+    )
 
     disclaimer = ft.Text(
         "* Harga estimasi berdasarkan data scraping real-time. Harga aktual di toko dapat berbeda.",
@@ -684,12 +757,7 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
     panel = ft.Container(
         content=ft.Column(
             controls=[
-                # Divider
-                ft.Container(
-                    height=1,
-                    bgcolor=BORDER(),
-                    margin=ft.Margin(left=0, top=0, right=0, bottom=20),
-                ),
+                divider,
                 cards_widget,
                 ft.Container(height=14),
                 ingr_list,
@@ -703,9 +771,15 @@ def build_price_panel(result, page: ft.Page) -> ft.Container:
         opacity=0,
     )
 
+    # ── Theme rebuild: update semua warna panel saat tema berubah ────────────
+    def _rebuild_panel():
+        divider.bgcolor   = BORDER()
+        disclaimer.color  = TEXT3()
+        panel.update()
+
+    theme_mgr.add_listener(_rebuild_panel)
+
     # Simpan _init_fill sebagai attribute agar bisa dipanggil dari luar
-    # PERBAIKAN: Tidak pakai thread terpisah — cukup expose fungsi _init_fill
-    # supaya caller (_work di run_price_calculation) yang manage update
     panel._init_fill = lambda: cards_widget._init_fill(page)
 
     return panel

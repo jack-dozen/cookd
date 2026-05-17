@@ -1,7 +1,7 @@
 """
 ingredient_price_list.py
 ════════════════════════
-Komponen UI: daftar bahan resep yang bisa diklik untuk melihat 
+Komponen UI: daftar bahan resep yang bisa diklik untuk melihat
 harga per toko dan link beli langsung.
 
 Dipanggil dari zaky/price_panel.py setelah kalkulasi selesai.
@@ -62,7 +62,7 @@ def _build_ingr_popup(page: ft.Page, keyword: str, store_prices: list) -> None:
             visible=is_cheapest,
         )
 
-   
+
         def _open_url(e, url=isp.url):
             page.launch_url(url)
 
@@ -147,6 +147,12 @@ def build_ingredient_list(result, page: ft.Page) -> ft.Container:
         return ft.Container()
 
     rows = []
+    # Track widgets untuk theme rebuild
+    _themed_rows: list[ft.Container] = []
+    _keyword_texts: list[ft.Text] = []
+    _header_texts: list[ft.Text] = []
+    _chevrons: list[ft.Icon] = []
+
     for keyword, store_prices in result.per_ingredient.items():
         found = [s for s in store_prices if s.found and s.price_recipe > 0]
         cheapest_price = min(s.price_recipe for s in found) if found else 0
@@ -182,14 +188,19 @@ def build_ingredient_list(result, page: ft.Page) -> ft.Container:
         hint = ft.Text("Klik untuk detail →", color=ORANGE, size=10,
                        opacity=0, animate_opacity=ft.Animation(150))
 
+        keyword_text = ft.Text(keyword.title(), color=TEXT(), size=13, expand=True)
+        chevron = ft.Icon(ft.Icons.CHEVRON_RIGHT, color=TEXT3(), size=16)
+        _keyword_texts.append(keyword_text)
+        _chevrons.append(chevron)
+
         row = ft.Container(
             content=ft.Row([
                 store_dot,
-                ft.Text(keyword.title(), color=TEXT(), size=13, expand=True),
+                keyword_text,
                 price_text,
                 store_badge,
                 hint,
-                ft.Icon(ft.Icons.CHEVRON_RIGHT, color=TEXT3(), size=16),
+                chevron,
             ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             bgcolor=BG3(),
             border=ft.Border.all(1, BORDER()),
@@ -205,13 +216,17 @@ def build_ingredient_list(result, page: ft.Page) -> ft.Container:
             animate=ft.Animation(150, ft.AnimationCurve.EASE_IN_OUT),
         )
         rows.append(row)
+        _themed_rows.append(row)
 
-    return ft.Container(
+    header_text = ft.Text("Harga per Bahan", color=TEXT(), size=14,
+                           weight=ft.FontWeight.BOLD)
+    _header_texts.append(header_text)
+
+    outer = ft.Container(
         content=ft.Column([
             ft.Row([
                 ft.Icon(ft.Icons.SHOPPING_CART_OUTLINED, color=ORANGE, size=16),
-                ft.Text("Harga per Bahan", color=TEXT(), size=14,
-                        weight=ft.FontWeight.BOLD),
+                header_text,
                 ft.Container(
                     content=ft.Text("klik bahan untuk detail & link beli",
                                     color=ORANGE, size=10),
@@ -224,3 +239,23 @@ def build_ingredient_list(result, page: ft.Page) -> ft.Container:
             *rows,
         ], spacing=6),
     )
+
+    # ── Theme rebuild ─────────────────────────────────────────────────────────
+    def _rebuild_ingr():
+        for r in _themed_rows:
+            r.bgcolor = BG3()
+            r.border  = ft.Border.all(1, BORDER())
+            r.update()
+        for t in _keyword_texts:
+            t.color = TEXT()
+            t.update()
+        for c in _chevrons:
+            c.color = TEXT3()
+            c.update()
+        for t in _header_texts:
+            t.color = TEXT()
+            t.update()
+
+    theme_mgr.add_listener(_rebuild_ingr)
+
+    return outer

@@ -1,4 +1,5 @@
 import flet as ft
+import asyncio
 from rafy.theme import theme_mgr, ORANGE, ORANGE_GLOW2
 from rafy.sidebar import build_sidebar_extras
 
@@ -14,7 +15,7 @@ def _active_gradient():
     return ft.LinearGradient(
         begin=ft.Alignment(-1, 0),
         end=ft.Alignment(1, 0),
-        colors=["#44ff6a20", "#22ff6a20", "#00ff6a20"],
+        colors=["#50f04f23", "#20f04f23", "#00f04f23"],
         stops=[0.0, 0.5, 1.0],
     )
 
@@ -78,7 +79,10 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
             inner.update()
 
         async def on_click(e):
-            import asyncio
+            state["active_index"] = index
+            _update_highlights()
+            navigate_fn(PAGE_NAMES[index - 1])
+            
             inner.scale = ft.Scale(scale=0.93)
             inner.update()
             await asyncio.sleep(0.07)
@@ -87,9 +91,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
             await asyncio.sleep(0.07)
             inner.scale = ft.Scale(scale=1.0)
             inner.update()
-            state["active_index"] = index
-            _update_highlights()
-            navigate_fn(PAGE_NAMES[index - 1])
+            
 
         row = ft.Container(
             content=ft.Row(
