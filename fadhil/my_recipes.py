@@ -12,6 +12,7 @@ from datetime import datetime
 
 import flet as ft
 from tinydb import TinyDB, Query
+from rafy.theme import theme_mgr
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PATH
@@ -23,15 +24,15 @@ DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'base.json')
 # WARNA
 # ══════════════════════════════════════════════════════════════════════════════
 
-BG     = "#1A1A1A"
-BG2    = "#242424"
-BG3    = "#2E2E2E"
-BG4    = "#363636"
-TEXT   = "#F0F0EC"
-TEXT2  = "#B0B0AB"
-TEXT3  = "#707070"
+def BG():     return theme_mgr.get("BG")
+def BG2():    return theme_mgr.get("BG2")
+def BG3():    return theme_mgr.get("BG3")
+def BG4():    return theme_mgr.get("BG4")
+def TEXT():   return theme_mgr.get("TEXT")
+def TEXT2():  return theme_mgr.get("TEXT2")
+def TEXT3():  return theme_mgr.get("TEXT3")
+def BORDER(): return theme_mgr.get("BORDER")
 ORANGE = "#E8440A"
-BORDER = "rgba(255,255,255,0.08)"
 GREEN  = "#2E9E5B"
 RED    = "#C0392B"
 # Export untuk kompatibilitas import di Gui.py
@@ -294,11 +295,11 @@ def _field(label, value="", multiline=False, min_lines=1,
         min_lines            = min_lines if multiline else None,
         max_lines            = max_lines if multiline else None,
         keyboard_type        = keyboard_type,
-        bgcolor              = BG3,
-        color                = TEXT,
-        label_style          = ft.TextStyle(color=TEXT2),
-        hint_style           = ft.TextStyle(color=TEXT3),
-        border_color         = BORDER,
+        bgcolor              = BG3(),
+        color                = TEXT(),
+        label_style          = ft.TextStyle(color=TEXT2()),
+        hint_style           = ft.TextStyle(color=TEXT3()),
+        border_color         = BORDER(),
         focused_border_color = ORANGE,
         content_padding      = ft.Padding.all(12),
     )
@@ -311,7 +312,7 @@ def _section_label(text: str) -> ft.Container:
                     width=3, height=14, bgcolor=ORANGE,
                     border_radius=ft.BorderRadius.all(2),
                 ),
-                ft.Text(text, color=TEXT2, size=11, weight=ft.FontWeight.W_600),
+                ft.Text(text, color=TEXT2(), size=11, weight=ft.FontWeight.W_600),
             ],
             spacing=8,
         ),
@@ -320,13 +321,13 @@ def _section_label(text: str) -> ft.Container:
 
 def _default_image_box(height=160) -> ft.Container:
     return ft.Container(
-        bgcolor=BG4,
+        bgcolor=BG4(),
         height=height,
         border_radius=ft.BorderRadius.all(10),
         content=ft.Column(
             controls=[
-                ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, color=TEXT3, size=40),
-                ft.Text("Belum ada foto", color=TEXT3, size=12),
+                ft.Icon(ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED, color=TEXT3(), size=40),
+                ft.Text("Belum ada foto", color=TEXT3(), size=12),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             alignment=ft.MainAxisAlignment.CENTER,
@@ -367,7 +368,7 @@ def _make_photo_widget(page: ft.Page, initial_data=""):
     filename_text = ft.Text(
         os.path.basename(initial_data) if initial_data and not initial_data.startswith("data:") else
         ("Foto tersimpan" if initial_data else "Belum ada foto dipilih"),
-        color=TEXT3, size=11, italic=True,
+        color=TEXT3(), size=11, italic=True,
         expand=True,
         overflow=ft.TextOverflow.ELLIPSIS,
         max_lines=1,
@@ -475,18 +476,18 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
             hint_text="cth: 2 sdm",
             value=qty_val,
             width=100,
-            bgcolor=BG3, color=TEXT,
-            hint_style=ft.TextStyle(color=TEXT3),
-            border_color=BORDER, focused_border_color=ORANGE,
+            bgcolor=BG3(), color=TEXT(),
+            hint_style=ft.TextStyle(color=TEXT3()),
+            border_color=BORDER(), focused_border_color=ORANGE,
             content_padding=ft.Padding.all(8), text_size=12,
         )
         name_field = ft.TextField(
             hint_text="Nama bahan",
             value=name_val,
             expand=True,
-            bgcolor=BG3, color=TEXT,
-            hint_style=ft.TextStyle(color=TEXT3),
-            border_color=BORDER, focused_border_color=ORANGE,
+            bgcolor=BG3(), color=TEXT(),
+            hint_style=ft.TextStyle(color=TEXT3()),
+            border_color=BORDER(), focused_border_color=ORANGE,
             content_padding=ft.Padding.all(8), text_size=12,
         )
         ingredients_qty_fields.append(qty_field)
@@ -543,9 +544,9 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
             value=text_val,
             multiline=True, min_lines=1, max_lines=3,
             expand=True,
-            bgcolor=BG3, color=TEXT,
-            hint_style=ft.TextStyle(color=TEXT3),
-            border_color=BORDER, focused_border_color=ORANGE,
+            bgcolor=BG3(), color=TEXT(),
+            hint_style=ft.TextStyle(color=TEXT3()),
+            border_color=BORDER(), focused_border_color=ORANGE,
             content_padding=ft.Padding.all(8), text_size=12,
         )
         step_data = {"field": step_field, "images": images}
@@ -587,7 +588,7 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
                         sd["field"],
                         ft.IconButton(
                             icon=ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED,
-                            icon_color=TEXT2, icon_size=18,
+                            icon_color=TEXT2(), icon_size=18,
                             tooltip="Tambah foto (opsional)",
                             on_click=_pick_step_photo,
                         ),
@@ -634,21 +635,21 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
     # ═══ DIALOG DIBUAT DULU ═══
     dialog = ft.AlertDialog(
         modal   = True,
-        bgcolor = BG2,
+        bgcolor = BG2(),
         title   = ft.Container(
             content=ft.Row(
                 controls=[
                     ft.Container(
                         content=ft.Icon(ft.Icons.ADD_CIRCLE_OUTLINE, color=ORANGE, size=22),
-                        bgcolor=BG4,
+                        bgcolor=BG4(),
                         border_radius=ft.BorderRadius.all(8),
                         padding=ft.Padding.all(6),
                     ),
                     ft.Column(
                         controls=[
-                            ft.Text("Tambah Resep", color=TEXT,
+                            ft.Text("Tambah Resep", color=TEXT(),
                                     weight=ft.FontWeight.BOLD, size=16),
-                            ft.Text("Isi detail resep kamu", color=TEXT3, size=11),
+                            ft.Text("Isi detail resep kamu", color=TEXT3(), size=11),
                         ],
                         spacing=1,
                     ),
@@ -684,7 +685,7 @@ def AddRecipeDialog(page: ft.Page, on_saved) -> ft.AlertDialog:
         actions=[
             ft.TextButton(
                 "Batal",
-                style    = ft.ButtonStyle(color=TEXT3),
+                style    = ft.ButtonStyle(color=TEXT3()),
                 on_click = lambda e: _cancel(),
             ),
             ft.ElevatedButton(
@@ -777,18 +778,18 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
             hint_text="cth: 2 sdm",
             value=qty_val,
             width=100,
-            bgcolor=BG3, color=TEXT,
-            hint_style=ft.TextStyle(color=TEXT3),
-            border_color=BORDER, focused_border_color=ORANGE,
+            bgcolor=BG3(), color=TEXT(),
+            hint_style=ft.TextStyle(color=TEXT3()),
+            border_color=BORDER(), focused_border_color=ORANGE,
             content_padding=ft.Padding.all(8), text_size=12,
         )
         name_field = ft.TextField(
             hint_text="Nama bahan",
             value=name_val,
             expand=True,
-            bgcolor=BG3, color=TEXT,
-            hint_style=ft.TextStyle(color=TEXT3),
-            border_color=BORDER, focused_border_color=ORANGE,
+            bgcolor=BG3(), color=TEXT(),
+            hint_style=ft.TextStyle(color=TEXT3()),
+            border_color=BORDER(), focused_border_color=ORANGE,
             content_padding=ft.Padding.all(8), text_size=12,
         )
         ingredients_qty_fields.append(qty_field)
@@ -861,9 +862,9 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
             value=text_val,
             multiline=True, min_lines=1, max_lines=3,
             expand=True,
-            bgcolor=BG3, color=TEXT,
-            hint_style=ft.TextStyle(color=TEXT3),
-            border_color=BORDER, focused_border_color=ORANGE,
+            bgcolor=BG3(), color=TEXT(),
+            hint_style=ft.TextStyle(color=TEXT3()),
+            border_color=BORDER(), focused_border_color=ORANGE,
             content_padding=ft.Padding.all(8), text_size=12,
         )
         step_data = {"field": step_field, "images": images}
@@ -905,7 +906,7 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
                         sd["field"],
                         ft.IconButton(
                             icon=ft.Icons.ADD_PHOTO_ALTERNATE_OUTLINED,
-                            icon_color=TEXT2, icon_size=18,
+                            icon_color=TEXT2(), icon_size=18,
                             tooltip="Tambah foto (opsional)",
                             on_click=_pick_step_photo,
                         ),
@@ -969,21 +970,21 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
 
     dialog = ft.AlertDialog(
         modal   = True,
-        bgcolor = BG2,
+        bgcolor = BG2(),
         title   = ft.Container(
             content=ft.Row(
                 controls=[
                     ft.Container(
                         content=ft.Icon(ft.Icons.EDIT_OUTLINED, color=ORANGE, size=22),
-                        bgcolor=BG4,
+                        bgcolor=BG4(),
                         border_radius=ft.BorderRadius.all(8),
                         padding=ft.Padding.all(6),
                     ),
                     ft.Column(
                         controls=[
-                            ft.Text("Edit Resep", color=TEXT,
+                            ft.Text("Edit Resep", color=TEXT(),
                                     weight=ft.FontWeight.BOLD, size=16),
-                            ft.Text(title_name, color=TEXT3, size=11),
+                            ft.Text(title_name, color=TEXT3(), size=11),
                         ],
                         spacing=1,
                     ),
@@ -1019,7 +1020,7 @@ def EditRecipeDialog(page: ft.Page, saved: dict, on_saved) -> ft.AlertDialog:
         actions=[
             ft.TextButton(
                 "Batal",
-                style    = ft.ButtonStyle(color=TEXT3),
+                style    = ft.ButtonStyle(color=TEXT3()),
                 on_click = lambda e: _cancel(),
             ),
             ft.ElevatedButton(
@@ -1098,7 +1099,7 @@ def ConfirmDeleteDialog(page: ft.Page, recipe_name: str, on_confirmed) -> ft.Ale
 
     dialog = ft.AlertDialog(
         modal   = True,
-        bgcolor = BG2,
+        bgcolor = BG2(),
         title   = ft.Row(
             controls=[
                 ft.Icon(ft.Icons.DELETE_OUTLINE, color=RED, size=22),
@@ -1109,16 +1110,16 @@ def ConfirmDeleteDialog(page: ft.Page, recipe_name: str, on_confirmed) -> ft.Ale
         content = ft.Container(
             content=ft.Column(
                 controls=[
-                    ft.Text(f'"{recipe_name}"', color=TEXT,
+                    ft.Text(f'"{recipe_name}"', color=TEXT(),
                             weight=ft.FontWeight.BOLD, size=14),
                     ft.Text("akan dihapus permanen dan tidak bisa dikembalikan.",
-                            color=TEXT2, size=13),
+                            color=TEXT2(), size=13),
                 ],
                 spacing=6,
             ),
         ),
         actions=[
-            ft.TextButton("Batal", style=ft.ButtonStyle(color=TEXT3), on_click=on_no),
+            ft.TextButton("Batal", style=ft.ButtonStyle(color=TEXT3()), on_click=on_no),
             ft.ElevatedButton(
                 "🗑  Hapus",
                 bgcolor  = RED,
@@ -1156,15 +1157,15 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
             height=140,
             fit="cover",
             error_content=ft.Container(
-                bgcolor=BG4, height=140,
-                content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3, size=36),
+                bgcolor=BG4(), height=140,
+                content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3(), size=36),
                 alignment=ft.Alignment(0, 0),
             ),
         )
     else:
         img_widget = ft.Container(
-            bgcolor=BG4, height=140,
-            content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3, size=36),
+            bgcolor=BG4(), height=140,
+            content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3(), size=36),
             alignment=ft.Alignment(0, 0),
         )
 
@@ -1192,12 +1193,12 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Text(recipe_name, color=TEXT, size=14,
+                            ft.Text(recipe_name, color=TEXT(), size=14,
                                     weight=ft.FontWeight.BOLD,
                                     max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
-                            ft.Text(meta_text, color=TEXT2, size=12,
+                            ft.Text(meta_text, color=TEXT2(), size=12,
                                     max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
-                            ft.Text(f"📝 {notes}", color=TEXT3, size=11,
+                            ft.Text(f"📝 {notes}", color=TEXT3(), size=11,
                                     italic=True, max_lines=1,
                                     overflow=ft.TextOverflow.ELLIPSIS,
                                     visible=bool(notes)),
@@ -1218,11 +1219,11 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
                                     ft.Container(expand=True),
                                     ft.IconButton(
                                         icon=ft.Icons.EDIT_OUTLINED,
-                                        icon_color=TEXT2, icon_size=18,
+                                        icon_color=TEXT2(), icon_size=18,
                                         tooltip="Edit Resep",
                                         style=ft.ButtonStyle(
                                             shape=ft.RoundedRectangleBorder(radius=6),
-                                            side=ft.BorderSide(1.5, BG4),
+                                            side=ft.BorderSide(1.5, BG4()),
                                         ),
                                         on_click=lambda e: on_edit(saved),
                                     ),
@@ -1232,7 +1233,7 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
                                         tooltip="Hapus",
                                         style=ft.ButtonStyle(
                                             shape=ft.RoundedRectangleBorder(radius=6),
-                                            side=ft.BorderSide(1.5, BG4),
+                                            side=ft.BorderSide(1.5, BG4()),
                                         ),
                                         on_click=lambda e: on_delete(saved),
                                     ),
@@ -1247,8 +1248,8 @@ def _recipe_card(saved: dict, on_view, on_edit, on_delete) -> ft.Container:
             ],
             spacing=0,
         ),
-        bgcolor=BG3,
-        border=ft.Border.all(1, BG4),
+        bgcolor=BG3(),
+        border=ft.Border.all(1, BG4()),
         border_radius=ft.BorderRadius.all(10),
         clip_behavior=ft.ClipBehavior.HARD_EDGE,
         animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
@@ -1264,9 +1265,9 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
     grid = ft.Row(wrap=True, spacing=14, run_spacing=14, controls=[])
 
     count_badge = ft.Container(
-        content=ft.Text("Tersimpan: 0", color=TEXT2, size=12),
-        bgcolor=BG3,
-        border=ft.Border.all(1, BG4),
+        content=ft.Text("Tersimpan: 0", color=TEXT2(), size=12),
+        bgcolor=BG3(),
+        border=ft.Border.all(1, BG4()),
         padding=ft.Padding.symmetric(horizontal=10, vertical=4),
         border_radius=ft.BorderRadius.all(20),
     )
@@ -1274,10 +1275,10 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
     empty_state = ft.Container(
         content=ft.Column(
             controls=[
-                ft.Icon(ft.Icons.BOOK_OUTLINED, color=TEXT3, size=48),
-                ft.Text("Belum ada resep tersimpan.", color=TEXT2, size=14),
+                ft.Icon(ft.Icons.BOOK_OUTLINED, color=TEXT3(), size=48),
+                ft.Text("Belum ada resep tersimpan.", color=TEXT2(), size=14),
                 ft.Text("Cari resep di Finder dan klik ♥ untuk menyimpan.",
-                        color=TEXT3, size=12),
+                        color=TEXT3(), size=12),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=8,
@@ -1290,7 +1291,7 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
     def show_snack(msg: str, color=GREEN):
         page.snack_bar = ft.SnackBar(
             content=ft.Text(msg, color=color),
-            bgcolor=BG2, duration=3000,
+            bgcolor=BG2(), duration=3000,
         )
         page.snack_bar.open = True
         page.update()
@@ -1361,7 +1362,7 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
             on_view_recipe(recipe)
         else:
             navigate("detail", recipe)
-            
+
     def _on_edit(saved: dict):
         def on_saved():
             show_snack(f"✓ '{saved.get('recipe_name')}' diperbarui!")
@@ -1395,9 +1396,9 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
 
     search_field = ft.TextField(
         hint_text            = "🔍  Cari resep tersimpan...",
-        bgcolor              = BG3, color=TEXT,
-        hint_style           = ft.TextStyle(color=TEXT3),
-        border_color         = BG4,
+        bgcolor              = BG3(), color=TEXT(),
+        hint_style           = ft.TextStyle(color=TEXT3()),
+        border_color         = BG4(),
         focused_border_color = ORANGE,
         border_radius        = ft.BorderRadius.all(24),
         content_padding      = ft.Padding.symmetric(horizontal=16, vertical=10),
@@ -1406,7 +1407,7 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
     )
 
     page_content = ft.Container(
-        expand=True, bgcolor=BG, visible=False,
+        expand=True, bgcolor=BG(), visible=False,
         content=ft.Column(
             controls=[
                 # Search + actions
@@ -1445,4 +1446,25 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
     )
 
     page_content.refresh = refresh
+
+    def _on_theme_change():
+        """Update warna widget yang sudah di-render tanpa rebuild ulang."""
+        page_content.bgcolor = BG()
+        # Update search field dan count badge secara eksplisit
+        search_field.bgcolor      = BG3()
+        search_field.color        = TEXT()
+        search_field.hint_style   = ft.TextStyle(color=TEXT3())
+        search_field.border_color = BG4()
+        count_badge.bgcolor       = BG3()
+        count_badge.border        = ft.Border.all(1, BG4())
+        count_badge.content.color = TEXT2()
+        try:
+            search_field.update()
+            count_badge.update()
+            page_content.update()
+        except Exception: pass
+        # Rebuild grid agar card baru pakai warna tema yang benar
+        refresh(search_keyword["value"])
+
+    theme_mgr.add_listener(_on_theme_change)
     return page_content
