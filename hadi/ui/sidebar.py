@@ -28,7 +28,7 @@ def _sidebar_gradient():
     )
 
 
-def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
+def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Container:
     state = {"active_index": 1}
     PAGE_NAMES = ["home", "finder", "my-recipes", "for-you", "info"]
     nav_items_ref: list = []
@@ -156,8 +156,6 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
             item["icon"].update()
             item["text"].update()
             item["inner"].update()
-        logo_text.color = TEXT()
-        logo_text.update()
         sidebar.update()
 
     theme_mgr.add_listener(rebuild)
@@ -166,18 +164,17 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
         content=ft.Icon(ft.Icons.MENU, color=TEXT2(), size=22),
         padding=ft.Padding.all(4),
     )
-
-    logo_text = ft.Text(
-        "CookD",
-        size=17,
-        weight=ft.FontWeight.BOLD,
-        color=TEXT(),
-        font_family="Font",
+    
+    logoHeight = 28
+    logo_text = ft.Image(
+        src="assets/Cookd-text.png",
+        height=logoHeight,
+        width=logoHeight*3,
     )
 
     logo_row = ft.Container(
-        content=ft.Row(controls=[logo_icon, logo_text], spacing=10),
-        padding=ft.Padding.symmetric(horizontal=14, vertical=14),
+        content=ft.Row(controls=[logo_icon, logo_text], spacing=4),
+        padding=ft.Padding.symmetric(horizontal=14, vertical=14,),
         border_radius=10,
         bgcolor=ft.Colors.TRANSPARENT,
         on_hover=lambda e: (
@@ -201,9 +198,9 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
                 build_nav_item(ft.Icons.BOOK_OUTLINED,   "My Recipes", 3),
                 build_nav_item(ft.Icons.STAR_OUTLINE,    "For You",    4),
                 build_nav_item(ft.Icons.INFO_OUTLINE,    "Info",       5),
-                *build_sidebar_extras(page),
+                *build_sidebar_extras(page, on_import_done=on_import_done),
             ],
-            spacing=3,
+            spacing=1,
             expand=True,
         ),
     )

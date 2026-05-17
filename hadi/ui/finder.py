@@ -56,6 +56,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         for _ in range(6)
     ]
 
+    loader_ring_bg = ft.Container(
+        content=loader_ring, width=60, height=60,
+        bgcolor=BG3(), border_radius=ft.BorderRadius.all(22),
+        alignment=ft.Alignment.CENTER,
+    )
+
     sticky_loader = ft.Container(
         visible=False,
         bgcolor=ft.Colors.TRANSPARENT,
@@ -63,11 +69,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         padding=ft.Padding.symmetric(horizontal=24, vertical=15),
         content=ft.Row(
             controls=[
-                ft.Container(
-                    content=loader_ring, width=60, height=60,
-                    bgcolor=BG3(), border_radius=ft.BorderRadius.all(22),
-                    alignment=ft.Alignment.CENTER,
-                ),
+                loader_ring_bg,
                 ft.Column(controls=[loader_label, loader_sub], spacing=2, expand=True),
                 ft.Column(
                     controls=[ft.Row(controls=loader_dots, spacing=6, tight=True)],
@@ -111,24 +113,19 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     _float_tasks_active = {"value": False}
     _emoji_containers: list[ft.Container] = []
 
-    async def _float_emoji_loop(container: ft.Container, amplitude: float, period: float, phase: float):
-        import math
-        step = 0.05
-        t = phase
+    async def _float_all_emojis_loop():
+        toggles = [i % 2 == 0 for i in range(len(_emoji_containers))]
         while _float_tasks_active["value"]:
-            y = -math.sin(2 * math.pi * t / period) * amplitude
-            container.offset = ft.Offset(0, y / 100)
-            if container.page:
-                container.update()
-            await asyncio.sleep(step)
-            t += step
+            for i, c in enumerate(_emoji_containers):
+                _, _, amp, period = _FLOAT_EMOJIS[i]
+                c.offset = ft.Offset(0, (amp if toggles[i] else -amp) / 100)
+                toggles[i] = not toggles[i]
+            page.update()
+            await asyncio.sleep(1.3)
 
     def _start_float_animations():
         _float_tasks_active["value"] = True
-        phases = [0.0, 0.5, 1.1, 0.3, 0.8]
-        for i, c in enumerate(_emoji_containers):
-            _, _, amp, period = _FLOAT_EMOJIS[i]
-            page.run_task(_float_emoji_loop, c, amp, period, phases[i])
+        page.run_task(_float_all_emojis_loop)
 
     def _stop_float_animations():
         _float_tasks_active["value"] = False
@@ -140,7 +137,10 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         _emoji_containers.append(
             ft.Container(
                 content=ft.Text(emoji, size=28),
-                animate_offset=ft.Animation(60, ft.AnimationCurve.LINEAR),
+                animate_offset=ft.Animation(
+                    int(period * 500),
+                    ft.AnimationCurve.EASE_IN_OUT,
+                ),
                 offset=ft.Offset(0, 0),
             )
         )
@@ -239,7 +239,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         return ft.LinearGradient(
             begin=ft.Alignment(-1, -1),
             end=ft.Alignment(1, 1),
-            colors=["#3d1a06", "#42190d", BG2()],
+            colors=["#28ff8c40", "#18ff6a20", BG2()],
             stops=[0.0, 0.4, 1.0],
         )
 
@@ -320,7 +320,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         )
 
         async def _animate_in():
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.01)
             card.opacity = 1.0
             card.offset  = ft.Offset(0, 0)
             card.update()
@@ -350,8 +350,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             ),
         )
 
-        # BUG FIX: reset hover state immediately in on_card_click so the
-        # card doesn't stay in "hovered" appearance after navigating away.
         async def on_card_click(e):
             card.scale    = ft.Scale(scale=0.97)
             card.gradient = _card_gradient()
@@ -394,23 +392,23 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                                 r["name"],
                                 color=TEXT(),
                                 weight=ft.FontWeight.BOLD,
-                                size=16,
+                                size=21,
                                 font_family="Font",
                             ),
                             ft.Row(
                                 controls=[
-                                    ft.Icon(ft.Icons.PEOPLE_OUTLINE, color=TEXT2(), size=14),
-                                    ft.Text(r.get("portion", ""),    color=TEXT2(), size=13),
-                                    ft.Text("·",                     color=TEXT3(), size=13),
-                                    ft.Icon(ft.Icons.TIMER_OUTLINED, color=TEXT2(), size=14),
-                                    ft.Text(r.get("cook_time", ""),  color=TEXT2(), size=13),
+                                    ft.Icon(ft.Icons.PEOPLE_OUTLINE, color=TEXT2(), size=13),
+                                    ft.Text(r.get("portion", ""),    color=TEXT2(), size=12),
+                                    ft.Text("·",                     color=TEXT3(), size=12),
+                                    ft.Icon(ft.Icons.TIMER_OUTLINED, color=TEXT2(), size=13),
+                                    ft.Text(r.get("cook_time", ""),  color=TEXT2(), size=12),
                                 ],
                                 spacing=4,
                             ),
                             ft.Container(
                                 content=ft.Text(
                                     r.get("source", "Cookpad"),
-                                    color=TEXT3(), size=12,
+                                    color=TEXT(), size=10,
                                 ),
                                 bgcolor=BG4(),
                                 border_radius=ft.BorderRadius.all(6),
@@ -559,6 +557,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         search_field.color        = TEXT()
         search_field.border_color = BORDER()
         search_field.update()
+        # Update loader background
+        loader_ring_bg.bgcolor = BG3()
+        loader_ring_bg.update()
+        loader_sub.color = TEXT2()
+        loader_sub.update()
         # Update empty state colors
         empty_title.color = TEXT()
         empty_sub.color   = TEXT2()
@@ -581,11 +584,20 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                             item.color = TEXT() if item.weight == ft.FontWeight.BOLD else TEXT2()
                             item.update()
                         elif isinstance(item, ft.Container):
-                            item.bgcolor = BG4()
-                            item.update()
-                            if isinstance(getattr(item, "content", None), ft.Text):
-                                item.content.color = TEXT3()
-                                item.content.update()
+                            # Skip the match-score badge — it has its own fixed color
+                            _is_score_badge = (
+                                isinstance(getattr(item, "content", None), ft.Text)
+                                and item.border_radius is not None
+                                and getattr(item, "padding", None) is not None
+                                and getattr(item.content, "weight", None) == ft.FontWeight.BOLD
+                                and item.bgcolor not in (None, ft.Colors.TRANSPARENT, BG4())
+                            )
+                            if not _is_score_badge:
+                                item.bgcolor = BG4()
+                                item.update()
+                                if isinstance(getattr(item, "content", None), ft.Text):
+                                    item.content.color = TEXT3()
+                                    item.content.update()
                         elif isinstance(item, ft.Row):
                             for sub in item.controls:
                                 if isinstance(sub, ft.Text):

@@ -84,7 +84,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             content=ft.Row(
                 controls=[
                     ft.Icon(icon, color=ORANGE, size=15),
-                    ft.Text(text, color=TEXT(), size=16, font_family="Font"),
+                    ft.Text(text, color=WHITE, size=12, font_family="Font"),
                 ],
                 spacing=6,
                 tight=True,
@@ -124,7 +124,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.OPEN_IN_NEW, color=ORANGE, size=15),
-                        ft.Text("Link", color=TEXT(), size=12, font_family="Font"),
+                        ft.Text("Link", color=WHITE, size=12, font_family="Font"),
                     ],
                     spacing=6,
                     tight=True,
@@ -190,18 +190,19 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                     border_radius=ft.BorderRadius.all(3),
                 ),
             ]
+            #ing text
             if qty:
                 qty_text = ft.Text(
                     qty, color=TEXT(), weight=ft.FontWeight.BOLD,
-                    size=13, font_family="Font",
+                    size=15, font_family="Font",
                 )
                 _track(qty_text, "color", TEXT)
                 row_controls.append(qty_text)
 
             name_text = ft.Text(
-                name, color=TEXT2(), size=13, expand=True, font_family="Font",
+                name, color=TEXT(), size=14, expand=True, weight=ft.FontWeight.W_500, font_family="Font",
             )
-            _track(name_text, "color", TEXT2)
+            _track(name_text, "color", TEXT)
             row_controls.append(name_text)
 
             row_container = ft.Container(
@@ -210,20 +211,23 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 border_radius=ft.BorderRadius.all(8),
                 on_hover=lambda e: (
                     setattr(e.control, "bgcolor",
-                            BG3() if e.data else ft.Colors.TRANSPARENT),
+                            "#20ff6a20" if e.data else ft.Colors.TRANSPARENT),
                     e.control.update(),
                 ),
             )
             items.append(row_container)
 
-        card = ft.Container(
-            content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
-            gradient=ft.LinearGradient(
+        def _ing_gradient():
+            return ft.LinearGradient(
                 begin=ft.Alignment(0, -1),
                 end=ft.Alignment(0, 1),
-                colors=["#1a120a", BG3(), BG2()],
-                stops=[0.0, 0.3, 1.0],
-            ),
+                colors=["#30ff6a0a", "#00ff6a0a"],
+                stops=[0.0, 0.05,],
+            )
+
+        card = ft.Container(
+            content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
+            gradient=_ing_gradient(),
             border_radius=ft.BorderRadius.all(14),
             border=ft.Border.all(1, BORDER()),
             expand=True,
@@ -232,6 +236,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             offset=ft.Offset(0, 0),
         )
         _track(card, "border", lambda: ft.Border.all(1, BORDER()))
+        _track(card, "gradient", _ing_gradient)
         return card
 
     def _steps_card(steps: list) -> ft.Container:
@@ -323,12 +328,12 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 spacing=8,
                 scroll=ft.ScrollMode.AUTO,
             ) if media_controls else None
-
+            #step text  
             step_text = ft.Text(
-                text, color=TEXT2(), size=13, font_family="Font",
+                text, color=TEXT(), size=15, font_family="Font",weight=ft.FontWeight.W_500,
                 expand=True, selectable=True,
             )
-            _track(step_text, "color", TEXT2)
+            _track(step_text, "color", TEXT)
 
             step_controls = [step_text]
             if media_row:
@@ -380,14 +385,17 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 )
             )
 
-        card = ft.Container(
-            content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
-            gradient=ft.LinearGradient(
+        def _step_gradient():
+            return ft.LinearGradient(
                 begin=ft.Alignment(0, -1),
                 end=ft.Alignment(0, 1),
-                colors=["#120e1a", BG3(), BG2()],
-                stops=[0.0, 0.3, 1.0],
-            ),
+                colors=["#3100a696", "#0000bc7d"],
+                stops=[0.0, 0.05],
+            )
+
+        card = ft.Container(
+            content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
+            gradient=_step_gradient(),
             border_radius=ft.BorderRadius.all(14),
             border=ft.Border.all(1, BORDER()),
             expand=True,
@@ -395,6 +403,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             offset=ft.Offset(0, 0),
         )
         _track(card, "border", lambda: ft.Border.all(1, BORDER()))
+        _track(card, "gradient", _step_gradient)
         return card
 
     current_recipe: dict = {}
@@ -470,7 +479,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                                 controls=[
                                     ft.Text(
                                         recipe.get("name", ""),
-                                        size=26,
+                                        size=36,
                                         weight=ft.FontWeight.BOLD,
                                         color=WHITE,
                                         font_family="Font",
