@@ -26,6 +26,9 @@ def BORDER(): return theme_mgr.get("BORDER")
 
 def main(page: ft.Page):
 
+    # ══════════════════════════════════════════════════════════════════
+    #  PAGE
+    # ══════════════════════════════════════════════════════════════════
     page.title             = "CookD"
     page.bgcolor           = BG()
     page.padding           = 0
@@ -37,9 +40,13 @@ def main(page: ft.Page):
     page.theme_mode        = ft.ThemeMode.DARK
     page.scroll            = None
     page.fonts             = {"Font": "fonts/PlusJakartaSans-VariableFont_wght.ttf"}
+    #page.text_scale_factor = 2 
     page.theme             = ft.Theme(font_family="Font")
     page.update()
 
+    # ══════════════════════════════════════════════════════════════════
+    #  NAVIGATION
+    # ══════════════════════════════════════════════════════════════════
     pages: dict[str, ft.Container] = {}
 
     def navigate(name: str, recipe: dict = None, query: str = None):
@@ -65,6 +72,9 @@ def main(page: ft.Page):
                 page.run_task(_do_prefill)
         page.update()
 
+    # ══════════════════════════════════════════════════════════════════
+    #  FOR YOU - RAFY
+    # ══════════════════════════════════════════════════════════════════
     def _on_detail_foryou(recipe):
         navigate("detail", recipe)
         topbar.update()
@@ -99,8 +109,14 @@ def main(page: ft.Page):
             table.remove(q.recipe_id == recipe.get("recipe_id", ""))
             show_snack(page, "Resep dihapus dari My Recipes", "warning")
 
+    # ══════════════════════════════════════════════════════════════════
+    #  TOPBAR
+    # ══════════════════════════════════════════════════════════════════
     topbar = build_topbar(navigate)
 
+    # ══════════════════════════════════════════════════════════════════
+    #  PAGES
+    # ══════════════════════════════════════════════════════════════════
     def make_placeholder(label: str) -> ft.Container:
         return ft.Container(
             expand=True,
@@ -155,10 +171,18 @@ def main(page: ft.Page):
         ),
     )
 
+    # ══════════════════════════════════════════════════════════════════
+    #  SIDEBAR
+    # ══════════════════════════════════════════════════════════════════
     sidebar = build_sidebar(page, navigate, on_import_done=lambda: pages["my-recipes"].refresh())
 
+    # ══════════════════════════════════════════════════════════════════
+    #  THEME REBUILD LISTENER
+    # ══════════════════════════════════════════════════════════════════
     def rebuild_on_theme_change():
         page.bgcolor = BG()
+        # sidebar and topbar have their own theme_mgr listeners
+        # that handle gradient + border — do NOT overwrite with bgcolor here
         for p in pages.values():
             if hasattr(p, "bgcolor"):
                 p.bgcolor = BG()
@@ -166,6 +190,9 @@ def main(page: ft.Page):
 
     theme_mgr.add_listener(rebuild_on_theme_change)
 
+    # ══════════════════════════════════════════════════════════════════
+    #  ROOT
+    # ══════════════════════════════════════════════════════════════════
     page.padding = ft.Padding.all(0)
     root = ft.Row(
         expand=True,
