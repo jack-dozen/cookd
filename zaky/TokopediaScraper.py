@@ -54,17 +54,29 @@ def _is_data_fresh(db_path: str, keyword: str) -> bool | None:
         True  -> data ada dan masih fresh, skip scraping
         False -> data ada tapi sudah > 7 hari, perlu scraping ulang
         None  -> data tidak ada, perlu scraping
+
+    CATATAN: Buka instance TinyDB baru secara lokal — tidak memakai
+    _db_lock dari PriceComparisonService agar tidak menyebabkan deadlock.
     """
-    with _db_lock:
-        db = TinyDB(db_path)
+    try:
+        # Buka TinyDB lokal (bukan shared instance) supaya tidak deadlock
+        # dengan _db_lock di PriceComparisonService.
+        db = TinyDB(db_path, encoding="utf-8")
         tokped_ingredients = db.table('tokped_ingredients')
         Item = Query()
         result = tokped_ingredients.get(Item.keyword == keyword)
+        db.close()
+    except Exception:
+        return None
 
     if result is None:
         return None
 
-    timestamp = datetime.datetime.strptime(result['timestamp'], '%Y-%m-%d %H:%M:%S')
+    ts = result.get('timestamp')
+    if not ts:
+        return None
+
+    timestamp = datetime.datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
     selisih_hari = (datetime.datetime.today() - timestamp).days
 
     return selisih_hari <= 7
@@ -148,7 +160,7 @@ def _scrape_keyword(keyword, db_path):
 
         # ── Step 4: Simpan ke TinyDB ──
         with _db_lock:
-            db = TinyDB(db_path)
+            db = TinyDB(db_path, encoding="utf-8")
             tokped_ingredients = db.table('tokped_ingredients')
             Item = Query()
             tokped_ingredients.remove(Item.keyword == keyword)  # hapus data lama jika ada
@@ -207,7 +219,7 @@ def tokpedia_scraper(keywords: list[str]):
         elif status is False:
             print(f"[{keyword}] Data sudah > 7 hari, scraping ulang...")
             with _db_lock:
-                db = TinyDB(db_path)
+                db = TinyDB(db_path, encoding="utf-8")
                 tokped_ingredients = db.table('tokped_ingredients')
                 Item = Query()
                 tokped_ingredients.remove(Item.keyword == keyword)
