@@ -84,7 +84,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             content=ft.Row(
                 controls=[
                     ft.Icon(icon, color=ORANGE, size=15),
-                    ft.Text(text, color=TEXT(), size=16, font_family="Font"),
+                    ft.Text(text, color=WHITE, size=12, font_family="Font"),
                 ],
                 spacing=6,
                 tight=True,
@@ -124,7 +124,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 content=ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.OPEN_IN_NEW, color=ORANGE, size=15),
-                        ft.Text("Link", color=TEXT(), size=12, font_family="Font"),
+                        ft.Text("Link", color=WHITE, size=12, font_family="Font"),
                     ],
                     spacing=6,
                     tight=True,
@@ -190,18 +190,19 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                     border_radius=ft.BorderRadius.all(3),
                 ),
             ]
+            #ing text
             if qty:
                 qty_text = ft.Text(
                     qty, color=TEXT(), weight=ft.FontWeight.BOLD,
-                    size=13, font_family="Font",
+                    size=15, font_family="Font",
                 )
                 _track(qty_text, "color", TEXT)
                 row_controls.append(qty_text)
 
             name_text = ft.Text(
-                name, color=TEXT2(), size=13, expand=True, font_family="Font",
+                name, color=TEXT(), size=14, expand=True, weight=ft.FontWeight.W_500, font_family="Font",
             )
-            _track(name_text, "color", TEXT2)
+            _track(name_text, "color", TEXT)
             row_controls.append(name_text)
 
             row_container = ft.Container(
@@ -210,20 +211,23 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 border_radius=ft.BorderRadius.all(8),
                 on_hover=lambda e: (
                     setattr(e.control, "bgcolor",
-                            BG3() if e.data else ft.Colors.TRANSPARENT),
+                            "#20ff6a20" if e.data else ft.Colors.TRANSPARENT),
                     e.control.update(),
                 ),
             )
             items.append(row_container)
 
-        card = ft.Container(
-            content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
-            gradient=ft.LinearGradient(
+        def _ing_gradient():
+            return ft.LinearGradient(
                 begin=ft.Alignment(0, -1),
                 end=ft.Alignment(0, 1),
-                colors=["#1a120a", BG3(), BG2()],
-                stops=[0.0, 0.3, 1.0],
-            ),
+                colors=["#30ff6a0a", "#00ff6a0a"],
+                stops=[0.0, 0.05,],
+            )
+
+        card = ft.Container(
+            content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
+            gradient=_ing_gradient(),
             border_radius=ft.BorderRadius.all(14),
             border=ft.Border.all(1, BORDER()),
             expand=True,
@@ -232,6 +236,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             offset=ft.Offset(0, 0),
         )
         _track(card, "border", lambda: ft.Border.all(1, BORDER()))
+        _track(card, "gradient", _ing_gradient)
         return card
 
     def _steps_card(steps: list) -> ft.Container:
@@ -323,12 +328,12 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 spacing=8,
                 scroll=ft.ScrollMode.AUTO,
             ) if media_controls else None
-
+            #step text
             step_text = ft.Text(
-                text, color=TEXT2(), size=13, font_family="Font",
+                text, color=TEXT(), size=15, font_family="Font",weight=ft.FontWeight.W_500,
                 expand=True, selectable=True,
             )
-            _track(step_text, "color", TEXT2)
+            _track(step_text, "color", TEXT)
 
             step_controls = [step_text]
             if media_row:
@@ -380,14 +385,17 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 )
             )
 
-        card = ft.Container(
-            content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
-            gradient=ft.LinearGradient(
+        def _step_gradient():
+            return ft.LinearGradient(
                 begin=ft.Alignment(0, -1),
                 end=ft.Alignment(0, 1),
-                colors=["#120e1a", BG3(), BG2()],
-                stops=[0.0, 0.3, 1.0],
-            ),
+                colors=["#3100a696", "#0000bc7d"],
+                stops=[0.0, 0.05],
+            )
+
+        card = ft.Container(
+            content=ft.Column(controls=items, spacing=0, scroll=ft.ScrollMode.AUTO),
+            gradient=_step_gradient(),
             border_radius=ft.BorderRadius.all(14),
             border=ft.Border.all(1, BORDER()),
             expand=True,
@@ -395,6 +403,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
             offset=ft.Offset(0, 0),
         )
         _track(card, "border", lambda: ft.Border.all(1, BORDER()))
+        _track(card, "gradient", _step_gradient)
         return card
 
     current_recipe: dict = {}
@@ -470,8 +479,8 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                                 controls=[
                                     ft.Text(
                                         recipe.get("name", ""),
-                                        size=26,
-                                        weight=ft.FontWeight.BOLD,
+                                        size=42,
+                                        weight=ft.FontWeight.W_900,
                                         color=WHITE,
                                         font_family="Font",
                                     ),
@@ -503,19 +512,19 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         # Build cards with slide-in offsets (reset to 0 via animation after render)
         ing_card  = _ingredient_card(recipe.get("ingredients", []))
         step_card = _steps_card(recipe.get("steps", []))
-
-        # Start offsets for slide-in
         ing_card.offset  = ft.Offset(-0.08, 0)
         step_card.offset = ft.Offset(0.08, 0)
 
-        bahan_label  = ft.Text("BAHAN-BAHAN",  size=16, weight=ft.FontWeight.BOLD,
-                               color=TEXT(), font_family="Font")
-        cara_label   = ft.Text("CARA MEMBUAT", size=16, weight=ft.FontWeight.BOLD,
-                               color=TEXT(), font_family="Font")
-        _track(bahan_label, "color", TEXT)
-        _track(cara_label, "color", TEXT)
+        bahan_label = ft.Text("BAHAN-BAHAN",  size=15, weight=ft.FontWeight.BOLD,
+                            color=TEXT(), font_family="Font",
+                            style=ft.TextStyle(letter_spacing=1.5))
+        cara_label  = ft.Text("CARA MEMBUAT", size=15, weight=ft.FontWeight.BOLD,
+                            color=TEXT(), font_family="Font",
+                            style=ft.TextStyle(letter_spacing=1.5))
+        _track(bahan_label, "color", TEXT2)
+        _track(cara_label,  "color", TEXT2)
 
-        # ── Ingredients + Steps ──
+        # ── Ingredients + Steps side by side ──
         detail_content.controls.append(
             ft.Container(
                 content=ft.Row(
@@ -558,6 +567,11 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         )
 
         # ── Price calculator ──
+        # Divider di luar container agar tidak kena padding horizontal → full width
+        divider = ft.Container(height=1, bgcolor=BORDER())
+        _track(divider, "bgcolor", BORDER)
+        detail_content.controls.append(divider)
+
         detail_content.controls.append(
             ft.Container(
                 content=ft.Column(
@@ -575,16 +589,17 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                                     ),
                                 ],
                                 spacing=8,
-                                tight=True,
+                                alignment=ft.MainAxisAlignment.CENTER,
                             ),
                             on_click=lambda e: run_price_calculation(
                                 page, recipe, price_area_ref, kalk_btn_ref
                             ),
                             style=ft.ButtonStyle(
                                 bgcolor=ORANGE,
-                                shape=ft.RoundedRectangleBorder(radius=12),
-                                padding=ft.Padding.symmetric(horizontal=24, vertical=14),
+                                shape=ft.RoundedRectangleBorder(radius=14),
+                                padding=ft.Padding.symmetric(horizontal=28, vertical=16),
                                 mouse_cursor=ft.MouseCursor.CLICK,
+                                overlay_color={"hovered": "#d94410", "pressed": "#c03b0d", "": ORANGE},
                             ),
                         ),
                         ft.Container(
@@ -594,10 +609,11 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                         ),
                     ],
                     spacing=16,
-                    horizontal_alignment=ft.CrossAxisAlignment.START,
+                    # STRETCH → tombol melebar penuh mengikuti lebar column
+                    horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 ),
                 padding=ft.Padding.symmetric(horizontal=28, vertical=20),
-                border=ft.Border.only(top=ft.BorderSide(1, BORDER())),
+                expand=True,
             )
         )
 

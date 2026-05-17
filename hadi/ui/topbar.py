@@ -1,5 +1,5 @@
 import flet as ft
-from rafy.theme import theme_mgr, ORANGE, WHITE
+from rafy.theme import ORANGE_GLOW, theme_mgr, ORANGE, WHITE
 
 
 def BG2():    return theme_mgr.get("BG2")
@@ -18,12 +18,11 @@ PAGE_TITLES = {
 
 
 def _topbar_gradient():
-    """Horizontal gradient: faint orange warmth on the left, BG2 on the right."""
     return ft.LinearGradient(
         begin=ft.Alignment(-1, 0),
         end=ft.Alignment(1, 0),
-        colors=["#18ff6a20", BG2(), BG2()],
-        stops=[0.0, 0.35, 1.0],
+        colors=["#22ff6a20", "#0aff6a20", BG2()],
+        stops=[0.0, 0.25, 1.0],
     )
 
 
@@ -32,7 +31,7 @@ def build_topbar(navigate_fn) -> ft.Container:
 
     title_text = ft.Text(
         "Finder",
-        size=20,
+        size=22,
         color=TEXT(),
         weight=ft.FontWeight.BOLD,
         font_family="Font",
@@ -41,25 +40,27 @@ def build_topbar(navigate_fn) -> ft.Container:
 
     sub_text = ft.Text(
         "Cari resep dari bahan yang kamu punya",
-        size=13,
+        size=12,
         color=TEXT2(),
         font_family="Font",
         animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
 
+    back_icon = ft.Icon(ft.Icons.ARROW_BACK_IOS, color=TEXT(), size=28)
     back_btn_container = ft.Container(
-        content=ft.FloatingActionButton(
-            icon=ft.Icons.ARROW_BACK_IOS,
-            bgcolor=ORANGE,
-            foreground_color=WHITE,
-            mini=True,
+        content=ft.GestureDetector(
             mouse_cursor=ft.MouseCursor.CLICK,
-            on_click=lambda e: navigate_fn(prev_page["name"]),
+            on_tap=lambda e: navigate_fn(prev_page["name"]),
+            content=back_icon,
         ),
         visible=False,
-        padding=0,
-        margin=ft.Margin.only(right=8),
+        padding=ft.Padding.all(4),
+        margin=ft.Margin.only(left=10),
         animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
+        on_hover=lambda e: (
+            setattr(back_icon, "color", ORANGE if e.data else TEXT()),
+            back_icon.update(),
+        ),
     )
 
     container = ft.Container(
@@ -78,13 +79,13 @@ def build_topbar(navigate_fn) -> ft.Container:
         ),
         gradient=_topbar_gradient(),
         padding=ft.Padding.only(left=20, right=28, top=14, bottom=14),
-        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER())),
+        border=ft.Border.only(bottom=ft.BorderSide(0.5, BORDER())),
         animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
 
     def rebuild():
         container.gradient = _topbar_gradient()
-        container.border   = ft.Border.only(bottom=ft.BorderSide(1, BORDER()))
+        container.border   = ft.Border.only(bottom=ft.BorderSide(0.5, BORDER()))
         title_text.color   = TEXT()
         sub_text.color     = TEXT2()
         container.update()
@@ -105,6 +106,8 @@ def build_topbar(navigate_fn) -> ft.Container:
         back_btn_container.update()
 
     def set_recipe(name: str | None):
+        back_icon.color = TEXT()
+        back_icon.update()
         if name is None:
             t, s = PAGE_TITLES.get(prev_page["name"], ("CookD", ""))
             title_text.value           = t

@@ -447,8 +447,59 @@ def build_for_you_page(
     else:
         controls.append(_build_empty("Belum ada resep bulan ini"))
 
-    return ft.Column(
+    column = ft.Column(
         controls=controls,
         spacing=10,
         scroll=ft.ScrollMode.AUTO,
     )
+
+    def _rebuild_controls():
+        """Rebuild isi column dengan warna tema terbaru. Aman dipanggil berulang."""
+        new_recipes   = _load_all_recipes()
+        new_freq      = _load_result_frequency()
+        new_hari_ini  = _get_resep_hari_ini(new_recipes)
+        new_bulan_ini = _get_resep_bulan_ini(
+            new_recipes, new_freq,
+            exclude_id=new_hari_ini.get("recipe_id", "") if new_hari_ini else "",
+        )
+        new_controls = []
+        new_controls.append(
+            ft.Text("Resep Hari Ini 🔥", color=TEXT(), size=15,
+                    weight=ft.FontWeight.BOLD)
+        )
+        new_controls.append(
+            _build_hero(new_hari_ini, on_detail)
+            if new_hari_ini else _build_empty("Belum ada resep hari ini")
+        )
+        new_controls.append(ft.Container(height=20))
+        new_controls.append(
+            ft.Row([
+                ft.Text("Resep Bulan Ini 📅", color=TEXT(), size=15,
+                        weight=ft.FontWeight.BOLD),
+                ft.Container(
+                    content=ft.Text("kecocokan + frekuensi", color=TEXT3(), size=10),
+                    bgcolor=BG4(),
+                    border_radius=ft.BorderRadius.all(20),
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=3),
+                ),
+            ], spacing=8)
+        )
+        if new_bulan_ini:
+            for i, recipe in enumerate(new_bulan_ini, start=1):
+                new_controls.append(_build_ranked_row(i, recipe, on_detail, on_save))
+        else:
+            new_controls.append(_build_empty("Belum ada resep bulan ini"))
+        column.controls = new_controls
+        try: column.update()
+        except Exception: pass
+
+    # Simpan rebuild fn ke atribut column agar bisa dipanggil dari luar
+    # dan agar listener bisa di-deregister kalau perlu
+    column._rebuild = _rebuild_controls
+
+    # Daftarkan listener SEKALI — cek apakah sudah terdaftar via id fn
+    if not any(getattr(f, '_foryou_listener', False) for f in theme_mgr._listeners):
+        _rebuild_controls._foryou_listener = True
+        theme_mgr.add_listener(_rebuild_controls)
+
+    return column

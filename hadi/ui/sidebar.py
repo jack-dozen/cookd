@@ -10,12 +10,11 @@ def TEXT():   return theme_mgr.get("TEXT")
 def TEXT2():  return theme_mgr.get("TEXT2")
 def BORDER(): return theme_mgr.get("BORDER")
 
-# Richer active glow — a subtle orange gradient background
 def _active_gradient():
     return ft.LinearGradient(
         begin=ft.Alignment(-1, 0),
         end=ft.Alignment(1, 0),
-        colors=["#33ff6a20", "#1aff6a20", "#00000000"],
+        colors=["#44ff6a20", "#22ff6a20", "#00ff6a20"],
         stops=[0.0, 0.5, 1.0],
     )
 
@@ -28,7 +27,7 @@ def _sidebar_gradient():
     )
 
 
-def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
+def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Container:
     state = {"active_index": 1}
     PAGE_NAMES = ["home", "finder", "my-recipes", "for-you", "info"]
     nav_items_ref: list = []
@@ -56,12 +55,12 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
 
         inner = ft.Container(
             content=ft.Row(controls=[icon_obj, text_obj], spacing=13),
-            padding=ft.Padding.symmetric(horizontal=14, vertical=11),
-            border_radius=10,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=10),
+            border_radius=ft.BorderRadius.all(12),
             gradient=_active_gradient() if is_active else None,
-            bgcolor=ft.Colors.TRANSPARENT if is_active else ft.Colors.TRANSPARENT,
+            bgcolor=ft.Colors.TRANSPARENT,
             expand=True,
-            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
             scale=ft.Scale(scale=1.0),
             animate_scale=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
         )
@@ -115,11 +114,11 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
     def _update_highlights():
         for item in nav_items_ref:
             is_active = state["active_index"] == item["index"]
-            item["indicator"].bgcolor = ORANGE if is_active else ft.Colors.TRANSPARENT
-            item["inner"].gradient    = _active_gradient() if is_active else None
-            item["inner"].bgcolor     = ft.Colors.TRANSPARENT
-            item["icon"].color        = ORANGE if is_active else TEXT2()
-            item["text"].color        = ORANGE if is_active else TEXT2()
+            item["indicator"].bgcolor  = ORANGE if is_active else ft.Colors.TRANSPARENT
+            item["inner"].gradient     = _active_gradient() if is_active else None
+            item["inner"].bgcolor      = ft.Colors.TRANSPARENT
+            item["icon"].color         = ORANGE if is_active else TEXT2()
+            item["text"].color         = ORANGE if is_active else TEXT2()
             item["indicator"].update()
             item["inner"].update()
             item["icon"].update()
@@ -149,15 +148,13 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
         sidebar.border   = ft.Border.only(right=ft.BorderSide(1, BORDER()))
         for item in nav_items_ref:
             is_active = state["active_index"] == item["index"]
-            item["icon"].color    = ORANGE if is_active else TEXT2()
-            item["text"].color    = ORANGE if is_active else TEXT2()
+            item["icon"].color     = ORANGE if is_active else TEXT2()
+            item["text"].color     = ORANGE if is_active else TEXT2()
             item["inner"].gradient = _active_gradient() if is_active else None
             item["inner"].bgcolor  = ft.Colors.TRANSPARENT
             item["icon"].update()
             item["text"].update()
             item["inner"].update()
-        logo_text.color = TEXT()
-        logo_text.update()
         sidebar.update()
 
     theme_mgr.add_listener(rebuild)
@@ -167,17 +164,22 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
         padding=ft.Padding.all(4),
     )
 
-    logo_text = ft.Text(
-        "CookD",
-        size=17,
-        weight=ft.FontWeight.BOLD,
-        color=TEXT(),
-        font_family="Font",
+    def _rebuild_logo():
+        logo_icon.content.color = TEXT2()
+        logo_icon.content.update()
+
+    theme_mgr.add_listener(_rebuild_logo)
+    
+    logoHeight = 28
+    logo_text = ft.Image(
+        src="assets/Cookd-text.png",
+        height=logoHeight,
+        width=logoHeight*3,
     )
 
     logo_row = ft.Container(
-        content=ft.Row(controls=[logo_icon, logo_text], spacing=10),
-        padding=ft.Padding.symmetric(horizontal=14, vertical=14),
+        content=ft.Row(controls=[logo_icon, logo_text], spacing=4),
+        padding=ft.Padding.symmetric(horizontal=14, vertical=14,),
         border_radius=10,
         bgcolor=ft.Colors.TRANSPARENT,
         on_hover=lambda e: (
@@ -201,9 +203,9 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
                 build_nav_item(ft.Icons.BOOK_OUTLINED,   "My Recipes", 3),
                 build_nav_item(ft.Icons.STAR_OUTLINE,    "For You",    4),
                 build_nav_item(ft.Icons.INFO_OUTLINE,    "Info",       5),
-                *build_sidebar_extras(page),
+                *build_sidebar_extras(page, on_import_done=on_import_done),
             ],
-            spacing=3,
+            spacing=1,
             expand=True,
         ),
     )
