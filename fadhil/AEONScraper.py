@@ -25,6 +25,11 @@ import json
 import os
 
 class PrettyJSONStorage(JSONStorage):
+    def __init__(self, path, **kwargs):
+        # Paksa encoding utf-8 agar tidak crash di Windows dengan karakter non-ASCII
+        kwargs.setdefault('encoding', 'utf-8')
+        super().__init__(path, **kwargs)
+
     def write(self, data):
         self._handle.seek(0)
         json.dump(data, self._handle, indent=2, ensure_ascii=False)
@@ -302,15 +307,15 @@ def scrape_by_keyword(driver, keyword, db=None):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_by_keyword(keyword, db_path=DB_PATH):
-    db = TinyDB(db_path)
+    db = TinyDB(db_path, encoding="utf-8")
     return db.table("aeon_ingredients").search(Query().keyword == keyword)
 
 def get_all(db_path=DB_PATH):
-    db = TinyDB(db_path)
+    db = TinyDB(db_path, encoding="utf-8")
     return db.table("aeon_ingredients").all()
 
 def delete_by_keyword(keyword, db_path=DB_PATH):
-    db = TinyDB(db_path)
+    db = TinyDB(db_path, encoding="utf-8")
     db.table("aeon_ingredients").remove(Query().keyword == keyword)
 
 
