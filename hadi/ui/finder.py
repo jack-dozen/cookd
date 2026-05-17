@@ -17,12 +17,12 @@ def BORDER(): return theme_mgr.get("BORDER")
 
 
 COOKING_STAGES = [
-    ("Preparing ingredients...",    "Fetching page"),
-    ("Cracking the recipe open...", "Parsing HTML"),
-    ("Mixing the instructions...",  "Extracting steps"),
-    ("Gathering ingredients...",    "Building card"),
-    ("Sliding into the oven...",    "Almost done"),
-    ("Recipe served! 🍽",           "Loaded"),
+    ("Preparing Ingredients...",    "Fetching page"),
+    ("Cracking the Recipe Open...", "Parsing HTML"),
+    ("Mixing the Instructions...",  "Extracting steps"),
+    ("Gathering Ingredients...",    "Building card"),
+    ("Sliding into the Oven...",    "Loading"),
+    ("Serving Your Recipe!....",    "Almost done"),
 ]
 
 _FLOAT_EMOJIS = [
@@ -43,6 +43,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     _stop_event   = {"value": None}
     _is_scraping  = {"value": False}
     _last_query   = {"value": ""}
+
+    # FIX: session counter — each new search gets a unique ID.
+    # Every callback checks its captured session_id against this before
+    # touching the UI. Old threads from stopped sessions are silently dropped.
+    _session_id   = {"value": 0}
 
     _all_results: list[dict] = []
     _results_lock = threading.Lock()
@@ -103,8 +108,8 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         s = COOKING_STAGES[min(stage, len(COOKING_STAGES) - 1)]
         loader_label.value  = s[0]
         loader_sub.value    = s[1]
-        loader_ring.visible = stage < 5
-        loader_ring.play    = stage < 5
+        loader_ring.visible = stage < 7
+        loader_ring.play    = stage < 7
         for i, dot in enumerate(loader_dots):
             if i < stage:
                 dot.bgcolor = ORANGE
@@ -234,9 +239,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         icon=ft.Icons.CHEVRON_LEFT,
         icon_color=ORANGE, tooltip="Halaman sebelumnya",
         visible=False,
+        mouse_cursor=ft.MouseCursor.CLICK,
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=10),
             bgcolor={"hovered": BG3(), "": ft.Colors.TRANSPARENT},
+            mouse_cursor=ft.MouseCursor.CLICK,
         ),
         on_click=lambda e: page.run_task(_go_page, _current_page["value"] - 1),
     )
@@ -249,9 +256,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         icon=ft.Icons.CHEVRON_RIGHT,
         icon_color=ORANGE, tooltip="Halaman berikutnya",
         visible=False,
+        mouse_cursor=ft.MouseCursor.CLICK,
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=10),
             bgcolor={"hovered": BG3(), "": ft.Colors.TRANSPARENT},
+            mouse_cursor=ft.MouseCursor.CLICK,
         ),
         on_click=lambda e: page.run_task(_go_page, _current_page["value"] + 1),
     )
@@ -319,36 +328,34 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         start = cur * PAGE_SIZE
         end   = start + PAGE_SIZE
 
-        # Fix 3 & 4: update pagination label and loading bar FIRST so they
-        # reflect the new page immediately, before cards start animating in.
-        _update_pagination()
-        _refresh_loader_for_current_page()
-        page.update()
-
         with _results_lock:
             page_recipes = sorted(
                 _all_results, key=lambda x: x["match_score"], reverse=True
             )[start:end]
 
+        # Build all cards first (no awaits yet)
         _tracked_cards.clear()
+        new_cards = [_build_card(r) for r in page_recipes]
+
+        # Replace column contents and push ONE update — visible immediately
         results_column.controls.clear()
-        results_column.update()
-        page.update()
-
-        for recipe in page_recipes:
-            card = _build_card(recipe)
-            results_column.controls.append(card)
-
-        results_column.update()
-        page.update()
-
-        for i, card in enumerate(results_column.controls):
-            await _animate_card_in(card, i * 0.04)
-
-        # Final sync after animation in case state changed mid-animation.
+        results_column.controls.extend(new_cards)
         _update_pagination()
         _refresh_loader_for_current_page()
+        results_column.update()
         page.update()
+
+        # Fire all card animations in parallel with a tiny stagger
+        async def _animate_all():
+            await asyncio.gather(*[
+                _animate_card_in(card, i * 0.03)
+                for i, card in enumerate(new_cards)
+            ])
+            _update_pagination()
+            _refresh_loader_for_current_page()
+            page.update()
+
+        page.run_task(_animate_all)
 
     # ── Card helpers ──────────────────────────────────────────────────────────
     _tracked_cards: list[ft.Container] = []
@@ -441,13 +448,10 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             content=ft.Image(src=r.get("image_url", ""), width=96, height=96, fit="cover"),
         )
 
-        # FIX Bug 1: use a mutable dict per-card to track hover state,
-        # so each card closure is independent and doesn't bleed into siblings.
         _hover_state = {"active": False}
 
         async def on_card_click(e, _card=None):
             c = _card
-            # Brief opacity dip as click feedback (no scale — avoids scroll clip).
             c.opacity = 0.7
             c.update()
             await asyncio.sleep(0.08)
@@ -459,22 +463,17 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             show_detail_fn(r)
 
         def on_hover(e, _card=None, _thumb=None, _state=None):
-            # FIX Bug 1: guard so re-entrant hover events on stale cards are ignored.
-            # If this card is not in the current tracked list, skip.
             if _card not in _tracked_cards:
                 return
 
             is_hovering = bool(e.data)
 
-            # FIX Bug 1: debounce — ignore if state hasn't actually changed.
             if _state["active"] == is_hovering:
                 return
             _state["active"] = is_hovering
 
             if is_hovering:
                 _card.gradient = _card_hover_gradient()
-                # Use a glowing border + shadow instead of scale — scale causes
-                # the card to be clipped by the scroll column viewport boundary.
                 _card.border   = ft.Border.all(1.5, ORANGE)
                 _card.shadow   = ft.BoxShadow(
                     spread_radius=0, blur_radius=14,
@@ -490,17 +489,18 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             _card.update()
             _thumb.update()
 
-        # FIX feat: wrap the actual card in a transparent outer container that
-        # has clip_behavior=NONE so the scale animation bleeds outside the
-        # scroll column without being clipped. The inner card carries the
-        # visible styling; the outer wrapper just provides overflow room.
+        # FIX (blank card): set gradient and border RIGHT HERE at construction
+        # time so the card is never in a "no style" state between being appended
+        # to results_column and _animate_card_in firing. The opacity/offset
+        # start values make it invisible until the animation plays, but the
+        # background is always correct — no white flash.
         inner_card = ft.Container(
             data=score,
-            # FIX feat: animate scale on the inner card; parent wrapper is NONE-clipped.
             animate_opacity=ft.Animation(350, ft.AnimationCurve.EASE_IN),
             animate_offset=ft.Animation(350, ft.AnimationCurve.EASE_OUT),
             opacity=0.0, offset=ft.Offset(0, 0.12),
-            gradient=_card_gradient(),
+            gradient=_card_gradient(),          # ← set at build time, not only in _animate_card_in
+            border=ft.Border.all(1, BORDER()),  # ← same
             content=ft.Row(
                 controls=[
                     thumb,
@@ -556,25 +556,18 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             ),
             border_radius=ft.BorderRadius.all(16),
             padding=ft.Padding.symmetric(horizontal=18, vertical=14),
-            border=ft.Border.all(1, BORDER()),
         )
 
-        # Wire up events with explicit card reference to avoid closure capture bug.
         inner_card.on_hover  = lambda e, c=inner_card, t=thumb, s=_hover_state: on_hover(e, _card=c, _thumb=t, _state=s)
         inner_card.on_click  = lambda e, c=inner_card: page.run_task(on_card_click, e, c)
 
-        # FIX feat: outer wrapper — no background, no border, NONE clip so hover
-        # scale animation isn't cropped by the ListView/Column clip rect.
         outer_wrapper = ft.Container(
             content=inner_card,
             clip_behavior=ft.ClipBehavior.NONE,
-            # Small padding so the scaled card has room to breathe without
-            # overlapping adjacent cards visually during animation.
             padding=ft.Padding.symmetric(horizontal=2, vertical=2),
             bgcolor=ft.Colors.TRANSPARENT,
         )
 
-        # Expose inner_card as `.data` mirror for tracking and sorting.
         outer_wrapper.data = score
 
         _tracked_cards.append(inner_card)
@@ -585,28 +578,30 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         if delay > 0:
             await asyncio.sleep(delay)
         inner = wrapper.content
-        inner.gradient = _card_gradient()
-        inner.border   = ft.Border.all(1, BORDER())
-        inner.opacity  = 1.0
-        inner.offset   = ft.Offset(0, 0)
+        # Gradient/border already set at build time; only update opacity/offset here.
+        inner.opacity = 1.0
+        inner.offset  = ft.Offset(0, 0)
         inner.update()
 
     # ── Mode toggle ───────────────────────────────────────────────────────────
     def _make_mode_btn(label: str, mode: str) -> ft.Container:
         is_active = _search_mode["value"] == mode
-        return ft.Container(
-            data=mode,
-            content=ft.Text(
-                label, size=12,
-                weight=ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL,
-                color=WHITE if is_active else TEXT2(),
-                font_family="Font", no_wrap=True,
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap=lambda e, m=mode: _select_mode(m),
+            content=ft.Container(
+                data=mode,
+                content=ft.Text(
+                    label, size=12,
+                    weight=ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL,
+                    color=WHITE if is_active else TEXT2(),
+                    font_family="Font", no_wrap=True,
+                ),
+                bgcolor=ORANGE if is_active else "transparent",
+                border_radius=ft.BorderRadius.all(10),
+                padding=ft.Padding.symmetric(horizontal=14, vertical=7),
+                ink=True,
             ),
-            bgcolor=ORANGE if is_active else "transparent",
-            border_radius=ft.BorderRadius.all(10),
-            padding=ft.Padding.symmetric(horizontal=14, vertical=7),
-            ink=True,
-            on_click=lambda e, m=mode: _select_mode(m),
         )
 
     _local_btn  = _make_mode_btn("📁 Lokal",  "local")
@@ -627,10 +622,10 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         _search_mode["value"] = mode
         for btn, m in [(_local_btn, "local"), (_scrape_btn, "scrape")]:
             is_active = mode == m
-            btn.bgcolor        = ORANGE if is_active else "transparent"
-            btn.content.weight = ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL
-            btn.content.color  = WHITE if is_active else TEXT2()
-            btn.update()
+            btn.content.bgcolor        = ORANGE if is_active else "transparent"
+            btn.content.content.weight = ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL
+            btn.content.content.color  = WHITE if is_active else TEXT2()
+            btn.content.update()
 
     def _lock_mode_toggle(locked: bool):
         mode_toggle.opacity = 0.4 if locked else 1.0
@@ -642,9 +637,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         icon_color="#ef4444",
         tooltip="Stop",
         visible=False,
+        mouse_cursor=ft.MouseCursor.CLICK,
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=12),
             bgcolor={"hovered": "#22ef4444", "": ft.Colors.TRANSPARENT},
+            mouse_cursor=ft.MouseCursor.CLICK,
         ),
     )
 
@@ -669,25 +666,23 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             # ── STOP ──────────────────────────────────────────────────────────
             ev = _stop_event["value"]
             if ev:
-                # FIX Bug 2: set the event so both finder AND hadi respect it.
                 ev.set()
                 print("[CookD] ⛔ Pencarian dihentikan oleh pengguna.")
 
-            # Mark stopped immediately so no further on_recipe_found callbacks
-            # update the UI after this point.
+            # FIX: bump session ID immediately so any in-flight on_recipe_found
+            # callbacks that haven't fired yet will see a mismatched session and
+            # bail out — even if stop_ev.is_set() check loses the race.
+            _session_id["value"] += 1
+
             _is_scraping["value"] = False
 
             _set_btn_refresh()
             _set_loading_stage(-1)
             _lock_mode_toggle(False)
 
-            # FIX Bug 2: clear any pending callbacks by replacing the stop event
-            # with a permanently-set one — any background thread still trying to
-            # run will see is_set() == True and bail out.
             _stop_event["value"] = threading.Event()
             _stop_event["value"].set()
 
-            # Reset hover state on all tracked cards so no stale hover remains.
             for c in list(_tracked_cards):
                 try:
                     c.gradient = _card_gradient()
@@ -769,6 +764,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                 ev.set()
             _is_scraping["value"] = False
 
+        # FIX: bump session counter BEFORE resetting shared state so that any
+        # callbacks queued by the old thread see a mismatched session_id and
+        # abort without touching _all_results or _page_scraped_count.
+        _session_id["value"] += 1
+        my_session = _session_id["value"]
+
         # Reset state
         _all_results        = []
         _page_scraped_count = [0]
@@ -791,7 +792,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         _set_loading_stage(0)
         page.update()
 
-        # FIX Bug 2: create a fresh stop event for this search session.
         stop_ev = threading.Event()
         _stop_event["value"] = stop_ev
 
@@ -801,8 +801,14 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
         def on_recipe_found(recipe):
             async def update_ui():
-                # FIX Bug 2: hard guard — if stop_ev is set OR _is_scraping is
-                # False (stop button pressed), discard this callback entirely.
+                # FIX: primary guard — stale session means a stop was pressed
+                # (or a new search started) since this callback was dispatched.
+                # Drop the result entirely; touching the UI here would corrupt
+                # the new session's state or produce blank/white cards.
+                if _session_id["value"] != my_session:
+                    return
+
+                # Secondary guard — belt-and-suspenders with stop_ev.
                 if stop_ev.is_set() or not _is_scraping["value"]:
                     return
 
@@ -814,6 +820,9 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
                 recipe_page_idx = (total - 1) // PAGE_SIZE
 
+                # FIX (_page_scraped_count race): guard list extension under the
+                # same session check so a stop+restart can't cause an append to
+                # the newly-reset list that then throws off card counts.
                 while len(_page_scraped_count) <= recipe_page_idx:
                     _page_scraped_count.append(0)
                 _page_scraped_count[recipe_page_idx] += 1
@@ -822,7 +831,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
                 if recipe_page_idx == cur:
                     wrapper = _build_card(recipe)
-                    # Insert sorted by score descending (compare inner card data)
                     insert_at = len(results_column.controls)
                     for i, ctrl in enumerate(results_column.controls):
                         if recipe["match_score"] > (ctrl.data or 0):
@@ -840,8 +848,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             asyncio.run_coroutine_threadsafe(update_ui(), loop)
 
         def run():
-            # FIX Bug 2: pass stop_ev into CookpadScraper so it can check it
-            # at every stage (stub collection, detail scraping, thread pool).
             CookpadScraper.main(
                 user_ingredients,
                 on_recipe_found=on_recipe_found,
@@ -850,11 +856,14 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             )
             stop_ev.set()
 
-            # Fix 2: schedule final UI cleanup back onto the event loop so
-            # the coroutine doesn't block waiting for this thread to finish.
             async def _on_run_done():
+                # FIX: same session guard in the completion handler — if the
+                # user stopped and restarted between the thread finishing and
+                # this coroutine running, do nothing.
+                if _session_id["value"] != my_session:
+                    return
                 if not _is_scraping["value"]:
-                    return  # stop was pressed manually; UI already updated
+                    return
                 _is_scraping["value"] = False
                 _set_loading_stage(-1)
                 _set_btn_refresh()
@@ -867,11 +876,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
             asyncio.run_coroutine_threadsafe(_on_run_done(), loop)
 
-        # Fix 2: start as a plain daemon thread — do NOT await run_in_executor.
-        # This lets _on_stop_refresh_click update the UI instantly on stop
-        # without waiting for the scraper thread to finish its current fetch.
         threading.Thread(target=run, daemon=True).start()
-        # Coroutine ends here; cleanup is handled inside _on_run_done above.
 
     # ── Theme rebuild ─────────────────────────────────────────────────────────
     def rebuild():
@@ -880,6 +885,9 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         search_field.color        = TEXT()
         search_field.border_color = BORDER()
         search_field.update()
+        mode_toggle.bgcolor = BG3()
+        mode_toggle.border  = ft.Border.all(1, BORDER())
+        mode_toggle.update()
         loader_ring_bg.bgcolor = BG3()
         loader_ring_bg.update()
         loader_sub.color = TEXT2()
@@ -888,13 +896,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         empty_sub.color   = TEXT2()
         empty_title.update()
         empty_sub.update()
-        # FIX Bug 1: _tracked_cards now holds inner cards directly.
         for card in _tracked_cards:
             if not isinstance(card, ft.Container):
                 continue
             card.gradient = _card_gradient()
             card.border   = ft.Border.all(1, BORDER())
-            card.shadow   = None  # reset any hover glow on theme switch
+            card.shadow   = None
             card.update()
             row = getattr(card, "content", None)
             if not isinstance(row, ft.Row):
@@ -963,8 +970,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                 ft.Container(
                     expand=True,
                     bgcolor=ft.Colors.TRANSPARENT,
-                    # FIX feat: NONE clip here so card scale animations that
-                    # slightly overflow the container boundary aren't cropped.
                     clip_behavior=ft.ClipBehavior.NONE,
                     padding=ft.Padding.only(left=20, right=20, bottom=8),
                     margin=ft.Margin.only(top=4),
@@ -978,8 +983,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                             ),
                         ],
                         expand=True,
-                        # FIX feat: Stack also must not clip so overflow from
-                        # scaled cards can bleed through both layers.
                         clip_behavior=ft.ClipBehavior.NONE,
                     ),
                 ),
