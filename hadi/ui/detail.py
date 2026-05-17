@@ -328,7 +328,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                 spacing=8,
                 scroll=ft.ScrollMode.AUTO,
             ) if media_controls else None
-            #step text  
+            #step text
             step_text = ft.Text(
                 text, color=TEXT(), size=15, font_family="Font",weight=ft.FontWeight.W_500,
                 expand=True, selectable=True,
@@ -567,6 +567,11 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         )
 
         # ── Price calculator ──
+        # Divider di luar container agar tidak kena padding horizontal → full width
+        divider = ft.Container(height=1, bgcolor=BORDER())
+        _track(divider, "bgcolor", BORDER)
+        detail_content.controls.append(divider)
+
         detail_content.controls.append(
             ft.Container(
                 content=ft.Column(
@@ -584,7 +589,7 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                                     ),
                                 ],
                                 spacing=8,
-                                tight=True,
+                                alignment=ft.MainAxisAlignment.CENTER,
                             ),
                             on_click=lambda e: run_price_calculation(
                                 page, recipe, price_area_ref, kalk_btn_ref
@@ -604,10 +609,11 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                         ),
                     ],
                     spacing=16,
-                    horizontal_alignment=ft.CrossAxisAlignment.START,
+                    # STRETCH → tombol melebar penuh mengikuti lebar column
+                    horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 ),
                 padding=ft.Padding.symmetric(horizontal=28, vertical=20),
-                border=ft.Border.only(top=ft.BorderSide(1, BORDER())),
+                expand=True,
             )
         )
 
