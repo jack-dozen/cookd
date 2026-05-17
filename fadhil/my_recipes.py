@@ -6,9 +6,9 @@ import os
 import json
 import hashlib
 import base64
-import sys
 import threading
 from datetime import datetime
+from rafy.snackbar import show_snack
 
 import flet as ft
 from tinydb import TinyDB, Query
@@ -147,32 +147,6 @@ def delete_recipe(saved_id: str) -> bool:
 
 def is_saved(recipe_id: str) -> bool:
     return bool(_table().search(Query().recipe_id == recipe_id))
-
-def export_json() -> str:
-    try:
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'zaky'))
-        from export_utils import export_table
-        return export_table("my_recipes")
-    except ImportError:
-        rows     = get_all()
-        out_path = os.path.join(os.path.expanduser('~'), 'Downloads', 'my_recipes.json')
-        with open(out_path, 'w', encoding='utf-8') as f:
-            json.dump(rows, f, indent=2, ensure_ascii=False)
-        return out_path
-
-def import_json(file_path: str) -> int:
-    if not os.path.exists(file_path):
-        return 0
-    with open(file_path, 'r', encoding='utf-8') as f:
-        rows = json.load(f)
-    table = _table()
-    R     = Query()
-    count = 0
-    for row in rows:
-        if not table.search(R.saved_id == row.get("saved_id", "")):
-            table.insert(row)
-            count += 1
-    return count
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CONTROLLER
@@ -1288,14 +1262,6 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
         visible=False,
     )
 
-    def show_snack(msg: str, color=GREEN):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(msg, color=color),
-            bgcolor=BG2(), duration=3000,
-        )
-        page.snack_bar.open = True
-        page.update()
-
     def refresh(keyword: str = ""):
         search_keyword["value"] = keyword
         saved_list = search_recipes(keyword)
@@ -1365,7 +1331,7 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
 
     def _on_edit(saved: dict):
         def on_saved():
-            show_snack(f"✓ '{saved.get('recipe_name')}' diperbarui!")
+            show_snack(page, f"✓ '{saved.get('recipe_name')}' diperbarui!", "success")
             refresh(search_keyword["value"])
         dialog = EditRecipeDialog(page=page, saved=saved, on_saved=on_saved)
         page.overlay.append(dialog)
@@ -1375,7 +1341,7 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
     def _on_delete(saved: dict):
         def on_confirmed():
             if delete_recipe(saved["saved_id"]):
-                show_snack(f"'{saved['recipe_name']}' dihapus.", color=RED)
+                show_snack(page, f"'{saved['recipe_name']}' dihapus.", "error")
                 refresh(search_keyword["value"])
         dialog = ConfirmDeleteDialog(
             page=page, recipe_name=saved.get("recipe_name", ""),
@@ -1387,7 +1353,7 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
 
     def _on_add(e):
         def on_saved(row):
-            show_snack(f"✓ '{row['recipe_name']}' ditambahkan!")
+            show_snack(page, f"✓ '{row['recipe_name']}' ditambahkan!", "success")
             refresh(search_keyword["value"])
         dialog = AddRecipeDialog(page=page, on_saved=on_saved)
         page.overlay.append(dialog)
