@@ -111,6 +111,7 @@ def build_topbar(navigate_fn) -> ft.Container:
         sub_text.update()
         dot_sep.update()
         back_btn_container.update()
+        container.update()
 
     def set_recipe(name: str | None):
         back_icon.color = TEXT()
@@ -136,6 +137,7 @@ def build_topbar(navigate_fn) -> ft.Container:
         sub_text.update()
         dot_sep.update()
         back_btn_container.update()
+        container.update()
 
     container.set_recipe = set_recipe
     container.set_page   = set_page
