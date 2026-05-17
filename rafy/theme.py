@@ -19,7 +19,7 @@ DARK: dict[str, str] = {
     "BG2":    "#1a1a1a",
     "BG3":    "#242424",
     "BG4":    "#2e2e2e",
-    "TEXT":   "#ffffff",
+    "TEXT":   "#f0ede8",
     "TEXT2":  "#a0a0a0",
     "TEXT3":  "#606060",
     "BORDER": "#333333",
@@ -33,7 +33,7 @@ LIGHT: dict[str, str] = {
     "BG2":    "#edeae4",
     "BG3":    "#e2ddd7",
     "BG4":    "#d4cec7",
-    "TEXT":   "#000000",
+    "TEXT":   "#1a1714",
     "TEXT2":  "#5a5550",
     "TEXT3":  "#9a9590",
     "BORDER": "#ccc8c0",
@@ -86,7 +86,7 @@ class ThemeManager:
     def __init__(self):
         self._current: dict[str, str] = DARK.copy()
         self._listeners: list = []
-        
+
     # ── Query ─────────────────────────────────────────────────────────
     def get(self, key: str) -> str:
         return self._current.get(key, "#FF00FF")
@@ -172,25 +172,37 @@ def build_theme_toggle(page: ft.Page, show_label: bool = True) -> ft.Container:
         thumb_color=WHITE,
     )
 
+    # label_text pakai opacity untuk animasi halus (tidak ada layout jump)
+    # expand=True dipindah ke spacer terpisah supaya icon tidak mengembang saat label transparan
     label_text = ft.Text(
         value="Light mode" if not theme_mgr.is_dark() else "Dark mode",
         color=theme_mgr.get("TEXT2"),
         size=13,
-        expand=True,
+        opacity=1.0 if show_label else 0.0,
+        animate_opacity=ft.Animation(150, ft.AnimationCurve.EASE_IN_OUT),
     )
+    # Spacer selalu expand, terpisah dari label_text
+    spacer = ft.Container(expand=True)
 
-    icon_ctrl = ft.Icon(
-        ft.Icons.LIGHT_MODE_OUTLINED if not theme_mgr.is_dark() else ft.Icons.DARK_MODE_OUTLINED,
-        color=theme_mgr.get("TEXT2"),
-        size=18,
+    # icon_ctrl dibungkus Container agar bisa di-replace isinya
+    # (Flet 0.85 tidak support update ft.Icon.name secara langsung)
+    def _make_icon():
+        return ft.Icon(
+            ft.Icons.LIGHT_MODE_OUTLINED if not theme_mgr.is_dark() else ft.Icons.DARK_MODE_OUTLINED,
+            color=theme_mgr.get("TEXT2"),
+            size=18,
+        )
+
+    icon_wrapper = ft.Container(content=_make_icon())
+
+    row = ft.Row(
+        controls=[icon_wrapper, label_text, spacer, switch],
+        spacing=10,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
     )
 
     container = ft.Container(
-        content=ft.Row(
-            controls=[icon_ctrl, label_text, switch] if show_label else [switch],
-            spacing=10,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        ),
+        content=row,
         bgcolor=theme_mgr.get("BG3"),
         border_radius=10,
         padding=ft.Padding.symmetric(horizontal=14, vertical=10),
@@ -200,15 +212,29 @@ def build_theme_toggle(page: ft.Page, show_label: bool = True) -> ft.Container:
     def on_toggle(e):
         theme_mgr.toggle(page)
         is_light = not theme_mgr.is_dark()
-        switch.value      = is_light
-        label_text.value  = "Light mode" if is_light else "Dark mode"
-        label_text.color  = theme_mgr.get("TEXT2")
-        icon_ctrl.name    = ft.Icons.LIGHT_MODE_OUTLINED if is_light else ft.Icons.DARK_MODE_OUTLINED
-        icon_ctrl.color   = theme_mgr.get("TEXT2")
+        # Update switch
+        switch.value = is_light
+        # Update label
+        label_text.value = "Light mode" if is_light else "Dark mode"
+        label_text.color = theme_mgr.get("TEXT2")
+        # Ganti icon dengan object baru (workaround Flet 0.85)
+        icon_wrapper.content = ft.Icon(
+            ft.Icons.LIGHT_MODE_OUTLINED if is_light else ft.Icons.DARK_MODE_OUTLINED,
+            color=theme_mgr.get("TEXT2"),
+            size=18,
+        )
         container.bgcolor = theme_mgr.get("BG3")
+        icon_wrapper.update()
+        label_text.update()
+        container.update()
         page.update()
 
     switch.on_change   = on_toggle
     container.on_click = on_toggle
+
+    # Expose refs agar caller bisa kontrol visibility saat sidebar collapse
+    # label pakai opacity (bukan visible) supaya tidak ada layout jump
+    container._label_text = label_text
+    container._switch     = switch
 
     return container
