@@ -156,8 +156,6 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
             item["icon"].update()
             item["text"].update()
             item["inner"].update()
-        logo_text.color = TEXT()
-        logo_text.update()
         sidebar.update()
 
     theme_mgr.add_listener(rebuild)
@@ -166,18 +164,17 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
         content=ft.Icon(ft.Icons.MENU, color=TEXT2(), size=22),
         padding=ft.Padding.all(4),
     )
-
-    logo_text = ft.Text(
-        "CookD",
-        size=17,
-        weight=ft.FontWeight.BOLD,
-        color=TEXT(),
-        font_family="Font",
+    
+    logoHeight = 28
+    logo_text = ft.Image(
+        src="assets/Cookd-text.png",
+        height=logoHeight,
+        width=logoHeight*3,
     )
 
     logo_row = ft.Container(
-        content=ft.Row(controls=[logo_icon, logo_text], spacing=10),
-        padding=ft.Padding.symmetric(horizontal=14, vertical=14),
+        content=ft.Row(controls=[logo_icon, logo_text], spacing=4),
+        padding=ft.Padding.symmetric(horizontal=14, vertical=14,),
         border_radius=10,
         bgcolor=ft.Colors.TRANSPARENT,
         on_hover=lambda e: (
@@ -203,7 +200,7 @@ def build_sidebar(page: ft.Page, navigate_fn) -> ft.Container:
                 build_nav_item(ft.Icons.INFO_OUTLINE,    "Info",       5),
                 *build_sidebar_extras(page),
             ],
-            spacing=3,
+            spacing=1,
             expand=True,
         ),
     )

@@ -56,6 +56,12 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         for _ in range(6)
     ]
 
+    loader_ring_bg = ft.Container(
+        content=loader_ring, width=60, height=60,
+        bgcolor=BG3(), border_radius=ft.BorderRadius.all(22),
+        alignment=ft.Alignment.CENTER,
+    )
+
     sticky_loader = ft.Container(
         visible=False,
         bgcolor=ft.Colors.TRANSPARENT,
@@ -63,11 +69,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         padding=ft.Padding.symmetric(horizontal=24, vertical=15),
         content=ft.Row(
             controls=[
-                ft.Container(
-                    content=loader_ring, width=60, height=60,
-                    bgcolor=BG3(), border_radius=ft.BorderRadius.all(22),
-                    alignment=ft.Alignment.CENTER,
-                ),
+                loader_ring_bg,
                 ft.Column(controls=[loader_label, loader_sub], spacing=2, expand=True),
                 ft.Column(
                     controls=[ft.Row(controls=loader_dots, spacing=6, tight=True)],
@@ -237,7 +239,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         return ft.LinearGradient(
             begin=ft.Alignment(-1, -1),
             end=ft.Alignment(1, 1),
-            colors=["#3d1a06", "#42190d", BG2()],
+            colors=["#28ff8c40", "#18ff6a20", BG2()],
             stops=[0.0, 0.4, 1.0],
         )
 
@@ -348,8 +350,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             ),
         )
 
-        # BUG FIX: reset hover state immediately in on_card_click so the
-        # card doesn't stay in "hovered" appearance after navigating away.
         async def on_card_click(e):
             card.scale    = ft.Scale(scale=0.97)
             card.gradient = _card_gradient()
@@ -392,23 +392,23 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                                 r["name"],
                                 color=TEXT(),
                                 weight=ft.FontWeight.BOLD,
-                                size=16,
+                                size=21,
                                 font_family="Font",
                             ),
                             ft.Row(
                                 controls=[
-                                    ft.Icon(ft.Icons.PEOPLE_OUTLINE, color=TEXT2(), size=14),
-                                    ft.Text(r.get("portion", ""),    color=TEXT2(), size=13),
-                                    ft.Text("·",                     color=TEXT3(), size=13),
-                                    ft.Icon(ft.Icons.TIMER_OUTLINED, color=TEXT2(), size=14),
-                                    ft.Text(r.get("cook_time", ""),  color=TEXT2(), size=13),
+                                    ft.Icon(ft.Icons.PEOPLE_OUTLINE, color=TEXT2(), size=13),
+                                    ft.Text(r.get("portion", ""),    color=TEXT2(), size=12),
+                                    ft.Text("·",                     color=TEXT3(), size=12),
+                                    ft.Icon(ft.Icons.TIMER_OUTLINED, color=TEXT2(), size=13),
+                                    ft.Text(r.get("cook_time", ""),  color=TEXT2(), size=12),
                                 ],
                                 spacing=4,
                             ),
                             ft.Container(
                                 content=ft.Text(
                                     r.get("source", "Cookpad"),
-                                    color=TEXT3(), size=12,
+                                    color=TEXT(), size=10,
                                 ),
                                 bgcolor=BG4(),
                                 border_radius=ft.BorderRadius.all(6),
@@ -557,6 +557,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         search_field.color        = TEXT()
         search_field.border_color = BORDER()
         search_field.update()
+        # Update loader background
+        loader_ring_bg.bgcolor = BG3()
+        loader_ring_bg.update()
+        loader_sub.color = TEXT2()
+        loader_sub.update()
         # Update empty state colors
         empty_title.color = TEXT()
         empty_sub.color   = TEXT2()
@@ -579,11 +584,20 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                             item.color = TEXT() if item.weight == ft.FontWeight.BOLD else TEXT2()
                             item.update()
                         elif isinstance(item, ft.Container):
-                            item.bgcolor = BG4()
-                            item.update()
-                            if isinstance(getattr(item, "content", None), ft.Text):
-                                item.content.color = TEXT3()
-                                item.content.update()
+                            # Skip the match-score badge — it has its own fixed color
+                            _is_score_badge = (
+                                isinstance(getattr(item, "content", None), ft.Text)
+                                and item.border_radius is not None
+                                and getattr(item, "padding", None) is not None
+                                and getattr(item.content, "weight", None) == ft.FontWeight.BOLD
+                                and item.bgcolor not in (None, ft.Colors.TRANSPARENT, BG4())
+                            )
+                            if not _is_score_badge:
+                                item.bgcolor = BG4()
+                                item.update()
+                                if isinstance(getattr(item, "content", None), ft.Text):
+                                    item.content.color = TEXT3()
+                                    item.content.update()
                         elif isinstance(item, ft.Row):
                             for sub in item.controls:
                                 if isinstance(sub, ft.Text):

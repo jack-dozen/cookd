@@ -1,3 +1,5 @@
+import os
+
 import flet as ft
 from fadhil.my_recipes import MyRecipesPage
 from rafy.theme import theme_mgr, ORANGE, WHITE
@@ -31,12 +33,13 @@ def main(page: ft.Page):
     page.padding           = 0
     page.window.width      = 1200
     page.window.height     = 720
-    page.window.min_width  = 400
-    page.window.min_height = 300
+    page.window.min_width  = 600
+    page.window.min_height = 400
     page.window.resizable  = True
     page.theme_mode        = ft.ThemeMode.DARK
     page.scroll            = None
-    page.fonts             = {"Font": "fonts/Poppins-Regular.ttf"}
+    page.fonts             = {"Font": "fonts/PlusJakartaSans-VariableFont_wght.ttf"}
+    #page.text_scale_factor = 2 
     page.theme             = ft.Theme(font_family="Font")
     page.update()
 
@@ -52,6 +55,7 @@ def main(page: ft.Page):
             topbar.set_recipe(None)
             topbar.set_page(name)
             topbar.update()
+        topbar.visible = (name != "my-recipes")
         if name == "detail" and recipe:
             pages["detail"].show(recipe)
         page.update()
@@ -171,15 +175,12 @@ def main(page: ft.Page):
     #  THEME REBUILD LISTENER
     # ══════════════════════════════════════════════════════════════════
     def rebuild_on_theme_change():
-        page.bgcolor    = BG()
-        sidebar.bgcolor = BG2()
-        topbar.bgcolor  = BG2()
-        topbar.border   = ft.Border.only(bottom=ft.BorderSide(1, BORDER()))
-
+        page.bgcolor = BG()
+        # sidebar and topbar have their own theme_mgr listeners
+        # that handle gradient + border — do NOT overwrite with bgcolor here
         for p in pages.values():
             if hasattr(p, "bgcolor"):
                 p.bgcolor = BG()
-
         page.update()
 
     theme_mgr.add_listener(rebuild_on_theme_change)
@@ -217,8 +218,9 @@ def main(page: ft.Page):
     def window_resized(e):
         if e.width and e.width < 800 and sidebar.width == 200:
             sidebar.toggle_sidebar()
-            page.update()
-
+            page.update()    
+            
+    page.window.icon = "assets/Cookd-logo.ico"
     page.on_resize = window_resized
     page.update()
 
