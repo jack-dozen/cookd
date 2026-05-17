@@ -1393,13 +1393,6 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
         dialog.open = True
         page.update()
 
-    def _on_export(e):
-        try:
-            export_json()
-            show_snack("✓ Diekspor ke Downloads/my_recipes.json")
-        except Exception as ex:
-            show_snack(f"Export gagal: {ex}", color=RED)
-
     search_field = ft.TextField(
         hint_text            = "🔍  Cari resep tersimpan...",
         bgcolor              = BG3, color=TEXT,
@@ -1416,18 +1409,11 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
         expand=True, bgcolor=BG, visible=False,
         content=ft.Column(
             controls=[
+                # Search + actions
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Column(
-                                controls=[
-                                    ft.Text("My Recipes", size=17, color=TEXT,
-                                            weight=ft.FontWeight.BOLD),
-                                    ft.Text("Resep yang kamu simpan",
-                                            size=12, color=TEXT3),
-                                ],
-                                spacing=2, expand=True,
-                            ),
+                            search_field,
                             count_badge,
                             ft.ElevatedButton(
                                 "+ Tambah",
@@ -1438,23 +1424,12 @@ def MyRecipesPage(page: ft.Page, navigate, on_view_recipe=None) -> ft.Container:
                                 ),
                                 on_click=_on_add,
                             ),
-                            ft.IconButton(
-                                icon=ft.Icons.DOWNLOAD_OUTLINED,
-                                icon_color=TEXT2,
-                                tooltip="Export JSON",
-                                on_click=_on_export,
-                            ),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    bgcolor=BG2,
-                    padding=ft.Padding.symmetric(horizontal=24, vertical=14),
-                    border=ft.Border.only(bottom=ft.BorderSide(1, BG4)),
-                ),
-                ft.Container(
-                    content=search_field,
                     padding=ft.Padding.symmetric(horizontal=24, vertical=12),
                 ),
+                # Grid
                 ft.Container(
                     content=ft.Column(
                         controls=[grid, empty_state],
