@@ -26,9 +26,6 @@ def BORDER(): return theme_mgr.get("BORDER")
 
 def main(page: ft.Page):
 
-    # ══════════════════════════════════════════════════════════════════
-    #  PAGE
-    # ══════════════════════════════════════════════════════════════════
     page.title             = "CookD"
     page.bgcolor           = BG()
     page.padding           = 0
@@ -40,16 +37,12 @@ def main(page: ft.Page):
     page.theme_mode        = ft.ThemeMode.DARK
     page.scroll            = None
     page.fonts             = {"Font": "fonts/PlusJakartaSans-VariableFont_wght.ttf"}
-    #page.text_scale_factor = 2 
     page.theme             = ft.Theme(font_family="Font")
     page.update()
 
-    # ══════════════════════════════════════════════════════════════════
-    #  NAVIGATION
-    # ══════════════════════════════════════════════════════════════════
     pages: dict[str, ft.Container] = {}
 
-    def navigate(name: str, recipe: dict = None):
+    def navigate(name: str, recipe: dict = None, query: str = None):
         for key, container in pages.items():
             container.visible = (key == name)
         if name != "detail":
@@ -61,16 +54,22 @@ def main(page: ft.Page):
         if name == "home" and "home" in pages:
             if hasattr(pages["home"], "refresh"):
                 pages["home"].refresh()
+        # ── Prefill finder dari Home search bar ──────────────────────
+        if name == "finder" and query and "finder" in pages:
+            finder = pages["finder"]
+            if hasattr(finder, "prefill_and_search"):
+                import asyncio
+                async def _do_prefill(q=query):
+                    await asyncio.sleep(0.05)
+                    finder.prefill_and_search(q)
+                page.run_task(_do_prefill)
         page.update()
-        
-    # ══════════════════════════════════════════════════════════════════
-    #  FOR YOU - RAFY
-    # ══════════════════════════════════════════════════════════════════
+
     def _on_detail_foryou(recipe):
         navigate("detail", recipe)
         topbar.update()
+
     def save_to_my_recipes(recipe: dict, saved: bool):
-        
         db    = TinyDB("./data/base.json")
         table = db.table("my_recipes")
         q     = Query()
@@ -100,14 +99,8 @@ def main(page: ft.Page):
             table.remove(q.recipe_id == recipe.get("recipe_id", ""))
             show_snack(page, "Resep dihapus dari My Recipes", "warning")
 
-    # ══════════════════════════════════════════════════════════════════
-    #  TOPBAR
-    # ══════════════════════════════════════════════════════════════════
     topbar = build_topbar(navigate)
 
-    # ══════════════════════════════════════════════════════════════════
-    #  PAGES
-    # ══════════════════════════════════════════════════════════════════
     def make_placeholder(label: str) -> ft.Container:
         return ft.Container(
             expand=True,
@@ -118,18 +111,8 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Text(
-                                    "Work In Progress",
-                                    color=TEXT2(),
-                                    font_family="Font",
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                                ft.Text(
-                                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-                                    "Cras condimentum, lorem nec porttitor tincidunt.",
-                                    color=TEXT2(),
-                                    font_family="Font",
-                                ),
+                                ft.Text("Work In Progress", color=TEXT2(), font_family="Font", weight=ft.FontWeight.BOLD),
+                                ft.Text("Lorem ipsum dolor sit amet.", color=TEXT2(), font_family="Font"),
                             ],
                             spacing=0,
                         ),
@@ -143,11 +126,11 @@ def main(page: ft.Page):
 
     pages["detail"]     = build_detail_page(page, navigate, topbar)
     pages["finder"]     = build_finder_page(page, show_detail_fn=pages["detail"].show)
-    pages["home"] = build_home_page(
-                        page=page,
-                        navigate_fn=navigate,
-                        on_detail=lambda r: navigate("detail", r),
-                    )
+    pages["home"]       = build_home_page(
+                              page=page,
+                              navigate_fn=navigate,
+                              on_detail=lambda r: navigate("detail", r),
+                          )
     pages["my-recipes"] = MyRecipesPage(page, navigate)
     pages["info"]       = InfoPage(page)
     pages["home"].visible = True
@@ -172,19 +155,10 @@ def main(page: ft.Page):
         ),
     )
 
-
-    # ══════════════════════════════════════════════════════════════════
-    #  SIDEBAR
-    # ══════════════════════════════════════════════════════════════════
     sidebar = build_sidebar(page, navigate, on_import_done=lambda: pages["my-recipes"].refresh())
 
-    # ══════════════════════════════════════════════════════════════════
-    #  THEME REBUILD LISTENER
-    # ══════════════════════════════════════════════════════════════════
     def rebuild_on_theme_change():
         page.bgcolor = BG()
-        # sidebar and topbar have their own theme_mgr listeners
-        # that handle gradient + border — do NOT overwrite with bgcolor here
         for p in pages.values():
             if hasattr(p, "bgcolor"):
                 p.bgcolor = BG()
@@ -192,9 +166,6 @@ def main(page: ft.Page):
 
     theme_mgr.add_listener(rebuild_on_theme_change)
 
-    # ══════════════════════════════════════════════════════════════════
-    #  ROOT
-    # ══════════════════════════════════════════════════════════════════
     page.padding = ft.Padding.all(0)
     root = ft.Row(
         expand=True,
@@ -225,11 +196,8 @@ def main(page: ft.Page):
     def window_resized(e):
         if e.width and e.width < 800 and sidebar.width == 200:
             sidebar.toggle_sidebar()
-            page.update()    
-            
+            page.update()
+
     page.window.icon = "assets/Cookd-logo.ico"
     page.on_resize = window_resized
     page.update()
-
-
-# ft.run(main, assets_dir=".")
