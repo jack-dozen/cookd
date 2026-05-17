@@ -33,6 +33,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
     PAGE_NAMES = ["home", "finder", "my-recipes", "for-you", "info"]
     nav_items_ref: list = []
     sidebar_ref: list[ft.Container] = []
+    _sidebar_extras_ref: list = []  # import_btn dan theme_toggle — disembunyikan saat collapse
 
     def build_nav_item(icon, label, index):
         is_active = state["active_index"] == index
@@ -82,7 +83,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
             state["active_index"] = index
             _update_highlights()
             navigate_fn(PAGE_NAMES[index - 1])
-            
+
             inner.scale = ft.Scale(scale=0.93)
             inner.update()
             await asyncio.sleep(0.07)
@@ -91,7 +92,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
             await asyncio.sleep(0.07)
             inner.scale = ft.Scale(scale=1.0)
             inner.update()
-            
+
 
         row = ft.Container(
             content=ft.Row(
@@ -135,13 +136,14 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
         for item in nav_items_ref:
             item["text"].visible = not is_collapsing
             item["text"].update()
-        for ctrl in sidebar.content.controls:
-            content = getattr(ctrl, "content", None)
-            if isinstance(content, ft.Row):
-                for c in content.controls:
-                    if isinstance(c, ft.Text):
-                        c.visible = not is_collapsing
-                        c.update()
+        # Saat collapse: sembunyikan teks (opacity) + switch, tampilkan icon saja
+        for item in _sidebar_extras_ref:
+            # label pakai opacity supaya tidak ada layout jump
+            item["text"].opacity = 0.0 if is_collapsing else 1.0
+            item["text"].update()
+            if item.get("switch"):
+                item["switch"].visible = not is_collapsing
+                item["switch"].update()
         page.update()
 
     def rebuild():
@@ -171,7 +173,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
         logo_icon.content.update()
 
     theme_mgr.add_listener(_rebuild_logo)
-    
+
     logoHeight = 28
     logo_text = ft.Image(
         src="assets/Cookd-text.png",
@@ -191,6 +193,27 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
         on_click=toggle_sidebar,
     )
 
+    # Simpan extras dulu sebelum di-unpack ke Column
+    # build_sidebar_extras → [spacer, import_btn, theme_toggle, padding]
+    _extras = build_sidebar_extras(page, on_import_done=on_import_done)
+
+    # import_btn (index 1): ambil ft.Text dari Row
+    import_btn = _extras[1]
+    try:
+        import_label = next(c for c in import_btn.content.controls if isinstance(c, ft.Text))
+    except Exception:
+        import_label = None
+
+    # theme_toggle (index 2): ambil label_text dan switch via attribute
+    theme_toggle = _extras[2]
+    toggle_label  = getattr(theme_toggle, "_label_text", None)
+    toggle_switch = getattr(theme_toggle, "_switch", None)
+
+    if import_label:
+        _sidebar_extras_ref.append({"text": import_label, "switch": None})
+    if toggle_label:
+        _sidebar_extras_ref.append({"text": toggle_label, "switch": toggle_switch})
+
     sidebar = ft.Container(
         width=200,
         gradient=_sidebar_gradient(),
@@ -205,7 +228,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
                 build_nav_item(ft.Icons.BOOK_OUTLINED,   "My Recipes", 3),
                 build_nav_item(ft.Icons.STAR_OUTLINE,    "For You",    4),
                 build_nav_item(ft.Icons.INFO_OUTLINE,    "Info",       5),
-                *build_sidebar_extras(page, on_import_done=on_import_done),
+                *_extras,
             ],
             spacing=1,
             expand=True,
@@ -214,4 +237,5 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
 
     sidebar_ref.append(sidebar)
     sidebar.toggle_sidebar = toggle_sidebar
+
     return sidebar
