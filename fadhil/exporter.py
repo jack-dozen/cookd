@@ -13,6 +13,7 @@ import threading
 
 import flet as ft
 from tinydb import TinyDB
+from rafy.snackbar import show_snack
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIG
@@ -95,22 +96,13 @@ def export_my_recipes(page: ft.Page, on_done=None):
         on_done : callback(path: str, count: int) dipanggil setelah berhasil
     """
 
-    def show_snack(msg: str, color=GREEN):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(msg, color=color),
-            bgcolor=BG2,
-            duration=3500,
-        )
-        page.snack_bar.open = True
-        page.update()
-
     def on_path_chosen(path: str):
         try:
             count = _save_to_file(path)
-            show_snack(f"✓ {count} resep diekspor ke {os.path.basename(path)}")
+            show_snack(page, f"✓ {count} resep diekspor ke {os.path.basename(path)}", "success")
             if on_done:
                 on_done(path, count)
         except Exception as ex:
-            show_snack(f"Export gagal: {ex}", color=RED)
+            show_snack(page, f"Export gagal: {ex}", "error")
 
     _open_save_dialog(on_path_chosen)
