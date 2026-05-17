@@ -6,6 +6,7 @@ from rafy.theme import theme_mgr, ORANGE, WHITE
 from zaky.info import InfoPage
 from rafy.for_you_ui  import build_for_you_page
 from rafy.snackbar    import show_snack
+from rafy.home import build_home_page
 import uuid
 from tinydb import TinyDB, Query
 
@@ -57,7 +58,9 @@ def main(page: ft.Page):
             topbar.update()
         if name == "detail" and recipe:
             pages["detail"].show(recipe)
-        page.update()
+        if name == "home" and "home" in pages:
+            if hasattr(pages["home"], "refresh"):
+                pages["home"].refresh()
         
     # ══════════════════════════════════════════════════════════════════
     #  FOR YOU - RAFY
@@ -139,7 +142,11 @@ def main(page: ft.Page):
 
     pages["detail"]     = build_detail_page(page, navigate, topbar)
     pages["finder"]     = build_finder_page(page, show_detail_fn=pages["detail"].show)
-    pages["home"]       = make_placeholder("Home")
+    pages["home"] = build_home_page(
+                        page=page,
+                        navigate_fn=navigate,
+                        on_detail=lambda r: navigate("detail", r),
+                    )
     pages["my-recipes"] = MyRecipesPage(page, navigate)
     pages["info"]       = InfoPage(page)
     pages["home"].visible = True

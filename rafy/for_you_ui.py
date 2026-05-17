@@ -152,10 +152,6 @@ def _get_resep_bulan_ini(
 # UI HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _fmt_score(score: float) -> str:
-    return f"⭐ {score * 5:.1f}"
-
-
 def _fmt_portion(s) -> str:
     return f"👥 {s}" if s and s != "-" else "👥 —"
 
@@ -245,7 +241,7 @@ def _build_hero(recipe: dict, on_detail) -> ft.Container:
                     ft.Row([
                         _ghost_badge(_fmt_portion(recipe.get("portion", "-"))),
                         _ghost_badge(_fmt_time(recipe.get("cook_time", "-"))),
-                        _ghost_badge(_fmt_score(recipe.get("match_score", 0))),
+                        
                     ], spacing=6),
                 ], spacing=0, tight=True),
                 padding=ft.Padding.all(16),
