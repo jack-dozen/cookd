@@ -37,6 +37,18 @@ PAGE_SIZE = 10
 
 
 def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
+    """
+    Bangun halaman Finder.
+
+    Setelah memanggil fungsi ini, simpan hasilnya di page.session agar
+    Home bisa langsung menjalankan pencarian:
+
+        finder_page = build_finder_page(page, show_detail_fn)
+        page.session.set("finder_ref", finder_page)
+
+    Dengan begitu, search bar di Home akan otomatis mengisi & menjalankan
+    pencarian di Finder tanpa user harus menekan tombol lagi.
+    """
 
     # ── State ─────────────────────────────────────────────────────────────────
     _search_mode  = {"value": "scrape"}
@@ -995,5 +1007,30 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     container.results_column = results_column
     _start_float_animations()
     page.run_task(_pulse_enter_hint)
+
+    # ── Prefill from Home search bar ──────────────────────────────────────────
+    def prefill_and_search(query: str):
+        """
+        Dipanggil dari navigate_fn saat user search dari Home.
+        Isi search_field lalu langsung jalankan pencarian.
+        """
+        if not query:
+            return
+        search_field.value = query
+        search_field.update()
+        page.run_task(_run_search_logic)
+
+    container.prefill_and_search = prefill_and_search
+
+    # Cek jika ada prefill yang dikirim dari Home sebelum page ini aktif
+    def on_visible_change(e):
+        if not container.visible:
+            return
+        prefill = page.session.get("home_prefill")
+        if prefill:
+            page.session.remove("home_prefill")
+            prefill_and_search(prefill)
+
+    container.on_visible_change = on_visible_change
 
     return container

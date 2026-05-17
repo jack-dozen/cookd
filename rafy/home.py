@@ -433,10 +433,10 @@ def build_home_page(
             await asyncio.sleep(0.08)
             search_btn_container.scale = ft.Scale(scale=1.0)
             search_btn_container.update()
-            # Pindah ke Finder, bawa teks dari search field
-            navigate_fn("finder")
-            # Kirim teks ke finder via page session state
-            page.session.set("home_prefill", search_field.value.strip())
+
+            query = search_field.value.strip()
+            # Kirim query langsung via navigate_fn — tanpa page.session
+            navigate_fn("finder", query=query)
 
         page.run_task(_anim)
 
