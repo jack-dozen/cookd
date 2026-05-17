@@ -479,8 +479,8 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                                 controls=[
                                     ft.Text(
                                         recipe.get("name", ""),
-                                        size=36,
-                                        weight=ft.FontWeight.BOLD,
+                                        size=42,
+                                        weight=ft.FontWeight.W_900,
                                         color=WHITE,
                                         font_family="Font",
                                     ),
@@ -512,19 +512,19 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
         # Build cards with slide-in offsets (reset to 0 via animation after render)
         ing_card  = _ingredient_card(recipe.get("ingredients", []))
         step_card = _steps_card(recipe.get("steps", []))
-
-        # Start offsets for slide-in
         ing_card.offset  = ft.Offset(-0.08, 0)
         step_card.offset = ft.Offset(0.08, 0)
 
-        bahan_label  = ft.Text("BAHAN-BAHAN",  size=16, weight=ft.FontWeight.BOLD,
-                               color=TEXT(), font_family="Font")
-        cara_label   = ft.Text("CARA MEMBUAT", size=16, weight=ft.FontWeight.BOLD,
-                               color=TEXT(), font_family="Font")
-        _track(bahan_label, "color", TEXT)
-        _track(cara_label, "color", TEXT)
+        bahan_label = ft.Text("BAHAN-BAHAN",  size=15, weight=ft.FontWeight.BOLD,
+                            color=TEXT(), font_family="Font",
+                            style=ft.TextStyle(letter_spacing=1.5))
+        cara_label  = ft.Text("CARA MEMBUAT", size=15, weight=ft.FontWeight.BOLD,
+                            color=TEXT(), font_family="Font",
+                            style=ft.TextStyle(letter_spacing=1.5))
+        _track(bahan_label, "color", TEXT2)
+        _track(cara_label,  "color", TEXT2)
 
-        # ── Ingredients + Steps ──
+        # ── Ingredients + Steps side by side ──
         detail_content.controls.append(
             ft.Container(
                 content=ft.Row(
@@ -591,9 +591,10 @@ def build_detail_page(page: ft.Page, navigate_fn, topbar) -> ft.Container:
                             ),
                             style=ft.ButtonStyle(
                                 bgcolor=ORANGE,
-                                shape=ft.RoundedRectangleBorder(radius=12),
-                                padding=ft.Padding.symmetric(horizontal=24, vertical=14),
+                                shape=ft.RoundedRectangleBorder(radius=14),
+                                padding=ft.Padding.symmetric(horizontal=28, vertical=16),
                                 mouse_cursor=ft.MouseCursor.CLICK,
+                                overlay_color={"hovered": "#d94410", "pressed": "#c03b0d", "": ORANGE},
                             ),
                         ),
                         ft.Container(

@@ -288,7 +288,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                             weight=ft.FontWeight.BOLD,
                             font_family="Font",
                         ),
-                        bgcolor="#2a1505",
+                        bgcolor=BG3(),
                         border=ft.Border.all(1, ORANGE),
                         border_radius=ft.BorderRadius.all(20),
                         padding=ft.Padding.symmetric(horizontal=18, vertical=8),
@@ -298,6 +298,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                             search_field.update(),
                         ),
                         ink=True,
+                        ink_color="#30ff6a20",
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -306,11 +307,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             gradient=ft.LinearGradient(
                 begin=ft.Alignment(0, -1),
                 end=ft.Alignment(0, 1),
-                colors=["#2a1010", BG2(), BG3()],
+                colors=["#30ef444430", BG2(), BG3()],
                 stops=[0.0, 0.5, 1.0],
             ),
             border_radius=ft.BorderRadius.all(16),
-            border=ft.Border.all(1, "#7f3030"),
+            border=ft.Border.all(1, "#60ef4444"),
             padding=ft.Padding.symmetric(horizontal=24, vertical=32),
             alignment=ft.Alignment(0, 0),
             animate_opacity=ft.Animation(350, ft.AnimationCurve.EASE_IN),
@@ -352,8 +353,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
         async def on_card_click(e):
             card.scale    = ft.Scale(scale=0.97)
-            card.gradient = _card_gradient()
-            card.border   = ft.Border.all(1, BORDER())
             card.update()
             await asyncio.sleep(0.08)
             card.scale    = ft.Scale(scale=1.0)
@@ -376,8 +375,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
         card = ft.Container(
             data=score,
-            scale=ft.Scale(scale=1.0),
-            animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
             animate_opacity=ft.Animation(350, ft.AnimationCurve.EASE_IN),
             animate_offset=ft.Animation(350, ft.AnimationCurve.EASE_OUT),
             opacity=0.0,
@@ -392,7 +389,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                                 r["name"],
                                 color=TEXT(),
                                 weight=ft.FontWeight.BOLD,
-                                size=21,
+                                size=16,
                                 font_family="Font",
                             ),
                             ft.Row(
@@ -408,7 +405,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                             ft.Container(
                                 content=ft.Text(
                                     r.get("source", "Cookpad"),
-                                    color=TEXT(), size=10,
+                                    color=TEXT3(), size=10,
                                 ),
                                 bgcolor=BG4(),
                                 border_radius=ft.BorderRadius.all(6),
@@ -424,20 +421,23 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                                 content=ft.Text(
                                     score_pct,
                                     color=fg_score,
-                                    size=12,
+                                    size=11,
                                     weight=ft.FontWeight.BOLD,
                                 ),
                                 bgcolor=bg_score,
                                 border_radius=ft.BorderRadius.all(20),
+                                border=ft.Border.all(1, fg_score),
                                 padding=ft.Padding.symmetric(horizontal=10, vertical=5),
                             ),
-                            ft.OutlinedButton(
+                            ft.ElevatedButton(
                                 "Lihat →",
                                 style=ft.ButtonStyle(
-                                    color=ORANGE,
-                                    side=ft.BorderSide(1, ORANGE),
+                                    bgcolor=ORANGE,
+                                    color=WHITE,
                                     mouse_cursor=ft.MouseCursor.CLICK,
                                     shape=ft.RoundedRectangleBorder(radius=10),
+                                    padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+                                    overlay_color={"hovered": "#d94410", "": ORANGE},
                                 ),
                                 on_click=lambda e, rec=r: show_detail_fn(rec),
                             ),
@@ -461,8 +461,10 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     async def _animate_card_in(card: ft.Container, delay: float = 0.0):
         if delay > 0:
             await asyncio.sleep(delay)
-        card.opacity = 1.0
-        card.offset  = ft.Offset(0, 0)
+        card.gradient = _card_gradient()
+        card.border   = ft.Border.all(1, BORDER())
+        card.opacity  = 1.0
+        card.offset   = ft.Offset(0, 0)
         card.update()
 
     def on_search(e):
@@ -527,8 +529,8 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         color=TEXT(),
         focused_border_color=ORANGE,
         border_color=BORDER(),
-        border_radius=ft.BorderRadius.all(14),
-        content_padding=ft.Padding.symmetric(horizontal=20, vertical=14),
+        border_radius=ft.BorderRadius.all(28),
+        content_padding=ft.Padding.symmetric(horizontal=24, vertical=14),
         expand=True,
         on_submit=on_search,
     )
@@ -544,12 +546,29 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         ),
         style=ft.ButtonStyle(
             bgcolor=ORANGE,
-            shape=ft.RoundedRectangleBorder(radius=14),
+            shape=ft.RoundedRectangleBorder(radius=28),
             mouse_cursor=ft.MouseCursor.CLICK,
-            padding=ft.Padding.symmetric(horizontal=24, vertical=14),
+            padding=ft.Padding.symmetric(horizontal=26, vertical=14),
+            overlay_color={"hovered": "#d94410", "pressed": "#c03b0d", "": ORANGE},
         ),
         on_click=on_search,
     )
+
+    search_btn_container = ft.Container(
+        content=search_btn,
+        scale=ft.Scale(scale=1.0),
+        animate_scale=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
+    )
+
+    async def _on_search_with_anim(e):
+        search_btn_container.scale = ft.Scale(scale=0.93)
+        search_btn_container.update()
+        await asyncio.sleep(0.08)
+        search_btn_container.scale = ft.Scale(scale=1.0)
+        search_btn_container.update()
+        on_search(e)
+
+    search_btn.on_click = _on_search_with_anim
 
     def rebuild():
         container.bgcolor         = BG()
@@ -628,7 +647,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             controls=[
                 ft.Container(
                     content=ft.Row(
-                        controls=[search_field, search_btn],
+                        controls=[search_field, search_btn_container],
                         spacing=10,
                     ),
                     padding=ft.Padding.symmetric(horizontal=24, vertical=18),
@@ -637,14 +656,16 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                 ft.Container(
                     expand=True,
                     bgcolor=ft.Colors.TRANSPARENT,
-                    padding=ft.Padding.symmetric(horizontal=24),
+                    padding=ft.Padding.only(left=20, right=20, bottom=8),
                     margin=ft.Margin.only(top=4),
+                    clip_behavior=ft.ClipBehavior.NONE,
                     content=ft.Stack(
                         controls=[
                             empty_state,
                             results_column,
                         ],
                         expand=True,
+                        clip_behavior=ft.ClipBehavior.NONE,
                     ),
                 ),
             ],
