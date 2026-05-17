@@ -17,12 +17,12 @@ def BORDER(): return theme_mgr.get("BORDER")
 
 
 COOKING_STAGES = [
-    ("Preparing ingredients...",    "Fetching page"),
-    ("Cracking the recipe open...", "Parsing HTML"),
-    ("Mixing the instructions...",  "Extracting steps"),
-    ("Gathering ingredients...",    "Building card"),
-    ("Sliding into the oven...",    "Almost done"),
-    ("Recipe served! 🍽",           "Loaded"),
+    ("Preparing Ingredients...",    "Fetching page"),
+    ("Cracking the Recipe Open...", "Parsing HTML"),
+    ("Mixing the Instructions...",  "Extracting steps"),
+    ("Gathering Ingredients...",    "Building card"),
+    ("Sliding into the Oven...",    "Loading"),
+    ("Serving Your Recipe!....",    "Almost done"),
 ]
 
 _FLOAT_EMOJIS = [
@@ -43,6 +43,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     _stop_event   = {"value": None}
     _is_scraping  = {"value": False}
     _last_query   = {"value": ""}
+
+    # FIX: session counter — each new search gets a unique ID.
+    # Every callback checks its captured session_id against this before
+    # touching the UI. Old threads from stopped sessions are silently dropped.
+    _session_id   = {"value": 0}
 
     _all_results: list[dict] = []
     _results_lock = threading.Lock()
@@ -103,8 +108,8 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         s = COOKING_STAGES[min(stage, len(COOKING_STAGES) - 1)]
         loader_label.value  = s[0]
         loader_sub.value    = s[1]
-        loader_ring.visible = stage < 5
-        loader_ring.play    = stage < 5
+        loader_ring.visible = stage < 7
+        loader_ring.play    = stage < 7
         for i, dot in enumerate(loader_dots):
             if i < stage:
                 dot.bgcolor = ORANGE
@@ -230,39 +235,34 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     )
 
     # ── Pagination bar ────────────────────────────────────────────────────────
-    # Wrapped in GestureDetector so mouse_cursor=CLICK works on the arrow buttons
-    _prev_btn = ft.GestureDetector(
-        mouse_cursor=ft.MouseCursor.CLICK,
-        on_tap=lambda e: page.run_task(_go_page, _current_page["value"] - 1),
-        content=ft.IconButton(
-            icon=ft.Icons.CHEVRON_LEFT,
-            icon_color=ORANGE,
-            tooltip="Halaman sebelumnya",
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=10),
-                bgcolor={"hovered": BG3(), "": ft.Colors.TRANSPARENT},
-            ),
-        ),
+    _prev_btn = ft.IconButton(
+        icon=ft.Icons.CHEVRON_LEFT,
+        icon_color=ORANGE, tooltip="Halaman sebelumnya",
         visible=False,
+        mouse_cursor=ft.MouseCursor.CLICK,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=10),
+            bgcolor={"hovered": BG3(), "": ft.Colors.TRANSPARENT},
+            mouse_cursor=ft.MouseCursor.CLICK,
+        ),
+        on_click=lambda e: page.run_task(_go_page, _current_page["value"] - 1),
     )
 
     _page_label = ft.Text(
         "1/1", size=13, color=TEXT(), font_family="Font", weight=ft.FontWeight.BOLD,
     )
 
-    _next_icon_btn = ft.GestureDetector(
-        mouse_cursor=ft.MouseCursor.CLICK,
-        on_tap=lambda e: page.run_task(_go_page, _current_page["value"] + 1),
-        content=ft.IconButton(
-            icon=ft.Icons.CHEVRON_RIGHT,
-            icon_color=ORANGE,
-            tooltip="Halaman berikutnya",
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=10),
-                bgcolor={"hovered": BG3(), "": ft.Colors.TRANSPARENT},
-            ),
-        ),
+    _next_icon_btn = ft.IconButton(
+        icon=ft.Icons.CHEVRON_RIGHT,
+        icon_color=ORANGE, tooltip="Halaman berikutnya",
         visible=False,
+        mouse_cursor=ft.MouseCursor.CLICK,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=10),
+            bgcolor={"hovered": BG3(), "": ft.Colors.TRANSPARENT},
+            mouse_cursor=ft.MouseCursor.CLICK,
+        ),
+        on_click=lambda e: page.run_task(_go_page, _current_page["value"] + 1),
     )
 
     _next_spinner = ft.Container(
@@ -328,33 +328,34 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         start = cur * PAGE_SIZE
         end   = start + PAGE_SIZE
 
-        _update_pagination()
-        _refresh_loader_for_current_page()
-        page.update()
-
         with _results_lock:
             page_recipes = sorted(
                 _all_results, key=lambda x: x["match_score"], reverse=True
             )[start:end]
 
+        # Build all cards first (no awaits yet)
         _tracked_cards.clear()
+        new_cards = [_build_card(r) for r in page_recipes]
+
+        # Replace column contents and push ONE update — visible immediately
         results_column.controls.clear()
-        results_column.update()
-        page.update()
-
-        for recipe in page_recipes:
-            card = _build_card(recipe)
-            results_column.controls.append(card)
-
-        results_column.update()
-        page.update()
-
-        for i, card in enumerate(results_column.controls):
-            await _animate_card_in(card, i * 0.04)
-
+        results_column.controls.extend(new_cards)
         _update_pagination()
         _refresh_loader_for_current_page()
+        results_column.update()
         page.update()
+
+        # Fire all card animations in parallel with a tiny stagger
+        async def _animate_all():
+            await asyncio.gather(*[
+                _animate_card_in(card, i * 0.03)
+                for i, card in enumerate(new_cards)
+            ])
+            _update_pagination()
+            _refresh_loader_for_current_page()
+            page.update()
+
+        page.run_task(_animate_all)
 
     # ── Card helpers ──────────────────────────────────────────────────────────
     _tracked_cards: list[ft.Container] = []
@@ -392,17 +393,14 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                     ft.Text("Resep tidak ditemukan", size=16, weight=ft.FontWeight.BOLD, color=TEXT(), font_family="Font"),
                     ft.Text("Coba bahan lain atau tambah lebih banyak bahan", size=13, color=TEXT2(), font_family="Font", text_align=ft.TextAlign.CENTER),
                     ft.Container(height=8),
-                    ft.GestureDetector(
-                        mouse_cursor=ft.MouseCursor.CLICK,
-                        on_tap=lambda e: (setattr(search_field, "value", ""), search_field.focus(), search_field.update()),
-                        content=ft.Container(
-                            content=ft.Text("Coba lagi →", color=ORANGE, size=13, weight=ft.FontWeight.BOLD, font_family="Font"),
-                            bgcolor=BG3(),
-                            border=ft.Border.all(1, ORANGE),
-                            border_radius=ft.BorderRadius.all(20),
-                            padding=ft.Padding.symmetric(horizontal=18, vertical=8),
-                            ink=True, ink_color="#30ff6a20",
-                        ),
+                    ft.Container(
+                        content=ft.Text("Coba lagi →", color=ORANGE, size=13, weight=ft.FontWeight.BOLD, font_family="Font"),
+                        bgcolor=BG3(),
+                        border=ft.Border.all(1, ORANGE),
+                        border_radius=ft.BorderRadius.all(20),
+                        padding=ft.Padding.symmetric(horizontal=18, vertical=8),
+                        on_click=lambda e: (setattr(search_field, "value", ""), search_field.focus(), search_field.update()),
+                        ink=True, ink_color="#30ff6a20",
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -491,12 +489,18 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             _card.update()
             _thumb.update()
 
+        # FIX (blank card): set gradient and border RIGHT HERE at construction
+        # time so the card is never in a "no style" state between being appended
+        # to results_column and _animate_card_in firing. The opacity/offset
+        # start values make it invisible until the animation plays, but the
+        # background is always correct — no white flash.
         inner_card = ft.Container(
             data=score,
             animate_opacity=ft.Animation(350, ft.AnimationCurve.EASE_IN),
             animate_offset=ft.Animation(350, ft.AnimationCurve.EASE_OUT),
             opacity=0.0, offset=ft.Offset(0, 0.12),
-            gradient=_card_gradient(),
+            gradient=_card_gradient(),          # ← set at build time, not only in _animate_card_in
+            border=ft.Border.all(1, BORDER()),  # ← same
             content=ft.Row(
                 controls=[
                     thumb,
@@ -552,7 +556,6 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             ),
             border_radius=ft.BorderRadius.all(16),
             padding=ft.Padding.symmetric(horizontal=18, vertical=14),
-            border=ft.Border.all(1, BORDER()),
         )
 
         inner_card.on_hover  = lambda e, c=inner_card, t=thumb, s=_hover_state: on_hover(e, _card=c, _thumb=t, _state=s)
@@ -571,31 +574,34 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         return outer_wrapper
 
     async def _animate_card_in(wrapper: ft.Container, delay: float = 0.0):
+        """Animate the inner card inside its outer wrapper."""
         if delay > 0:
             await asyncio.sleep(delay)
         inner = wrapper.content
-        inner.gradient = _card_gradient()
-        inner.border   = ft.Border.all(1, BORDER())
-        inner.opacity  = 1.0
-        inner.offset   = ft.Offset(0, 0)
+        # Gradient/border already set at build time; only update opacity/offset here.
+        inner.opacity = 1.0
+        inner.offset  = ft.Offset(0, 0)
         inner.update()
 
     # ── Mode toggle ───────────────────────────────────────────────────────────
     def _make_mode_btn(label: str, mode: str) -> ft.Container:
         is_active = _search_mode["value"] == mode
-        return ft.Container(
-            data=mode,
-            content=ft.Text(
-                label, size=12,
-                weight=ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL,
-                color=WHITE if is_active else TEXT2(),
-                font_family="Font", no_wrap=True,
+        return ft.GestureDetector(
+            mouse_cursor=ft.MouseCursor.CLICK,
+            on_tap=lambda e, m=mode: _select_mode(m),
+            content=ft.Container(
+                data=mode,
+                content=ft.Text(
+                    label, size=12,
+                    weight=ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL,
+                    color=WHITE if is_active else TEXT2(),
+                    font_family="Font", no_wrap=True,
+                ),
+                bgcolor=ORANGE if is_active else "transparent",
+                border_radius=ft.BorderRadius.all(10),
+                padding=ft.Padding.symmetric(horizontal=14, vertical=7),
+                ink=True,
             ),
-            bgcolor=ORANGE if is_active else "transparent",
-            border_radius=ft.BorderRadius.all(10),
-            padding=ft.Padding.symmetric(horizontal=14, vertical=7),
-            ink=True,
-            on_click=lambda e, m=mode: _select_mode(m),
         )
 
     _local_btn  = _make_mode_btn("📁 Lokal",  "local")
@@ -616,57 +622,57 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         _search_mode["value"] = mode
         for btn, m in [(_local_btn, "local"), (_scrape_btn, "scrape")]:
             is_active = mode == m
-            btn.bgcolor        = ORANGE if is_active else "transparent"
-            btn.content.weight = ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL
-            btn.content.color  = WHITE if is_active else TEXT2()
-            btn.update()
+            btn.content.bgcolor        = ORANGE if is_active else "transparent"
+            btn.content.content.weight = ft.FontWeight.BOLD if is_active else ft.FontWeight.NORMAL
+            btn.content.content.color  = WHITE if is_active else TEXT2()
+            btn.content.update()
 
     def _lock_mode_toggle(locked: bool):
         mode_toggle.opacity = 0.4 if locked else 1.0
         mode_toggle.update()
 
-    # ── Stop / Refresh button — wrapped in GestureDetector for cursor fix ─────
-    _stop_refresh_icon_btn = ft.IconButton(
+    # ── Stop / Refresh button ─────────────────────────────────────────────────
+    _stop_refresh_btn = ft.IconButton(
         icon=ft.Icons.STOP_CIRCLE_OUTLINED,
         icon_color="#ef4444",
         tooltip="Stop",
+        visible=False,
+        mouse_cursor=ft.MouseCursor.CLICK,
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=12),
             bgcolor={"hovered": "#22ef4444", "": ft.Colors.TRANSPARENT},
+            mouse_cursor=ft.MouseCursor.CLICK,
         ),
     )
 
-    _stop_refresh_btn = ft.GestureDetector(
-        mouse_cursor=ft.MouseCursor.CLICK,
-        content=_stop_refresh_icon_btn,
-        visible=False,
-    )
-
     def _set_btn_stop():
-        _stop_refresh_icon_btn.icon       = ft.Icons.STOP_CIRCLE_OUTLINED
-        _stop_refresh_icon_btn.icon_color = "#ef4444"
-        _stop_refresh_icon_btn.tooltip    = "Stop"
-        _stop_refresh_icon_btn.style.bgcolor = {"hovered": "#22ef4444", "": ft.Colors.TRANSPARENT}
-        _stop_refresh_icon_btn.update()
-        _stop_refresh_btn.visible = True
+        _stop_refresh_btn.icon       = ft.Icons.STOP_CIRCLE_OUTLINED
+        _stop_refresh_btn.icon_color = "#ef4444"
+        _stop_refresh_btn.tooltip    = "Stop"
+        _stop_refresh_btn.visible    = True
+        _stop_refresh_btn.style.bgcolor = {"hovered": "#22ef4444", "": ft.Colors.TRANSPARENT}
         _stop_refresh_btn.update()
 
     def _set_btn_refresh():
-        _stop_refresh_icon_btn.icon       = ft.Icons.REFRESH
-        _stop_refresh_icon_btn.icon_color = ORANGE
-        _stop_refresh_icon_btn.tooltip    = "Ulangi pencarian"
-        _stop_refresh_icon_btn.style.bgcolor = {"hovered": "#22ff6a20", "": ft.Colors.TRANSPARENT}
-        _stop_refresh_icon_btn.update()
-        _stop_refresh_btn.visible = True
+        _stop_refresh_btn.icon       = ft.Icons.REFRESH
+        _stop_refresh_btn.icon_color = ORANGE
+        _stop_refresh_btn.tooltip    = "Ulangi pencarian"
+        _stop_refresh_btn.visible    = True
+        _stop_refresh_btn.style.bgcolor = {"hovered": "#22ff6a20", "": ft.Colors.TRANSPARENT}
         _stop_refresh_btn.update()
 
     async def _on_stop_refresh_click(e):
         if _is_scraping["value"]:
-            # ── STOP ──
+            # ── STOP ──────────────────────────────────────────────────────────
             ev = _stop_event["value"]
             if ev:
                 ev.set()
                 print("[CookD] ⛔ Pencarian dihentikan oleh pengguna.")
+
+            # FIX: bump session ID immediately so any in-flight on_recipe_found
+            # callbacks that haven't fired yet will see a mismatched session and
+            # bail out — even if stop_ev.is_set() check loses the race.
+            _session_id["value"] += 1
 
             _is_scraping["value"] = False
 
@@ -696,7 +702,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                 search_field.update()
                 await _run_search_logic()
 
-    _stop_refresh_btn.on_tap = _on_stop_refresh_click
+    _stop_refresh_btn.on_click = _on_stop_refresh_click
 
     # ── Search field & button ─────────────────────────────────────────────────
     search_field = ft.TextField(
@@ -751,12 +757,20 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         if not ingredients:
             return
 
+        # If already scraping, stop previous run first.
         if _is_scraping["value"]:
             ev = _stop_event["value"]
             if ev:
                 ev.set()
             _is_scraping["value"] = False
 
+        # FIX: bump session counter BEFORE resetting shared state so that any
+        # callbacks queued by the old thread see a mismatched session_id and
+        # abort without touching _all_results or _page_scraped_count.
+        _session_id["value"] += 1
+        my_session = _session_id["value"]
+
+        # Reset state
         _all_results        = []
         _page_scraped_count = [0]
         _current_page["value"] = 0
@@ -787,6 +801,14 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
         def on_recipe_found(recipe):
             async def update_ui():
+                # FIX: primary guard — stale session means a stop was pressed
+                # (or a new search started) since this callback was dispatched.
+                # Drop the result entirely; touching the UI here would corrupt
+                # the new session's state or produce blank/white cards.
+                if _session_id["value"] != my_session:
+                    return
+
+                # Secondary guard — belt-and-suspenders with stop_ev.
                 if stop_ev.is_set() or not _is_scraping["value"]:
                     return
 
@@ -798,6 +820,9 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
                 recipe_page_idx = (total - 1) // PAGE_SIZE
 
+                # FIX (_page_scraped_count race): guard list extension under the
+                # same session check so a stop+restart can't cause an append to
+                # the newly-reset list that then throws off card counts.
                 while len(_page_scraped_count) <= recipe_page_idx:
                     _page_scraped_count.append(0)
                 _page_scraped_count[recipe_page_idx] += 1
@@ -832,6 +857,11 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
             stop_ev.set()
 
             async def _on_run_done():
+                # FIX: same session guard in the completion handler — if the
+                # user stopped and restarted between the thread finishing and
+                # this coroutine running, do nothing.
+                if _session_id["value"] != my_session:
+                    return
                 if not _is_scraping["value"]:
                     return
                 _is_scraping["value"] = False
@@ -855,6 +885,9 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         search_field.color        = TEXT()
         search_field.border_color = BORDER()
         search_field.update()
+        mode_toggle.bgcolor = BG3()
+        mode_toggle.border  = ft.Border.all(1, BORDER())
+        mode_toggle.update()
         loader_ring_bg.bgcolor = BG3()
         loader_ring_bg.update()
         loader_sub.color = TEXT2()
