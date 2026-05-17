@@ -61,6 +61,7 @@ def main(page: ft.Page):
         if name == "home" and "home" in pages:
             if hasattr(pages["home"], "refresh"):
                 pages["home"].refresh()
+        page.update()
         
     # ══════════════════════════════════════════════════════════════════
     #  FOR YOU - RAFY
