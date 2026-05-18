@@ -107,5 +107,6 @@ def show_snack(
         vertical_alignment=ft.CrossAxisAlignment.CENTER,
     )
 
-    page.open(snack)
+    page.snack_bar = snack
+    page.snack_bar.open = True
     page.update()
