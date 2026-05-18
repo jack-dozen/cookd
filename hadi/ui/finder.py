@@ -4,6 +4,7 @@ import flet as ft
 import flet_lottie as ftl
 from hadi import CookpadScraper
 from rafy.theme import theme_mgr, ORANGE, ORANGE_GLOW, GREEN, AMBER, WHITE
+from fadhil.save_btn import build_save_btn
 
 
 def BG():     return theme_mgr.get("BG")
@@ -540,27 +541,46 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                     ),
                     ft.Column(
                         controls=[
+                            # Match badge
                             ft.Container(
-                                content=ft.Text(score_pct, color=fg_score, size=11, weight=ft.FontWeight.BOLD),
+                                content=ft.Text(
+                                    score_pct,
+                                    color=fg_score,
+                                    size=11,
+                                    weight=ft.FontWeight.BOLD,
+                                    text_align=ft.TextAlign.CENTER,
+                                ),
                                 bgcolor=bg_score,
                                 border_radius=ft.BorderRadius.all(20),
                                 border=ft.Border.all(1, fg_score),
-                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+                                padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+                                width=100,
+                                alignment=ft.Alignment(0, 0),
                             ),
-                            ft.ElevatedButton(
-                                "Lihat →",
-                                style=ft.ButtonStyle(
-                                    bgcolor=ORANGE, color=WHITE,
-                                    mouse_cursor=ft.MouseCursor.CLICK,
-                                    shape=ft.RoundedRectangleBorder(radius=10),
-                                    padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-                                    overlay_color={"hovered": "#d94410", "": ORANGE},
-                                ),
-                                on_click=lambda e, rec=r: show_detail_fn(rec),
+                            # Love + Lihat
+                            ft.Row(
+                                controls=[
+                                    build_save_btn(page, r),  # ← langsung, tanpa wrapper
+                                    ft.Container(
+                                        content=ft.Text("Lihat", color=WHITE, size=13, weight=ft.FontWeight.BOLD),
+                                        width=60,
+                                        height=34,
+                                        bgcolor=ORANGE,
+                                        border_radius=ft.BorderRadius.all(8),
+                                        alignment=ft.Alignment(0, 0),
+                                        ink=True,
+                                        ink_color="#d94410",
+                                        on_click=lambda e, rec=r: show_detail_fn(rec),
+                                    ),
+                                ],
+                                spacing=4,
+                                tight=True,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
                         ],
-                        spacing=8,
+                        spacing=6,
                         horizontal_alignment=ft.CrossAxisAlignment.END,
+                        tight=True,
                     ),
                 ],
                 spacing=16,

@@ -38,19 +38,19 @@ def build_sidebar_extras(page: ft.Page, on_import_done=None) -> list:
         def do_export(e):
             dialog.open = False
             page.update()
-            from fadhil.exporter import export_my_recipes
-            export_my_recipes(page)
+            from fadhil.exporter import show_export_dialog  # ← eksporter, bukan exporter
+            show_export_dialog(page)
 
         def do_import(e):
             dialog.open = False
             page.update()
-            from fadhil.importer import import_my_recipes
+            from fadhil.importer import show_import_dialog  # ← bukan import_my_recipes
 
             def on_done(imported, skipped):
                 if on_import_done:
                     on_import_done()
 
-            import_my_recipes(page, on_done=on_done)
+            show_import_dialog(page, on_done=on_done)  # ← bukan import_my_recipes
 
         def on_cancel(e):
             dialog.open = False
