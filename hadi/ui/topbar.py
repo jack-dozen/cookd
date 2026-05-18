@@ -57,10 +57,10 @@ def build_topbar(navigate_fn, page) -> ft.Container:
     win_buttons = ft.Row(
         controls=[
             _win_btn(ft.Icons.REMOVE,      "#aaaaaa", lambda _: setattr(page.window, 'minimized', True)),
-            _win_btn(ft.Icons.CROP_SQUARE, "#aaaaaa", lambda _: setattr(page.window, 'maximized', not page.window.maximized)),
-            _win_btn(ft.Icons.CLOSE,       "#ff3700", lambda _: os._exit(0)),
+            _win_btn(ft.Icons.CROP_SQUARE_ROUNDED, "#aaaaaa", lambda _: setattr(page.window, 'maximized', not page.window.maximized)),
+            _win_btn(ft.Icons.CLOSE_SHARP,       "#ff3700", lambda _: page.run_task(page.window.close)),
         ],
-        spacing=3,
+        spacing=4,
     )
     
     prev_page = {"name": "finder"}
@@ -69,7 +69,7 @@ def build_topbar(navigate_fn, page) -> ft.Container:
         "Finder",
         size=18,
         color=TEXT(),
-        weight=ft.FontWeight.W_600,
+        weight=ft.FontWeight.W_700,
         font_family="Font",
         animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
