@@ -15,8 +15,8 @@ def _active_gradient():
     return ft.LinearGradient(
         begin=ft.Alignment(-1, 0),
         end=ft.Alignment(1, 0),
-        colors=["#50f04f23", "#20f04f23", "#00f04f23"],
-        stops=[0.0, 0.5, 1.0],
+        colors=["#ff7a0696", "#5b2a0095", "#210f0095"],
+        stops=[0.0, 0.6, 1.0],
     )
 
 def _sidebar_gradient():
@@ -58,7 +58,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
         inner = ft.Container(
             content=ft.Row(controls=[icon_obj, text_obj], spacing=13),
             padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-            border_radius=ft.BorderRadius.all(12),
+            border_radius=ft.BorderRadius.all(0),
             gradient=_active_gradient() if is_active else None,
             bgcolor=ft.Colors.TRANSPARENT,
             expand=True,
@@ -136,9 +136,21 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
         for item in nav_items_ref:
             item["text"].visible = not is_collapsing
             item["text"].update()
-        # Saat collapse: sembunyikan teks (opacity) + switch, tampilkan icon saja
+
+            # ← ADD THIS: fix inner width and alignment on collapse
+            if is_collapsing:
+                item["inner"].expand = False
+                item["inner"].width = 40
+                item["inner"].padding = ft.Padding.symmetric(horizontal=8, vertical=10)
+                item["inner"].content.alignment = ft.MainAxisAlignment.CENTER
+            else:
+                item["inner"].expand = True
+                item["inner"].width = None
+                item["inner"].padding = ft.Padding.symmetric(horizontal=14, vertical=10)
+                item["inner"].content.alignment = ft.MainAxisAlignment.START
+            item["inner"].update()
+
         for item in _sidebar_extras_ref:
-            # label pakai opacity supaya tidak ada layout jump
             item["text"].opacity = 0.0 if is_collapsing else 1.0
             item["text"].update()
             if item.get("switch"):
