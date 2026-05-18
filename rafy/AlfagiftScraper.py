@@ -1,37 +1,34 @@
-# Alfagift Scraper v7
+# Alfagift Scraper v8
 # Generated with Claude (Anthropic) - claude.ai
 """
 Alfagift Scraper - alfagift.id
 Scrape berdasarkan keyword nama bahan (misal: "ayam", "bawang putih")
+Output sesuai struktur tabel ingredients di proposal Cookd
 
-PERUBAHAN v7:
-- Hapus _simplify_search_query (bug: "keju quick melt" → "keju" → hasil tidak relevan)
-- Tambah relevance scoring dengan difflib untuk pilih produk paling relevan
-- Semua TinyDB pakai encoding='utf-8' agar tidak crash di Windows dengan emoji
-- Driver cleanup lebih ketat dengan time.sleep setelah quit
+Perubahan dari v7:
+  - AI relevance picker: dari list produk hasil search, Claude API memilih
+    produk yang paling cocok sebagai bahan masakan sebelum detail di-fetch.
+    Ini menggantikan _is_relevant() yang berbasis string matching.
+  - Hemat request: hanya detail produk yang dipilih AI yang di-fetch,
+    bukan semua produk di search result.
 
 Install dependencies:
-    pip install undetected-chromedriver beautifulsoup4 tinydb
+    pip install undetected-chromedriver beautifulsoup4 tinydb anthropic
 """
 
 import time
+import random
 import re
 import os
 import threading
-import random
+import anthropic
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from urllib.parse import urljoin, quote
-from difflib import SequenceMatcher
 
 import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 from tinydb import TinyDB, Query
-from tinydb.storages import JSONStorage
-import json
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -45,128 +42,149 @@ CHROME_VERSION = 147
 MAX_RESULTS    = 3
 DELAY_MIN      = 1.0
 DELAY_MAX      = 2.0
+FRESHNESS_DAYS = 7
+MAX_WORKERS    = 3
 
-# Skor relevansi minimum — produk di bawah ini diabaikan
-RELEVANCE_THRESHOLD = 0.25
-
-# Lock untuk TinyDB dan driver init
-_db_lock          = threading.Lock()
-_driver_init_lock = threading.Lock()
+_db_lock = threading.Lock()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PRETTY JSON STORAGE (utf-8 agar emoji tidak crash di Windows)
+# KEYWORD GUARD
 # ══════════════════════════════════════════════════════════════════════════════
 
-class PrettyJSONStorage(JSONStorage):
-    def __init__(self, path, **kwargs):
-        # Paksa encoding utf-8 — fix untuk WinError charmap di Windows
-        kwargs.setdefault('encoding', 'utf-8')
-        super().__init__(path, **kwargs)
+_INVALID_PATTERNS = [
+    r"^[\d\s\-/.,]+$",                                      # hanya angka / simbol
+    r"^\d+[\-\s]+\d",                                       # range angka: "1-2", "500 - 1000"
+    r"^\d+\s*(gram|gr|kg|ml|liter|pcs|pack|buah)\s*$",     # satuan saja: "500 gram"
+]
 
-    def write(self, data):
-        self._handle.seek(0)
-        json.dump(data, self._handle, indent=2, ensure_ascii=False)
-        self._handle.flush()
-        self._handle.truncate()
+def _is_valid_keyword(keyword: str) -> bool:
+    kw = keyword.strip()
+    if len(kw) < 2:
+        return False
+    for pat in _INVALID_PATTERNS:
+        if re.fullmatch(pat, kw, flags=re.IGNORECASE):
+            return False
+    return True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RELEVANCE SCORING
+# AI RELEVANCE PICKER — Claude API memilih produk terbaik sebagai bahan masakan
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _relevance_score(product_name: str, keyword: str) -> float:
+_ai_client = anthropic.Anthropic()  # baca ANTHROPIC_API_KEY dari env otomatis
+
+def _ai_pick_best_product(keyword: str, candidates: list[dict]) -> dict | None:
     """
-    Hitung skor relevansi produk terhadap keyword (0.0 - 1.0).
+    Minta Claude memilih produk yang paling cocok sebagai bahan masakan
+    dari list kandidat hasil search.
 
-    Kombinasi dua metrik:
-    - Rasio kesamaan string (SequenceMatcher)
-    - Proporsi kata keyword yang ditemukan di nama produk
+    Args:
+        keyword    : bahan masakan yang dicari, misal "susu"
+        candidates : list dict dengan key 'name', 'url', 'price_text'
 
-    Contoh:
-        keyword = "keju quick melt"
-        "Kraft Quick Melt Cheese 165g" → skor tinggi ✓
-        "Alamii Snack Cheese Puffs 15g" → skor rendah ✗
+    Returns:
+        dict kandidat terpilih, atau None jika tidak ada yang cocok
     """
-    name_lower    = product_name.lower()
-    keyword_lower = keyword.lower()
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
 
-    # Skor 1: kesamaan string keseluruhan
-    ratio = SequenceMatcher(None, keyword_lower, name_lower).ratio()
+    numbered = "\n".join(
+        f"{i+1}. {c['name']}" + (f" ({c['price_text']})" if c['price_text'] else "")
+        for i, c in enumerate(candidates)
+    )
 
-    # Skor 2: proporsi kata keyword yang ada di nama produk
-    keyword_words = [w for w in keyword_lower.split() if len(w) > 2]
-    if keyword_words:
-        words_found = sum(1 for w in keyword_words if w in name_lower)
-        word_ratio  = words_found / len(keyword_words)
-    else:
-        word_ratio = ratio
+    prompt = f"""Kamu adalah asisten yang membantu memilih bahan masakan.
 
-    # Bobot: word_ratio lebih penting karena lebih presisi
-    return (ratio * 0.35) + (word_ratio * 0.65)
+Saya sedang mencari produk untuk bahan masakan: "{keyword}"
+
+Berikut pilihan produk yang tersedia:
+{numbered}
+
+Pilih SATU nomor produk yang paling cocok digunakan sebagai bahan masakan "{keyword}".
+Prioritaskan produk polos/plain (bukan rasa, bukan campuran, bukan minuman kemasan).
+Contoh: untuk "susu", pilih susu UHT/segar/full cream, BUKAN susu coklat / susu rasa stroberi / minuman susu.
+
+Jawab HANYA dengan satu angka saja. Jangan tambahkan penjelasan apapun."""
+
+    try:
+        response = _ai_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=10,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw    = response.content[0].text.strip()
+        picked = int(re.search(r'\d+', raw).group()) - 1  # konversi ke index 0-based
+
+        if 0 <= picked < len(candidates):
+            chosen = candidates[picked]
+            print(f"    [AI] Memilih: {chosen['name']}")
+            return chosen
+        else:
+            print(f"    [AI] Index di luar range ({picked}), fallback ke kandidat pertama.")
+            return candidates[0]
+
+    except Exception as e:
+        print(f"    [AI] ERROR: {e} — fallback ke kandidat pertama.")
+        return candidates[0]
 
 
-def _pick_best(scraped: list[dict], keyword: str) -> dict | None:
+# ══════════════════════════════════════════════════════════════════════════════
+# FRESHNESS CHECK
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _is_data_fresh(keyword: str) -> bool | None:
     """
-    Dari list produk yang sudah di-scrape, pilih yang paling relevan
-    dengan keyword, lalu dari yang relevan pilih yang termurah.
+    True  → data ada dan masih fresh (< FRESHNESS_DAYS hari)
+    False → data ada tapi sudah kadaluarsa
+    None  → data tidak ada
     """
-    if not scraped:
+    with _db_lock:
+        db     = TinyDB(DB_PATH)
+        result = db.table('alfagift_ingredients').get(Query().keyword == keyword)
+
+    if result is None:
         return None
 
-    # Hitung skor tiap produk
-    scored = [
-        (item, _relevance_score(item.get("name", ""), keyword))
-        for item in scraped
-        if item.get("price", 0) > 0
-    ]
+    timestamp    = datetime.strptime(result['timestamp'], '%Y-%m-%d %H:%M:%S')
+    selisih_hari = (datetime.now() - timestamp).days
+    return selisih_hari <= FRESHNESS_DAYS
 
-    if not scored:
-        return None
 
-    # Filter yang relevan
-    relevant = [(item, score) for item, score in scored if score >= RELEVANCE_THRESHOLD]
-
-    # Kalau tidak ada yang cukup relevan, ambil skor tertinggi saja
-    if not relevant:
-        relevant = [max(scored, key=lambda x: x[1])]
-
-    # Dari yang relevan, pilih termurah
-    best_item = min(relevant, key=lambda x: x[0]["price"])[0]
-    best_score = max(relevant, key=lambda x: x[1])[1]
-
-    print(f"    [relevance] Terpilih: '{best_item['name']}' "
-          f"(skor={best_score:.2f}, harga=Rp {best_item['price']:,})")
-    return best_item
+def _delete_stale(keyword: str):
+    with _db_lock:
+        db = TinyDB(DB_PATH)
+        db.table('alfagift_ingredients').remove(Query().keyword == keyword)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DRIVER
+# DRIVER — headless, per-thread
 # ══════════════════════════════════════════════════════════════════════════════
 
-def init_driver():
-    import tempfile
+def _init_driver():
     options = uc.ChromeOptions()
+    options.add_argument("--headless=new")                   # ← headless aktif
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--lang=id-ID")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument(
         "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
-    driver = uc.Chrome(
+    return uc.Chrome(
         options=options,
         use_subprocess=True,
         version_main=CHROME_VERSION,
         headless=True,
-        user_data_dir=tempfile.mkdtemp(),  # folder temp unik per instance
     )
-    return driver
 
 
-def wait_page_ready(driver, timeout=30):
+def _wait_page_ready(driver, timeout=30) -> bool:
     print("    Menunggu halaman...", end="", flush=True)
     start = time.time()
     while time.time() - start < timeout:
@@ -181,27 +199,47 @@ def wait_page_ready(driver, timeout=30):
     return False
 
 
-def fetch_page(driver, url, wait_seconds=2):
+def _fetch_page(driver, url, wait_seconds=2) -> BeautifulSoup:
     print(f"    Fetch: {url}")
     driver.get(url)
     time.sleep(0.5)
-    wait_page_ready(driver)
+    _wait_page_ready(driver)
     time.sleep(wait_seconds)
     return BeautifulSoup(driver.page_source, "html.parser")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _parse_price(price_str: str) -> int:
+    try:
+        return int(re.sub(r'[^\d]', '', price_str))
+    except Exception:
+        return 0
+
+
+def _detect_unit(nama: str) -> str:
+    nama_lower = nama.lower()
+    for satuan in [
+        "per kg", "per pcs", "per pack", "per liter", "per buah",
+        "1kg", "500g", "500gr", "250g", "250gr", "100g", "100gr",
+        "liter", " ml", " gr", " kg", " pcs", "pack", "btl", "bks",
+        "pouch", "sachet", "dus",
+    ]:
+        if satuan in nama_lower:
+            return satuan.strip()
+    return ""
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SCRAPE HASIL PENCARIAN
 # ══════════════════════════════════════════════════════════════════════════════
 
-def search_products(driver, keyword):
-    """
-    Cari produk di Alfagift. Keyword TIDAK disederhanakan —
-    langsung pakai keyword asli agar hasil lebih relevan.
-    """
+def _search_products(driver, keyword: str) -> list[dict]:
     encoded    = quote(keyword, safe='')
     search_url = SEARCH_URL.format(keyword=encoded)
-    soup       = fetch_page(driver, search_url, wait_seconds=3)
+    soup       = _fetch_page(driver, search_url, wait_seconds=3)
 
     results = []
     seen    = set()
@@ -228,7 +266,7 @@ def search_products(driver, keyword):
         if len(results) >= MAX_RESULTS:
             break
 
-    print(f"    Ditemukan {len(results)} produk untuk '{keyword}'")
+    print(f"    Ditemukan {len(results)} produk untuk keyword '{keyword}'")
     return results
 
 
@@ -236,29 +274,8 @@ def search_products(driver, keyword):
 # SCRAPE DETAIL PRODUK
 # ══════════════════════════════════════════════════════════════════════════════
 
-def parse_price(price_str):
-    try:
-        cleaned = re.sub(r'[^\d]', '', price_str)
-        return int(cleaned)
-    except Exception:
-        return 0
-
-
-def detect_unit(nama):
-    nama_lower = nama.lower()
-    for satuan in [
-        "per kg", "per pcs", "per pack", "per liter", "per buah",
-        "1kg", "500g", "500gr", "250g", "250gr", "100g", "100gr",
-        "liter", " ml", " gr", " kg", " pcs", "pack", "btl", "bks",
-        "pouch", "sachet", "dus",
-    ]:
-        if satuan in nama_lower:
-            return satuan.strip()
-    return ""
-
-
-def scrape_product_detail(driver, url):
-    soup = fetch_page(driver, url, wait_seconds=3)
+def _scrape_product_detail(driver, url: str) -> dict | None:
+    soup = _fetch_page(driver, url, wait_seconds=3)
 
     nama_el = (
         soup.select_one("p.text-xlg.fw7") or
@@ -279,82 +296,68 @@ def scrape_product_detail(driver, url):
                 harga_str = teks
                 break
 
-    harga_int = parse_price(harga_str)
-    unit      = detect_unit(nama)
+    harga_int = _parse_price(harga_str)
+    unit      = _detect_unit(nama)
+
+    breadcrumb_items = soup.select("ol.breadcrumb li.breadcrumb-item")
+    kategori = " > ".join(li.get_text(strip=True) for li in breadcrumb_items[1:-1])
+
+    gambar_url = ""
+    gambar_el  = soup.select_one(".product-detail-carousel img")
+    if gambar_el:
+        gambar_url = gambar_el.get("data-src") or gambar_el.get("src", "")
 
     return {
         "product_name": nama,
         "price":        harga_int,
         "price_str":    harga_str,
         "unit":         unit,
+        "kategori":     kategori,
         "product_url":  url,
+        "image_url":    gambar_url,
     }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FRESHNESS CHECK
+# CORE — satu keyword, satu driver (dipanggil di thread masing-masing)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _is_data_fresh(db_path: str, keyword: str):
+def _scrape_one(keyword: str) -> dict | None:
     """
-    True  → data ada dan masih fresh (< 7 hari)
-    False → data ada tapi sudah > 7 hari
-    None  → data tidak ada
+    Scrape satu keyword. Buat dan tutup driver sendiri.
+    Return dict record yang disimpan, atau None jika gagal.
     """
-    with _db_lock:
-        db     = TinyDB(db_path, storage=PrettyJSONStorage)
-        result = db.table('alfagift_ingredients').get(Query().keyword == keyword)
-
-    if result is None:
-        return None
-
-    try:
-        timestamp    = datetime.strptime(result['timestamp'], '%Y-%m-%d %H:%M:%S')
-        selisih_hari = (datetime.now() - timestamp).days
-        return selisih_hari <= 7
-    except Exception:
-        return None
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# FUNGSI UTAMA: scrape_by_keyword
-# ══════════════════════════════════════════════════════════════════════════════
-
-def scrape_by_keyword(driver, keyword, use_relevance_filter=True):
-    db_path = DB_PATH
-
     print(f"\n{'='*55}")
     print(f"SCRAPE ALFAGIFT - keyword: '{keyword}'")
     print(f"{'='*55}")
 
-    # Cek cache
-    status = _is_data_fresh(db_path, keyword)
-    if status is True:
-        print(f"[{keyword}] Data masih fresh, skip scraping.")
-        return get_by_keyword(keyword)
-    elif status is False:
-        print(f"[{keyword}] Data sudah > 7 hari, scraping ulang...")
-        with _db_lock:
-            db = TinyDB(db_path, storage=PrettyJSONStorage)
-            db.table('alfagift_ingredients').remove(Query().keyword == keyword)
+    driver = None
+    try:
+        driver         = _init_driver()
+        search_results = _search_products(driver, keyword)
 
-    # Cari produk — keyword langsung tanpa simplifikasi
-    search_results = search_products(driver, keyword)
-    if not search_results:
-        print(f"  Tidak ada produk ditemukan untuk '{keyword}'")
-        return []
+        if not search_results:
+            print(f"  Tidak ada produk ditemukan untuk '{keyword}'")
+            return None
 
-    # Scrape detail tiap produk
-    scraped = []
-    for i, result in enumerate(search_results, 1):
-        print(f"\n  [{i}/{len(search_results)}] {result['url']}")
-        detail = scrape_product_detail(driver, result["url"])
+        # ── AI picker: pilih produk paling relevan dari search result ────
+        print(f"\n  [AI] Memilih dari {len(search_results)} kandidat...")
+        chosen = _ai_pick_best_product(keyword, search_results)
+
+        if not chosen:
+            print(f"  Tidak ada produk dipilih AI untuk '{keyword}'")
+            return None
+
+        # ── Fetch detail hanya untuk produk yang dipilih AI ──────────────
+        print(f"\n  Fetch detail: {chosen['url']}")
+        detail = _scrape_product_detail(driver, chosen["url"])
+        time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
         if not detail or not detail["product_name"]:
-            print(f"    x Gagal ambil detail, skip.")
-            continue
+            print("    x Gagal ambil detail.")
+            return None
 
-        row = {
+        best = {
             "keyword"  : keyword,
             "name"     : detail["product_name"],
             "price"    : detail["price"],
@@ -362,80 +365,76 @@ def scrape_by_keyword(driver, keyword, use_relevance_filter=True):
             "unit"     : detail["unit"],
             "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         }
-        scraped.append(row)
-        print(f"    v {row['name']} - Rp {row['price']:,} ({row['unit']})")
-        time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
+        print(f"    v {best['name']} - Rp {best['price']:,} ({best['unit']})")
 
-    if not scraped:
-        return []
+        # ── Simpan ke TinyDB ──────────────────────────────────────────────
+        with _db_lock:
+            db    = TinyDB(DB_PATH)
+            table = db.table('alfagift_ingredients')
+            table.remove(Query().keyword == keyword)
+            table.insert(best)
+        print(f"[{keyword}] Tersimpan ke TinyDB ✓")
+        return best
 
-    # Pilih produk terbaik: relevan + termurah
-    if use_relevance_filter and len(scraped) > 1:
-        best = _pick_best(scraped, keyword)
-    else:
-        # Fallback: termurah saja
-        best = min(
-            [r for r in scraped if r["price"] > 0],
-            key=lambda x: x["price"],
-            default=scraped[0],
-        )
+    except Exception as e:
+        print(f"[{keyword}] ERROR: {e}")
+        return None
 
-    if not best:
-        best = scraped[0]
-
-    # Simpan ke TinyDB
-    with _db_lock:
-        db    = TinyDB(db_path, storage=PrettyJSONStorage)
-        table = db.table('alfagift_ingredients')
-        table.remove(Query().keyword == keyword)
-        table.insert(best)
-    print(f"[{keyword}] Tersimpan: {best['name']} - Rp {best['price']:,}")
-
-    return [best]
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# scrape_keywords_parallel
+# ENTRY POINT
 # ══════════════════════════════════════════════════════════════════════════════
 
-def scrape_keywords_parallel(keywords: list[str], max_workers: int = 3) -> list:
+def scrape_keywords(keywords: list[str], max_workers: int = MAX_WORKERS) -> list[dict]:
     """
     Scrape beberapa keyword secara paralel.
-    Driver diinit sequential (_driver_init_lock + user_data_dir unik)
-    untuk menghindari WinError 32 di Windows.
-    """
-    fresh     = [kw for kw in keywords if _is_data_fresh(DB_PATH, kw) is True]
-    to_scrape = [kw for kw in keywords if kw not in fresh]
+    Tiap keyword mendapat driver Chrome sendiri.
 
-    if fresh:
-        print(f"[Alfagift Parallel] Skip {len(fresh)} keyword fresh: {fresh}")
+    Args:
+        keywords    : list keyword, contoh ['bawang putih', 'gula pasir']
+        max_workers : jumlah Chrome paralel (default 3, sesuaikan RAM)
+
+    Returns:
+        list dict hasil (fresh maupun baru di-scrape)
+    """
+    to_scrape: list[str]  = []
+    all_results: list[dict] = []
+
+    for kw in keywords:
+        # ── Keyword guard ──
+        if not _is_valid_keyword(kw):
+            print(f"[{kw}] SKIP — keyword tidak valid.")
+            continue
+
+        status = _is_data_fresh(kw)
+        if status is True:
+            print(f"[{kw}] Data masih fresh, skip scraping.")
+            row = get_by_keyword(kw)
+            if row:
+                all_results.append(row)
+        elif status is False:
+            print(f"[{kw}] Data sudah > {FRESHNESS_DAYS} hari, scraping ulang...")
+            _delete_stale(kw)
+            to_scrape.append(kw)
+        else:
+            # status is None → data tidak ada
+            print(f"[{kw}] Data tidak ada, mulai scraping...")
+            to_scrape.append(kw)
+
     if not to_scrape:
-        print(f"[Alfagift Parallel] Semua keyword fresh.")
-        return [get_by_keyword(kw) for kw in keywords if get_by_keyword(kw)]
+        print("Semua keyword fresh, tidak ada yang perlu di-scrape.")
+        return all_results
 
     workers = min(max_workers, len(to_scrape))
-    print(f"[Alfagift Parallel] {len(to_scrape)} keyword → {workers} worker")
-
-    all_results = []
-
-    def _scrape_one(keyword: str) -> list:
-        driver = None
-        try:
-            with _driver_init_lock:
-                driver = init_driver()
-                time.sleep(0.5)  # beri jeda setelah init sebelum release lock
-            result = scrape_by_keyword(driver, keyword)
-            return result if isinstance(result, list) else ([result] if result else [])
-        except Exception as e:
-            print(f"[Alfagift Parallel] ERROR '{keyword}': {e}")
-            return []
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                except Exception:
-                    pass
-                time.sleep(1.5)  # beri jeda setelah quit agar file dilepas OS
+    print(f"\n[Alfagift Parallel] Scraping {len(to_scrape)} keyword "
+          f"dengan {workers} worker paralel...\n")
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {executor.submit(_scrape_one, kw): kw for kw in to_scrape}
@@ -443,12 +442,15 @@ def scrape_keywords_parallel(keywords: list[str], max_workers: int = 3) -> list:
             kw = futures[future]
             try:
                 result = future.result()
-                all_results.extend(result)
-                print(f"[Alfagift Parallel] '{kw}' selesai ✓")
+                if result:
+                    all_results.append(result)
+                    print(f"[Alfagift Parallel] '{kw}' selesai ✓")
+                else:
+                    print(f"[Alfagift Parallel] '{kw}' tidak menghasilkan data.")
             except Exception as e:
                 print(f"[Alfagift Parallel] Future error '{kw}': {e}")
 
-    print(f"[Alfagift Parallel] Selesai. Total: {len(all_results)} hasil.")
+    print(f"\n[Alfagift Parallel] Selesai. Total: {len(all_results)} hasil.")
     return all_results
 
 
@@ -456,12 +458,19 @@ def scrape_keywords_parallel(keywords: list[str], max_workers: int = 3) -> list:
 # QUERY HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
-def get_by_keyword(keyword, db_path=DB_PATH):
+def get_by_keyword(keyword: str) -> dict | None:
     with _db_lock:
-        db = TinyDB(db_path, storage=PrettyJSONStorage)
-        return db.table("alfagift_ingredients").get(Query().keyword == keyword)
+        db = TinyDB(DB_PATH)
+        return db.table('alfagift_ingredients').get(Query().keyword == keyword)
 
-def get_all(db_path=DB_PATH):
+def get_all() -> list[dict]:
     with _db_lock:
-        db = TinyDB(db_path, storage=PrettyJSONStorage)
-        return db.table("alfagift_ingredients").all()
+        db = TinyDB(DB_PATH)
+        return db.table('alfagift_ingredients').all()
+
+
+# ── untuk testing ──
+# if __name__ == '__main__':
+#     hasil = scrape_keywords(['bawang putih', 'gula pasir', 'tempe', 'garam'])
+#     for h in hasil:
+#         print(h)
