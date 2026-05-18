@@ -1,4 +1,6 @@
 import flet as ft
+import os
+import sys
 from rafy.theme import ORANGE_GLOW, theme_mgr, ORANGE, WHITE
 
 
@@ -6,6 +8,31 @@ def BG2():    return theme_mgr.get("BG2")
 def TEXT():   return theme_mgr.get("TEXT")
 def TEXT2():  return theme_mgr.get("TEXT2")
 def BORDER(): return theme_mgr.get("BORDER")
+
+#navigation windows
+def _win_btn(icon, hover_color, on_click_fn):
+    ico = ft.Icon(icon, size=18, color="#555555")
+    
+    def on_hover(e):
+        ico.color = hover_color if e.data == "true" else "#555555"
+        ico.update()
+
+    return ft.GestureDetector(
+        mouse_cursor=ft.MouseCursor.CLICK,
+        on_tap=on_click_fn,
+        on_enter=lambda e: (setattr(ico, 'color', hover_color), ico.update()),
+        on_exit=lambda e: (setattr(ico, 'color', '#555555'), ico.update()),
+        content=ft.Container(
+            content=ico,
+            width=32,
+            height=32,
+            alignment=ft.Alignment.CENTER,
+            border_radius=6,
+            ink=True,
+            ink_color="#ff660017",
+        ),
+    )
+
 
 
 PAGE_TITLES = {
@@ -26,12 +53,21 @@ def _topbar_gradient():
     )
 
 
-def build_topbar(navigate_fn) -> ft.Container:
+def build_topbar(navigate_fn, page) -> ft.Container:
+    win_buttons = ft.Row(
+        controls=[
+            _win_btn(ft.Icons.REMOVE,      "#aaaaaa", lambda _: setattr(page.window, 'minimized', True)),
+            _win_btn(ft.Icons.CROP_SQUARE, "#aaaaaa", lambda _: setattr(page.window, 'maximized', not page.window.maximized)),
+            _win_btn(ft.Icons.CLOSE,       "#ff3700", lambda _: os._exit(0)),
+        ],
+        spacing=3,
+    )
+    
     prev_page = {"name": "finder"}
 
     title_text = ft.Text(
         "Finder",
-        size=20,
+        size=18,
         color=TEXT(),
         weight=ft.FontWeight.W_600,
         font_family="Font",
@@ -42,7 +78,7 @@ def build_topbar(navigate_fn) -> ft.Container:
 
     sub_text = ft.Text(
         "Cari resep dari bahan yang kamu punya",
-        size=10,
+        size=8,
         color=TEXT2(),
         font_family="Font",
         animate_opacity=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
@@ -67,19 +103,27 @@ def build_topbar(navigate_fn) -> ft.Container:
 
     container = ft.Container(
         width=float("inf"),
-        content=ft.Row(
-            controls=[
-                back_btn_container,
-                title_text,
-                dot_sep,
-                ft.Container(content=sub_text,margin=ft.Margin.only(top=4)),
+        content= ft.Row(
+            controls=[ ft.Row(
+                controls=[
+                    back_btn_container,
+                    title_text,
+                    dot_sep,
+                    ft.Container(content=sub_text,margin=ft.Margin.only(top=4)),
+                ],
+                alignment=ft.MainAxisAlignment.START,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+                margin=ft.Margin.only(left=5),
+                expand=True,
+            ),
+            win_buttons,
             ],
-            alignment=ft.MainAxisAlignment.START,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=8,
+        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
         gradient=_topbar_gradient(),
-        padding=ft.Padding.only(left=20, right=28, top=15, bottom=15),
+        padding=ft.Padding.only(left=20, right=8, top=10, bottom=10),
         border=ft.Border.only(bottom=ft.BorderSide(0.5, BORDER())),
         animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
     )
@@ -123,13 +167,19 @@ def build_topbar(navigate_fn) -> ft.Container:
             sub_text.visible           = True
             dot_sep.visible            = True
             back_btn_container.visible = False
+            title_text.expand          = False
+            title_text.text_align      = ft.TextAlign.LEFT 
         elif name == "":
             title_text.value           = ""
             sub_text.visible           = False
             dot_sep.visible            = False
             back_btn_container.visible = True
+            title_text.expand          = False
+            title_text.text_align      = ft.TextAlign.LEFT 
         else:
             title_text.value           = name
+            title_text.expand          = True
+            title_text.text_align      = ft.TextAlign.CENTER
             sub_text.visible           = False
             dot_sep.visible            = False
             back_btn_container.visible = True
