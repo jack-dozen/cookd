@@ -1,5 +1,4 @@
 import os
-
 import flet as ft
 from fadhil.my_recipes import MyRecipesPage
 from rafy.theme import theme_mgr, ORANGE, WHITE
@@ -36,6 +35,9 @@ def main(page: ft.Page):
     page.window.height     = 720
     page.window.min_width  = 600
     page.window.min_height = 400
+    page.window.frameless = False
+    page.window.title_bar_hidden = True
+    page.window.title_bar_buttons_hidden = True
     page.window.resizable  = True
     page.theme_mode        = ft.ThemeMode.DARK
     page.scroll            = None
@@ -112,7 +114,7 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════
     #  TOPBAR
     # ══════════════════════════════════════════════════════════════════
-    topbar = build_topbar(navigate)
+    topbar = build_topbar(navigate, page)
 
     # ══════════════════════════════════════════════════════════════════
     #  PAGES
@@ -176,6 +178,7 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════
     sidebar = build_sidebar(page, navigate, on_import_done=lambda: pages["my-recipes"].refresh())
 
+
     # ══════════════════════════════════════════════════════════════════
     #  THEME REBUILD LISTENER
     # ══════════════════════════════════════════════════════════════════
@@ -193,24 +196,31 @@ def main(page: ft.Page):
     # ══════════════════════════════════════════════════════════════════
     #  ROOT
     # ══════════════════════════════════════════════════════════════════
+    draggable_topbar = ft.WindowDragArea(topbar, expand=False)
     page.padding = ft.Padding.all(0)
-    root = ft.Row(
+    root = ft.Column(          
         expand=True,
         spacing=0,
-        vertical_alignment=ft.CrossAxisAlignment.STRETCH,
-        controls=[
-            sidebar,
-            ft.Column(
+        controls=[ 
+            draggable_topbar,       
+            ft.Row(            
+                expand=True,
+                spacing=0,
+                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
                 controls=[
-                    topbar,
-                    ft.Container(
+                    sidebar,
+                    ft.Column(
+                        controls=[
+                            ft.Container(
+                                expand=True,
+                                content=ft.Stack(list(pages.values())),
+                            ),
+                        ],
+                        spacing=0,
                         expand=True,
-                        content=ft.Stack(list(pages.values())),
+                        alignment=ft.MainAxisAlignment.START,
                     ),
                 ],
-                spacing=0,
-                expand=True,
-                alignment=ft.MainAxisAlignment.START,
             ),
         ],
     )
