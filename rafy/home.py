@@ -8,16 +8,9 @@ Konten:
   • Search bar shortcut → navigate ke Finder
   • Hero card  : "Resep Hari Ini" (ambil dari DB, logika sama dgn for_you_ui)
   • Stat cards : Resep Tersimpan  |  Terakhir Dibuka
-  • Quick action row: Finder, My Recipes, For You
+  • Rekomendasi berdasarkan waktu (ganti Menu Cepat)
 
-Cara pakai (di Gui.py):
-    from rafy.home import build_home_page
 
-    home_page = build_home_page(
-        page        = page,
-        navigate_fn = navigate,          # fn(page_name: str)
-        on_detail   = show_detail_fn,    # fn(recipe: dict)
-    )
 ════════════════════════════════════════════════════════════════
 """
 
@@ -78,7 +71,7 @@ def _load_my_recipes() -> list[dict]:
 
 
 def _get_resep_hari_ini(recipes: list[dict]) -> dict | None:
-    """Resep terbaru (scraped_at) dengan match_score tertinggi — sama dgn for_you_ui."""
+    """Resep terbaru (scraped_at) dengan match_score tertinggi."""
     if not recipes:
         return None
     from datetime import date
@@ -106,18 +99,53 @@ def _get_last_opened() -> str:
         return "—"
 
 
+def _parse_minutes(cook_time_str: str) -> int:
+    """Parse '1 jam 30 menit' → 90, '45 menit' → 45, dll."""
+    import re
+    total = 0
+    jam   = re.search(r'(\d+)\s*jam',   cook_time_str or "", re.IGNORECASE)
+    menit = re.search(r'(\d+)\s*menit', cook_time_str or "", re.IGNORECASE)
+    if jam:   total += int(jam.group(1)) * 60
+    if menit: total += int(menit.group(1))
+    return total if total > 0 else 60
+
+
+def _get_rekomendasi(recipes: list[dict], hour: int, n: int = 3) -> list[dict]:
+    """Ambil n resep terbaik berdasarkan jam + match_score + cook_time."""
+    if not recipes:
+        return []
+
+    def _score(r):
+        menit = _parse_minutes(r.get("cook_time", ""))
+        match = r.get("match_score", 0)
+        if hour < 11:        # Pagi → sarapan ringan, prioritas cepat
+            t = 1.0 if menit <= 30 else (0.5 if menit <= 60 else 0.2)
+        elif hour < 15:      # Siang → makanan berat, prioritas match_score
+            t = 1.0
+        elif hour < 19:      # Sore → cemilan, sangat cepat
+            t = 1.0 if menit <= 20 else (0.5 if menit <= 40 else 0.15)
+        else:                # Malam → masakan cepat
+            t = 1.0 if menit <= 30 else (0.4 if menit <= 60 else 0.1)
+        return match * t
+
+    return sorted(recipes, key=_score, reverse=True)[:n]
+
+
+def _rek_label_for_hour(hour: int) -> str:
+    if hour < 11:   return "Sarapan Ringan ☀️"
+    elif hour < 15: return "Makan Siang 🍛"
+    elif hour < 19: return "Cemilan Sore 🌤"
+    else:           return "Masakan Cepat Malam 🌙"
+
+
 # ── Greeting ───────────────────────────────────────────────────────────────────
 
 def _greeting() -> str:
     hour = datetime.now().hour
-    if hour < 11:
-        return "Selamat pagi ☀️"
-    elif hour < 15:
-        return "Selamat siang 🌤"
-    elif hour < 19:
-        return "Selamat sore 🌇"
-    else:
-        return "Selamat malam 🌙"
+    if hour < 11:   return "Selamat pagi ☀️"
+    elif hour < 15: return "Selamat siang 🌤"
+    elif hour < 19: return "Selamat sore 🌇"
+    else:           return "Selamat malam 🌙"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -151,12 +179,9 @@ def _build_hero(recipe: dict, on_detail) -> ft.Container:
     img_url = recipe.get("image_url", "")
     portion = recipe.get("portion", "—")
     ctime   = recipe.get("cook_time", "—")
-    score   = recipe.get("match_score", 0)
-    score_s = f"⭐ {score * 5:.1f}"
 
     hero = ft.Container(
         content=ft.Stack([
-            # Gambar
             ft.Image(
                 src=img_url or "",
                 width=float("inf"),
@@ -170,7 +195,6 @@ def _build_hero(recipe: dict, on_detail) -> ft.Container:
                     height=220,
                 ),
             ),
-            # Gradient gelap bawah
             ft.Container(
                 width=float("inf"),
                 height=220,
@@ -180,7 +204,6 @@ def _build_hero(recipe: dict, on_detail) -> ft.Container:
                     colors=["#E0000000", "#60000000", "#00000000"],
                 ),
             ),
-            # Konten bawah
             ft.Container(
                 width=float("inf"),
                 height=220,
@@ -209,7 +232,6 @@ def _build_hero(recipe: dict, on_detail) -> ft.Container:
                     tight=True,
                 ),
             ),
-            # Tombol "Lihat Resep →" kanan bawah
             ft.Container(
                 width=float("inf"),
                 height=220,
@@ -273,6 +295,60 @@ def _build_hero_empty() -> ft.Container:
     )
 
 
+# ── Rekomendasi card ───────────────────────────────────────────────────────────
+
+def _build_rekomendasi_card(recipe: dict, on_detail) -> ft.Container:
+    img_url = recipe.get("image_url", "")
+    name    = recipe.get("name", "Resep")
+    ctime   = recipe.get("cook_time", "—")
+
+    return ft.Container(
+        expand=True,
+        content=ft.Column(
+            controls=[
+                ft.Container(
+                    height=150,
+                    border_radius=ft.BorderRadius.all(10),
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                    content=ft.Image(
+                        src=img_url,
+                        fit=ft.BoxFit.COVER,
+                        width=float("inf"),
+                        height=150,
+                        error_content=ft.Container(
+                            bgcolor=BG4(),
+                            content=ft.Icon(ft.Icons.RESTAURANT, color=TEXT3(), size=32),
+                            alignment=ft.Alignment(0, 0),
+                        ),
+                    ),
+                ),
+                ft.Container(height=8),
+                ft.Text(
+                    name, size=13, weight=ft.FontWeight.W_600,
+                    color=TEXT(), font_family="Font",
+                    max_lines=2, overflow=ft.TextOverflow.ELLIPSIS,
+                ),
+                ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.TIMER_OUTLINED, size=11, color=TEXT3()),
+                        ft.Text(ctime, size=12, color=TEXT3(), font_family="Font"),
+                    ],
+                    spacing=3,
+                ),
+            ],
+            spacing=0,
+            tight=True,
+        ),
+        bgcolor=BG3(),
+        border=ft.Border.all(1, BORDER()),
+        border_radius=ft.BorderRadius.all(14),
+        padding=ft.Padding.all(12),
+        on_click=lambda e: on_detail(recipe),
+        ink=True,
+        animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+    )
+
+
 # ── Stat cards ─────────────────────────────────────────────────────────────────
 
 def _build_stat_card(val: str, label: str, icon: str) -> ft.Container:
@@ -310,56 +386,6 @@ def _build_stat_card(val: str, label: str, icon: str) -> ft.Container:
     )
 
 
-# ── Quick action button ────────────────────────────────────────────────────────
-
-def _build_quick_btn(
-    icon,
-    label: str,
-    color: str,
-    bg_color: str,
-    on_click,
-) -> ft.Container:
-    icon_obj  = ft.Icon(icon, color=color, size=20)
-    text_obj  = ft.Text(label, color=TEXT2(), size=12, font_family="Font")
-    container = ft.Container(
-        content=ft.Column(
-            controls=[
-                ft.Container(
-                    content=icon_obj,
-                    bgcolor=bg_color,
-                    border_radius=ft.BorderRadius.all(12),
-                    padding=ft.Padding.all(12),
-                    alignment=ft.Alignment(0, 0),
-                ),
-                ft.Container(height=6),
-                text_obj,
-            ],
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=0,
-            tight=True,
-        ),
-        bgcolor=BG3(),
-        border=ft.Border.all(1, BORDER()),
-        border_radius=ft.BorderRadius.all(12),
-        padding=ft.Padding.symmetric(horizontal=10, vertical=14),
-        expand=True,
-        on_click=on_click,
-        ink=True,
-        animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
-    )
-
-    def on_hover(e):
-        container.border = ft.Border.all(1, color if e.data else BORDER())
-        icon_obj.color   = color
-        text_obj.color   = TEXT() if e.data else TEXT2()
-        container.update()
-        icon_obj.update()
-        text_obj.update()
-
-    container.on_hover = on_hover
-    return container
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN — build_home_page
 # ══════════════════════════════════════════════════════════════════════════════
@@ -369,26 +395,8 @@ def build_home_page(
     navigate_fn : callable,
     on_detail   : callable,
 ) -> ft.Container:
-    """
-    Bangun halaman Home.
 
-    Args:
-        page        : ft.Page aktif
-        navigate_fn : fn(page_name: str) — untuk navigasi ke halaman lain
-        on_detail   : fn(recipe: dict)   — buka halaman detail resep
-
-    Returns:
-        ft.Container — siap dipakai sebagai salah satu halaman di content stack
-    """
-
-    # ── Mutable state ─────────────────────────────────────────────────────────
-    _refs: dict = {
-        "hero_wrap"    : None,   # ft.Container wrapper hero
-        "stat_saved"   : None,   # ft.Text nilai saved count
-        "stat_last"    : None,   # ft.Text nilai last opened
-        "greeting_text": None,   # ft.Text greeting
-        "search_field" : None,   # ft.TextField
-    }
+    _refs: dict = {}
 
     # ── Greeting ──────────────────────────────────────────────────────────────
     greeting_text = ft.Text(
@@ -405,7 +413,6 @@ def build_home_page(
         color=TEXT2(),
         font_family="Font",
     )
-    _refs["greeting_text"] = greeting_text
 
     # ── Search field ──────────────────────────────────────────────────────────
     search_field = ft.TextField(
@@ -419,7 +426,6 @@ def build_home_page(
         content_padding=ft.Padding.symmetric(horizontal=24, vertical=14),
         expand=True,
     )
-    _refs["search_field"] = search_field
 
     search_btn_container = ft.Container(
         scale=ft.Scale(scale=1.0),
@@ -433,11 +439,8 @@ def build_home_page(
             await asyncio.sleep(0.08)
             search_btn_container.scale = ft.Scale(scale=1.0)
             search_btn_container.update()
-
             query = search_field.value.strip()
-            # Kirim query langsung via navigate_fn — tanpa page.session
             navigate_fn("finder", query=query)
-
         page.run_task(_anim)
 
     search_field.on_submit = _do_search
@@ -479,16 +482,13 @@ def build_home_page(
         opacity=0.0,
         offset=ft.Offset(0, 0.08),
     )
-    _refs["hero_wrap"] = hero_wrap
 
     # ── Stat cards ────────────────────────────────────────────────────────────
-    my_recipes   = _load_my_recipes()
-    saved_count  = str(len(my_recipes))
-    last_opened  = _get_last_opened()
+    my_recipes  = _load_my_recipes()
+    last_opened = _get_last_opened()
 
-    # Refs utk theme rebuild
     saved_val_text = ft.Text(
-        saved_count,
+        str(len(my_recipes)),
         size=20, weight=ft.FontWeight.W_800,
         color=ORANGE, font_family="Font",
         max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
@@ -500,21 +500,20 @@ def build_home_page(
         color=ORANGE, font_family="Font",
         max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
     )
-    _refs["stat_saved"] = saved_val_text
-    _refs["stat_last"]  = last_val_text
 
-    def _make_stat_card(val_text: ft.Text, label: str, icon: str) -> ft.Container:
-        return ft.Container(
+    def _make_stat_card(val_text: ft.Text, label: str, icon: str):
+        label_text = ft.Text(
+            label, size=11, color=TEXT2(),
+            font_family="Font",
+            max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
+        )
+        card = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Text(icon, size=22),
                     ft.Container(height=2),
                     val_text,
-                    ft.Text(
-                        label, size=11, color=TEXT2(),
-                        font_family="Font",
-                        max_lines=1, overflow=ft.TextOverflow.ELLIPSIS,
-                    ),
+                    label_text,
                 ],
                 spacing=2,
                 tight=True,
@@ -525,56 +524,54 @@ def build_home_page(
             padding=ft.Padding.symmetric(horizontal=16, vertical=14),
             expand=True,
         )
+        return card, label_text
 
-    stat_row = ft.Row(
-        controls=[
-            _make_stat_card(saved_val_text, "Resep Tersimpan", "📚"),
-            _make_stat_card(last_val_text,  "Terakhir Dibuka", "🕐"),
-        ],
-        spacing=12,
+    saved_card, saved_label_text = _make_stat_card(saved_val_text, "Resep Tersimpan", "📚")
+    last_card,  last_label_text  = _make_stat_card(last_val_text,  "Terakhir Dibuka", "🕐")
+
+    stat_row = ft.Row(controls=[saved_card, last_card], spacing=12)
+
+    # ── Rekomendasi berdasarkan waktu ─────────────────────────────────────────
+    # FIX: blok ini harus di dalam build_home_page, bukan di module level
+    _hour     = datetime.now().hour
+    _rek_data = _get_rekomendasi(recipes, _hour)
+
+    title_rekomendasi = ft.Text(
+        _rek_label_for_hour(_hour),
+        size=15, weight=ft.FontWeight.BOLD,
+        color=TEXT(), font_family="Font",
     )
 
-    # ── Quick actions ─────────────────────────────────────────────────────────
-    quick_actions = ft.Row(
-        controls=[
-            _build_quick_btn(
-                ft.Icons.SEARCH_OUTLINED,
-                "Finder",
-                ORANGE,
-                ft.Colors.with_opacity(0.15, ORANGE),
-                on_click=lambda e: navigate_fn("finder"),
-            ),
-            _build_quick_btn(
-                ft.Icons.BOOK_OUTLINED,
-                "My Recipes",
-                "#2E9E5B",
-                ft.Colors.with_opacity(0.15, "#2E9E5B"),
-                on_click=lambda e: navigate_fn("my-recipes"),
-            ),
-            _build_quick_btn(
-                ft.Icons.STAR_OUTLINE,
-                "For You",
-                "#1A6FBF",
-                ft.Colors.with_opacity(0.15, "#1A6FBF"),
-                on_click=lambda e: navigate_fn("for-you"),
-            ),
-        ],
-        spacing=10,
+    rekomendasi_row = ft.Row(
+        controls=(
+            [_build_rekomendasi_card(r, on_detail) for r in _rek_data]
+            if _rek_data else
+            [ft.Text("Belum ada data resep.", color=TEXT3(), size=12, font_family="Font")]
+        ),
+        spacing=12,
+        expand=True,
+    )
+
+    # ── Named refs untuk theme rebuild ───────────────────────────────────────
+    hint_text      = ft.Text(
+        "💡 Pisahkan bahan dengan koma, tekan Enter atau Cari",
+        size=11.5, color=TEXT3(), font_family="Font", italic=True,
+    )
+    title_hari_ini = ft.Text(
+        "Resep Hari Ini 🔥", size=15, weight=ft.FontWeight.BOLD,
+        color=TEXT(), font_family="Font",
     )
 
     # ── Assemble scroll content ───────────────────────────────────────────────
     scroll_col = ft.Column(
         controls=[
-            # Greeting
             ft.Container(
                 content=ft.Column(
                     controls=[greeting_text, sub_text],
-                    spacing=4,
-                    tight=True,
+                    spacing=4, tight=True,
                 ),
                 padding=ft.Padding.only(bottom=18),
             ),
-            # Search bar
             ft.Container(
                 content=ft.Row(
                     controls=[search_field, search_btn_container],
@@ -582,29 +579,20 @@ def build_home_page(
                 ),
                 padding=ft.Padding.only(bottom=4),
             ),
-            ft.Text(
-                "💡 Pisahkan bahan dengan koma, tekan Enter atau Cari",
-                size=11.5,
-                color=TEXT3(),
-                font_family="Font",
-                italic=True,
-            ),
+            hint_text,
             ft.Container(height=20),
 
-            # Resep Hari Ini
-            _section_title("Resep Hari Ini 🔥"),
+            title_hari_ini,
             ft.Container(height=8),
             hero_wrap,
             ft.Container(height=20),
 
-            # Stat cards
             stat_row,
             ft.Container(height=20),
 
-            # Quick actions
-            _section_title("Menu Cepat"),
+            title_rekomendasi,
             ft.Container(height=8),
-            quick_actions,
+            rekomendasi_row,
             ft.Container(height=24),
         ],
         spacing=0,
@@ -624,7 +612,7 @@ def build_home_page(
         ),
     )
 
-    # ── Entrance animation (saat halaman pertama kali visible) ────────────────
+    # ── Entrance animation ────────────────────────────────────────────────────
     async def _entrance():
         await asyncio.sleep(0.05)
         hero_wrap.opacity = 1.0
@@ -634,39 +622,48 @@ def build_home_page(
 
     page.run_task(_entrance)
 
-    # ── Refresh data (dipanggil dari luar saat kembali ke home) ───────────────
+    # ── Refresh data ──────────────────────────────────────────────────────────
     def refresh():
-        """
-        Panggil ini dari navigate_fn ketika user kembali ke Home
-        agar stat cards & hero diperbarui.
-        """
         new_recipes  = _load_all_recipes()
         new_hari_ini = _get_resep_hari_ini(new_recipes)
         new_my       = _load_my_recipes()
         new_last     = _get_last_opened()
 
-        # Update greeting (jam bisa berubah)
         greeting_text.value = _greeting()
 
-        # Update hero
-        new_hero = (
+        hero_wrap.content = (
             _build_hero(new_hari_ini, on_detail)
             if new_hari_ini
             else _build_hero_empty()
         )
-        hero_wrap.content = new_hero
 
-        # Update stat cards
         saved_val_text.value = str(len(new_my))
-        lv = new_last
-        last_val_text.value  = lv
-        last_val_text.size   = 14 if len(lv) > 10 else 20
+        last_val_text.value  = new_last
+        last_val_text.size   = 14 if len(new_last) > 10 else 20
+
+        # Update rekomendasi
+        new_hour  = datetime.now().hour
+        new_rek   = _get_rekomendasi(new_recipes, new_hour)
+        title_rekomendasi.value  = _rek_label_for_hour(new_hour)
+        rekomendasi_row.controls = (
+            [_build_rekomendasi_card(r, on_detail) for r in new_rek]
+            if new_rek else
+            [ft.Text("Belum ada data resep.", color=TEXT3(), size=12)]
+        )
+
+        # Reset scroll ke atas
+        try:
+            scroll_col.scroll_to(offset=0, duration=0)
+        except Exception:
+            pass
 
         try:
             greeting_text.update()
             hero_wrap.update()
             saved_val_text.update()
             last_val_text.update()
+            title_rekomendasi.update()
+            rekomendasi_row.update()
         except Exception:
             pass
 
@@ -674,14 +671,31 @@ def build_home_page(
 
     # ── Theme rebuild ─────────────────────────────────────────────────────────
     def _rebuild_theme():
-        container.bgcolor       = BG()
-        greeting_text.color     = TEXT()
-        sub_text.color          = TEXT2()
-        search_field.bgcolor    = BG3()
-        search_field.color      = TEXT()
+        container.bgcolor         = BG()
+        greeting_text.color       = TEXT()
+        sub_text.color            = TEXT2()
+        search_field.bgcolor      = BG3()
+        search_field.color        = TEXT()
         search_field.border_color = BORDER()
-        saved_val_text.color    = ORANGE
-        last_val_text.color     = ORANGE
+        saved_val_text.color      = ORANGE
+        last_val_text.color       = ORANGE
+        saved_card.bgcolor        = BG3()
+        saved_card.border         = ft.Border.all(1, BORDER())
+        last_card.bgcolor         = BG3()
+        last_card.border          = ft.Border.all(1, BORDER())
+        saved_label_text.color    = TEXT2()
+        last_label_text.color     = TEXT2()
+        hint_text.color           = TEXT3()
+        title_hari_ini.color      = TEXT()
+        title_rekomendasi.color   = TEXT()
+        for card in rekomendasi_row.controls:
+            if hasattr(card, "bgcolor"):
+                card.bgcolor = BG3()
+                card.border  = ft.Border.all(1, BORDER())
+                try:
+                    card.update()
+                except Exception:
+                    pass
         try:
             container.update()
             greeting_text.update()
@@ -689,6 +703,13 @@ def build_home_page(
             search_field.update()
             saved_val_text.update()
             last_val_text.update()
+            saved_card.update()
+            last_card.update()
+            saved_label_text.update()
+            last_label_text.update()
+            hint_text.update()
+            title_hari_ini.update()
+            title_rekomendasi.update()
         except Exception:
             pass
 
