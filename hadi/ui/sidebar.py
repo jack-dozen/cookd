@@ -248,6 +248,13 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
     )
 
     sidebar_ref.append(sidebar)
+    
     sidebar.toggle_sidebar = toggle_sidebar
+    def set_active(name: str):
+        if name in PAGE_NAMES:
+            state["active_index"] = PAGE_NAMES.index(name) + 1
+            _update_highlights()
+
+    sidebar.set_active = set_active
 
     return sidebar
