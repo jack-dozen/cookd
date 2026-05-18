@@ -55,9 +55,9 @@ def main(page: ft.Page):
         for key, container in pages.items():
             container.visible = (key == name)
         if name != "detail":
-            topbar.set_recipe(None)
             topbar.set_page(name)
             topbar.update()
+            sidebar.set_active(name)
         if name == "detail" and recipe:
             pages["detail"].show(recipe)
         if name == "home" and "home" in pages:
