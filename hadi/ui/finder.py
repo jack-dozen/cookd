@@ -540,55 +540,48 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
                         spacing=7, expand=True,
                     ),
                     ft.Column(
-                    controls=[
-                        # Match badge
-                        ft.Container(
-                            content=ft.Text(
-                                score_pct,
-                                color=fg_score,
-                                size=11,
-                                weight=ft.FontWeight.BOLD,
-                                text_align=ft.TextAlign.CENTER,
+                        controls=[
+                            # Match badge
+                            ft.Container(
+                                content=ft.Text(
+                                    score_pct,
+                                    color=fg_score,
+                                    size=11,
+                                    weight=ft.FontWeight.BOLD,
+                                    text_align=ft.TextAlign.CENTER,
+                                ),
+                                bgcolor=bg_score,
+                                border_radius=ft.BorderRadius.all(20),
+                                border=ft.Border.all(1, fg_score),
+                                padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+                                width=100,
+                                alignment=ft.Alignment(0, 0),
                             ),
-                            bgcolor=bg_score,
-                            border_radius=ft.BorderRadius.all(20),
-                            border=ft.Border.all(1, fg_score),
-                            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-                            width=100,
-                            alignment=ft.Alignment(0, 0),
-                        ),
-                        # Love + Lihat
-                        ft.Row(
-                            controls=[
-                                ft.Container(
-                                    content=build_save_btn(page, r),
-                                    width=36,
-                                    height=34,
-                                    alignment=ft.Alignment(0, 0),
-                                    border=ft.Border.all(1, BORDER()),
-                                    border_radius=ft.BorderRadius.all(8),
-                                ),
-                                ft.Container(
-                                    content=ft.Text("Lihat", color=WHITE, size=13, weight=ft.FontWeight.BOLD),
-                                    width=60,
-                                    height=34,
-                                    bgcolor=ORANGE,
-                                    border_radius=ft.BorderRadius.all(8),
-                                    alignment=ft.Alignment(0, 0),
-                                    ink=True,
-                                    ink_color="#d94410",
-                                    on_click=lambda e, rec=r: show_detail_fn(rec),
-                                ),
-                            ],
-                            spacing=4,
-                            tight=True,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                    ],
-                    spacing=6,
-                    horizontal_alignment=ft.CrossAxisAlignment.END,
-                    tight=True,
-                ),
+                            # Love + Lihat
+                            ft.Row(
+                                controls=[
+                                    build_save_btn(page, r),  # ← langsung, tanpa wrapper
+                                    ft.Container(
+                                        content=ft.Text("Lihat", color=WHITE, size=13, weight=ft.FontWeight.BOLD),
+                                        width=60,
+                                        height=34,
+                                        bgcolor=ORANGE,
+                                        border_radius=ft.BorderRadius.all(8),
+                                        alignment=ft.Alignment(0, 0),
+                                        ink=True,
+                                        ink_color="#d94410",
+                                        on_click=lambda e, rec=r: show_detail_fn(rec),
+                                    ),
+                                ],
+                                spacing=4,
+                                tight=True,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                        ],
+                        spacing=6,
+                        horizontal_alignment=ft.CrossAxisAlignment.END,
+                        tight=True,
+                    ),
                 ],
                 spacing=16,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
