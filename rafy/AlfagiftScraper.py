@@ -3,14 +3,12 @@
 """
 Alfagift Scraper - alfagift.id
 Scrape berdasarkan keyword nama bahan (misal: "ayam", "bawang putih")
-Output sesuai struktur tabel ingredients di proposal Cookd
 
-Perubahan dari v7:
-  - AI relevance picker: dari list produk hasil search, Claude API memilih
-    produk yang paling cocok sebagai bahan masakan sebelum detail di-fetch.
-    Ini menggantikan _is_relevant() yang berbasis string matching.
-  - Hemat request: hanya detail produk yang dipilih AI yang di-fetch,
-    bukan semua produk di search result.
+PERUBAHAN v8 (fixed):
+- Pakai shared DB_LOCK dan DRIVER_INIT_LOCK dari db_lock.py
+- Semua TinyDB di-close() setelah selesai
+- DRIVER_INIT_LOCK serialisasi uc.Chrome() init → fix WinError 183 Windows
+- Entry point: scrape_keywords(keywords) — driver dikelola internal
 
 Install dependencies:
     pip install undetected-chromedriver beautifulsoup4 tinydb anthropic
@@ -20,6 +18,7 @@ import time
 import random
 import re
 import os
+import sys
 import threading
 import anthropic
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -29,6 +28,16 @@ from urllib.parse import urljoin, quote
 import undetected_chromedriver as uc
 from bs4 import BeautifulSoup
 from tinydb import TinyDB, Query
+
+# ── Shared locks ───────────────────────────────────────────────────────────────
+try:
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _ROOT not in sys.path:
+        sys.path.insert(0, _ROOT)
+    from db_lock import DB_LOCK as _db_lock, DRIVER_INIT_LOCK as _driver_init_lock
+except ImportError:
+    _db_lock          = threading.RLock()   # fallback saat test standalone
+    _driver_init_lock = threading.Lock()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -45,17 +54,15 @@ DELAY_MAX      = 2.0
 FRESHNESS_DAYS = 7
 MAX_WORKERS    = 3
 
-_db_lock = threading.Lock()
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # KEYWORD GUARD
 # ══════════════════════════════════════════════════════════════════════════════
 
 _INVALID_PATTERNS = [
-    r"^[\d\s\-/.,]+$",                                      # hanya angka / simbol
-    r"^\d+[\-\s]+\d",                                       # range angka: "1-2", "500 - 1000"
-    r"^\d+\s*(gram|gr|kg|ml|liter|pcs|pack|buah)\s*$",     # satuan saja: "500 gram"
+    r"^[\d\s\-/.,]+$",
+    r"^\d+[\-\s]+\d",
+    r"^\d+\s*(gram|gr|kg|ml|liter|pcs|pack|buah)\s*$",
 ]
 
 def _is_valid_keyword(keyword: str) -> bool:
@@ -69,23 +76,12 @@ def _is_valid_keyword(keyword: str) -> bool:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# AI RELEVANCE PICKER — Claude API memilih produk terbaik sebagai bahan masakan
+# AI RELEVANCE PICKER
 # ══════════════════════════════════════════════════════════════════════════════
 
-_ai_client = anthropic.Anthropic()  # baca ANTHROPIC_API_KEY dari env otomatis
+_ai_client = anthropic.Anthropic()
 
 def _ai_pick_best_product(keyword: str, candidates: list[dict]) -> dict | None:
-    """
-    Minta Claude memilih produk yang paling cocok sebagai bahan masakan
-    dari list kandidat hasil search.
-
-    Args:
-        keyword    : bahan masakan yang dicari, misal "susu"
-        candidates : list dict dengan key 'name', 'url', 'price_text'
-
-    Returns:
-        dict kandidat terpilih, atau None jika tidak ada yang cocok
-    """
     if not candidates:
         return None
     if len(candidates) == 1:
@@ -116,7 +112,7 @@ Jawab HANYA dengan satu angka saja. Jangan tambahkan penjelasan apapun."""
             messages=[{"role": "user", "content": prompt}],
         )
         raw    = response.content[0].text.strip()
-        picked = int(re.search(r'\d+', raw).group()) - 1  # konversi ke index 0-based
+        picked = int(re.search(r'\d+', raw).group()) - 1
 
         if 0 <= picked < len(candidates):
             chosen = candidates[picked]
@@ -137,35 +133,47 @@ Jawab HANYA dengan satu angka saja. Jangan tambahkan penjelasan apapun."""
 
 def _is_data_fresh(keyword: str) -> bool | None:
     """
-    True  → data ada dan masih fresh (< FRESHNESS_DAYS hari)
-    False → data ada tapi sudah kadaluarsa
-    None  → data tidak ada
+    True  → fresh (< FRESHNESS_DAYS)
+    False → stale
+    None  → tidak ada
     """
-    with _db_lock:
-        db     = TinyDB(DB_PATH)
-        result = db.table('alfagift_ingredients').get(Query().keyword == keyword)
+    try:
+        with _db_lock:
+            db     = TinyDB(DB_PATH, encoding="utf-8")
+            result = db.table('alfagift_ingredients').get(Query().keyword == keyword)
+            db.close()
+    except Exception:
+        return None
 
     if result is None:
         return None
 
-    timestamp    = datetime.strptime(result['timestamp'], '%Y-%m-%d %H:%M:%S')
-    selisih_hari = (datetime.now() - timestamp).days
-    return selisih_hari <= FRESHNESS_DAYS
+    try:
+        ts = datetime.strptime(result['timestamp'], '%Y-%m-%d %H:%M:%S')
+        return (datetime.now() - ts).days <= FRESHNESS_DAYS
+    except Exception:
+        return None
 
 
-def _delete_stale(keyword: str):
+def _delete_stale(keyword: str) -> None:
     with _db_lock:
-        db = TinyDB(DB_PATH)
+        db = TinyDB(DB_PATH, encoding="utf-8")
         db.table('alfagift_ingredients').remove(Query().keyword == keyword)
+        db.close()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DRIVER — headless, per-thread
+# DRIVER
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _init_driver():
+    """
+    Inisialisasi uc.Chrome().
+    PENTING: Selalu panggil dalam blok `with _driver_init_lock`
+    agar tidak WinError 183 di Windows saat dua thread init bersamaan.
+    """
     options = uc.ChromeOptions()
-    options.add_argument("--headless=new")                   # ← headless aktif
+    options.add_argument("--headless=new")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--lang=id-ID")
     options.add_argument("--no-sandbox")
@@ -296,59 +304,42 @@ def _scrape_product_detail(driver, url: str) -> dict | None:
                 harga_str = teks
                 break
 
-    harga_int = _parse_price(harga_str)
-    unit      = _detect_unit(nama)
-
-    breadcrumb_items = soup.select("ol.breadcrumb li.breadcrumb-item")
-    kategori = " > ".join(li.get_text(strip=True) for li in breadcrumb_items[1:-1])
-
-    gambar_url = ""
-    gambar_el  = soup.select_one(".product-detail-carousel img")
-    if gambar_el:
-        gambar_url = gambar_el.get("data-src") or gambar_el.get("src", "")
-
     return {
         "product_name": nama,
-        "price":        harga_int,
+        "price":        _parse_price(harga_str),
         "price_str":    harga_str,
-        "unit":         unit,
-        "kategori":     kategori,
+        "unit":         _detect_unit(nama),
         "product_url":  url,
-        "image_url":    gambar_url,
     }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CORE — satu keyword, satu driver (dipanggil di thread masing-masing)
+# CORE — satu keyword, satu driver
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _scrape_one(keyword: str) -> dict | None:
-    """
-    Scrape satu keyword. Buat dan tutup driver sendiri.
-    Return dict record yang disimpan, atau None jika gagal.
-    """
     print(f"\n{'='*55}")
     print(f"SCRAPE ALFAGIFT - keyword: '{keyword}'")
     print(f"{'='*55}")
 
     driver = None
     try:
-        driver         = _init_driver()
-        search_results = _search_products(driver, keyword)
+        # Serialize uc.Chrome() init agar tidak WinError 183
+        with _driver_init_lock:
+            driver = _init_driver()
+            time.sleep(0.5)
 
+        search_results = _search_products(driver, keyword)
         if not search_results:
             print(f"  Tidak ada produk ditemukan untuk '{keyword}'")
             return None
 
-        # ── AI picker: pilih produk paling relevan dari search result ────
         print(f"\n  [AI] Memilih dari {len(search_results)} kandidat...")
         chosen = _ai_pick_best_product(keyword, search_results)
-
         if not chosen:
             print(f"  Tidak ada produk dipilih AI untuk '{keyword}'")
             return None
 
-        # ── Fetch detail hanya untuk produk yang dipilih AI ──────────────
         print(f"\n  Fetch detail: {chosen['url']}")
         detail = _scrape_product_detail(driver, chosen["url"])
         time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
@@ -367,12 +358,12 @@ def _scrape_one(keyword: str) -> dict | None:
         }
         print(f"    v {best['name']} - Rp {best['price']:,} ({best['unit']})")
 
-        # ── Simpan ke TinyDB ──────────────────────────────────────────────
         with _db_lock:
-            db    = TinyDB(DB_PATH)
+            db    = TinyDB(DB_PATH, encoding="utf-8")
             table = db.table('alfagift_ingredients')
             table.remove(Query().keyword == keyword)
             table.insert(best)
+            db.close()
         print(f"[{keyword}] Tersimpan ke TinyDB ✓")
         return best
 
@@ -386,6 +377,7 @@ def _scrape_one(keyword: str) -> dict | None:
                 driver.quit()
             except Exception:
                 pass
+            time.sleep(1.0)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -394,21 +386,19 @@ def _scrape_one(keyword: str) -> dict | None:
 
 def scrape_keywords(keywords: list[str], max_workers: int = MAX_WORKERS) -> list[dict]:
     """
-    Scrape beberapa keyword secara paralel.
-    Tiap keyword mendapat driver Chrome sendiri.
+    Entry point utama. Driver dikelola internal per keyword.
 
     Args:
-        keywords    : list keyword, contoh ['bawang putih', 'gula pasir']
-        max_workers : jumlah Chrome paralel (default 3, sesuaikan RAM)
+        keywords    : list keyword bahan masakan
+        max_workers : jumlah Chrome paralel (default 3)
 
     Returns:
-        list dict hasil (fresh maupun baru di-scrape)
+        list dict hasil scraping
     """
-    to_scrape: list[str]  = []
+    to_scrape:   list[str]  = []
     all_results: list[dict] = []
 
     for kw in keywords:
-        # ── Keyword guard ──
         if not _is_valid_keyword(kw):
             print(f"[{kw}] SKIP — keyword tidak valid.")
             continue
@@ -420,21 +410,19 @@ def scrape_keywords(keywords: list[str], max_workers: int = MAX_WORKERS) -> list
             if row:
                 all_results.append(row)
         elif status is False:
-            print(f"[{kw}] Data sudah > {FRESHNESS_DAYS} hari, scraping ulang...")
+            print(f"[{kw}] Data stale, scraping ulang...")
             _delete_stale(kw)
             to_scrape.append(kw)
         else:
-            # status is None → data tidak ada
-            print(f"[{kw}] Data tidak ada, mulai scraping...")
+            print(f"[{kw}] Data tidak ada, scraping...")
             to_scrape.append(kw)
 
     if not to_scrape:
-        print("Semua keyword fresh, tidak ada yang perlu di-scrape.")
+        print("Semua keyword fresh.")
         return all_results
 
     workers = min(max_workers, len(to_scrape))
-    print(f"\n[Alfagift Parallel] Scraping {len(to_scrape)} keyword "
-          f"dengan {workers} worker paralel...\n")
+    print(f"\n[Alfagift] Scraping {len(to_scrape)} keyword dengan {workers} worker...\n")
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {executor.submit(_scrape_one, kw): kw for kw in to_scrape}
@@ -444,13 +432,13 @@ def scrape_keywords(keywords: list[str], max_workers: int = MAX_WORKERS) -> list
                 result = future.result()
                 if result:
                     all_results.append(result)
-                    print(f"[Alfagift Parallel] '{kw}' selesai ✓")
+                    print(f"[Alfagift] '{kw}' selesai ✓")
                 else:
-                    print(f"[Alfagift Parallel] '{kw}' tidak menghasilkan data.")
+                    print(f"[Alfagift] '{kw}' tidak menghasilkan data.")
             except Exception as e:
-                print(f"[Alfagift Parallel] Future error '{kw}': {e}")
+                print(f"[Alfagift] Future error '{kw}': {e}")
 
-    print(f"\n[Alfagift Parallel] Selesai. Total: {len(all_results)} hasil.")
+    print(f"\n[Alfagift] Selesai. Total: {len(all_results)} hasil.")
     return all_results
 
 
@@ -460,13 +448,17 @@ def scrape_keywords(keywords: list[str], max_workers: int = MAX_WORKERS) -> list
 
 def get_by_keyword(keyword: str) -> dict | None:
     with _db_lock:
-        db = TinyDB(DB_PATH)
-        return db.table('alfagift_ingredients').get(Query().keyword == keyword)
+        db     = TinyDB(DB_PATH, encoding="utf-8")
+        result = db.table('alfagift_ingredients').get(Query().keyword == keyword)
+        db.close()
+    return result
 
 def get_all() -> list[dict]:
     with _db_lock:
-        db = TinyDB(DB_PATH)
-        return db.table('alfagift_ingredients').all()
+        db     = TinyDB(DB_PATH, encoding="utf-8")
+        result = db.table('alfagift_ingredients').all()
+        db.close()
+    return result
 
 
 # ── untuk testing ──
