@@ -1,9 +1,15 @@
-# AEON Store Scraper v3
+# AEON Store Scraper v4
 # Generated with Claude (Anthropic) - claude.ai
 """
 AEON Store Scraper - raisa.aeonstore.id
 Scrape berdasarkan keyword nama bahan (misal: "ayam", "bawang putih")
-Output sesuai struktur tabel ingredients di proposal Cookd
+
+PERUBAHAN v4:
+- Pakai shared DB_LOCK dari db_lock.py (bukan tanpa lock seperti sebelumnya)
+- Semua buka TinyDB sekarang di-close() setelah selesai
+- get_by_keyword(), get_all(), delete_by_keyword() dilindungi lock
+- scrape_by_keyword() tidak terima db parameter lagi — buka/tutup sendiri
+- Freshness check dan upsert dalam satu blok lock yang atomic
 
 Install dependencies:
     pip install undetected-chromedriver beautifulsoup4 tinydb
@@ -11,22 +17,49 @@ Install dependencies:
 
 import time
 import json
+import re
+import os
+import sys
+import threading
 import random
 from datetime import datetime
 from urllib.parse import urljoin, quote
 
 import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 from tinydb import TinyDB, Query
-
 from tinydb.storages import JSONStorage
-import json
-import os
+
+# ── Shared lock ───────────────────────────────────────────────────────────────
+try:
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _ROOT not in sys.path:
+        sys.path.insert(0, _ROOT)
+    from db_lock import DB_LOCK as _db_lock
+except ImportError:
+    _db_lock = threading.RLock()  # fallback saat test standalone
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# KONFIGURASI
+# ══════════════════════════════════════════════════════════════════════════════
+
+BASE_URL       = "https://raisa.aeonstore.id"
+SEARCH_URL     = "https://raisa.aeonstore.id/?s={keyword}&post_type=product"
+DB_PATH        = os.path.join(os.path.dirname(__file__), '..', 'data', 'base.json')
+CHROME_VERSION = 147
+MAX_RESULTS    = 2
+DELAY_MIN      = 0.8
+DELAY_MAX      = 1.5
+_FRESH_DAYS    = 7
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PRETTY JSON STORAGE
+# ══════════════════════════════════════════════════════════════════════════════
 
 class PrettyJSONStorage(JSONStorage):
     def __init__(self, path, **kwargs):
-        # Paksa encoding utf-8 agar tidak crash di Windows dengan karakter non-ASCII
         kwargs.setdefault('encoding', 'utf-8')
         super().__init__(path, **kwargs)
 
@@ -36,17 +69,6 @@ class PrettyJSONStorage(JSONStorage):
         self._handle.flush()
         self._handle.truncate()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# KONFIGURASI
-# ══════════════════════════════════════════════════════════════════════════════
-
-BASE_URL       = "https://raisa.aeonstore.id"
-SEARCH_URL     = "https://raisa.aeonstore.id/?s={keyword}&post_type=product"
-DB_PATH        = os.path.join(os.path.dirname(__file__), '..', 'data', 'base.json')   # TinyDB file
-CHROME_VERSION = 147                  # sesuaikan versi Chrome kamu
-MAX_RESULTS    = 2                   # maks produk per keyword
-DELAY_MIN      = 0.8
-DELAY_MAX      = 1.5
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DRIVER
@@ -59,13 +81,20 @@ def init_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-    driver = uc.Chrome(options=options, use_subprocess=True, version_main=CHROME_VERSION, headless=True)
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+    driver = uc.Chrome(
+        options=options,
+        use_subprocess=True,
+        version_main=CHROME_VERSION,
+        headless=True,
+    )
     return driver
 
 
 def wait_cloudflare(driver, timeout=30):
-    """Tunggu sampai Cloudflare challenge selesai."""
     print("    Menunggu Cloudflare...", end="", flush=True)
     start = time.time()
     while time.time() - start < timeout:
@@ -94,26 +123,17 @@ def fetch_page(driver, url, wait_seconds=1):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def search_products(driver, keyword):
-    """
-    Cari produk di AEON berdasarkan keyword.
-    Return: list of (product_url, product_name, price_text, category)
-    """
-    encoded = quote(keyword, safe='').replace('%20', '+')
+    encoded    = quote(keyword, safe='').replace('%20', '+')
     search_url = SEARCH_URL.format(keyword=encoded)
-
-    soup = fetch_page(driver, search_url, wait_seconds=3)
+    soup       = fetch_page(driver, search_url, wait_seconds=3)
 
     results = []
+    seen    = set()
 
-    # Ambil produk dari hasil pencarian
-    links = soup.select("a[href*='/shop/']")
-    seen = set()
-
-    for link in links:
-        href = link.get("href", "")
+    for link in soup.select("a[href*='/shop/']"):
+        href     = link.get("href", "")
         full_url = urljoin(BASE_URL, href)
 
-        # Filter hanya URL produk
         if (full_url in seen
                 or "/product-category/" in full_url
                 or "?add-to-cart" in full_url
@@ -121,24 +141,16 @@ def search_products(driver, keyword):
             continue
 
         seen.add(full_url)
-
-        # Ambil nama produk dari teks link atau title
         name = link.get_text(strip=True) or link.get("title", "")
 
-        # Coba ambil harga dari elemen terdekat
-        parent = link.find_parent("li") or link.find_parent("div")
+        parent     = link.find_parent("li") or link.find_parent("div")
         price_text = ""
         if parent:
             price_el = parent.select_one(".woocommerce-Price-amount bdi, .price bdi")
             if price_el:
                 price_text = price_el.get_text(strip=True)
 
-        results.append({
-            "url":        full_url,
-            "name":       name,
-            "price_text": price_text,
-        })
-
+        results.append({"url": full_url, "name": name, "price_text": price_text})
         if len(results) >= MAX_RESULTS:
             break
 
@@ -151,7 +163,6 @@ def search_products(driver, keyword):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def parse_price(price_str):
-    """Ubah string harga 'Rp\xa049.900' → int 49900."""
     try:
         cleaned = (price_str
                    .replace("Rp", "")
@@ -164,11 +175,21 @@ def parse_price(price_str):
         return 0
 
 
+def _detect_unit(nama):
+    nama_lower = nama.lower()
+    for satuan in [
+        "per kg", "per pcs", "per pack", "per liter", "per buah",
+        "1kg", "500g", "500gr", "250g", "250gr", "100g", "100gr",
+        "liter", "ml", "gr", "kg", "pcs", "pack", "btl", "bks",
+    ]:
+        if satuan in nama_lower:
+            return satuan
+    return ""
+
+
 def scrape_product_detail(driver, url):
-    """Scrape detail produk: nama, harga, kategori, satuan, gambar."""
     soup = fetch_page(driver, url, wait_seconds=3)
 
-    # Nama
     nama_el = (
         soup.select_one(".product_title.entry-title") or
         soup.select_one("h1.product_title") or
@@ -176,36 +197,21 @@ def scrape_product_detail(driver, url):
     )
     nama = nama_el.get_text(strip=True) if nama_el else ""
 
-    # Validasi error
     if any(k in nama.lower() for k in ["can't be reached", "not found", "checking your browser", "404"]):
         return None
 
-    # Harga
     harga_sale   = soup.select_one(".price ins .woocommerce-Price-amount bdi")
     harga_normal = soup.select_one(".price .woocommerce-Price-amount bdi")
-    harga_str = ""
+    harga_str    = ""
     if harga_sale:
         harga_str = harga_sale.get_text(strip=True)
     elif harga_normal:
         harga_str = harga_normal.get_text(strip=True)
-    harga_int = parse_price(harga_str)
 
-    # Kategori dari breadcrumb
     breadcrumbs = soup.select(".woocommerce-breadcrumb a")
-    kategori = " > ".join(a.get_text(strip=True) for a in breadcrumbs[1:]) if len(breadcrumbs) > 1 else ""
+    kategori    = " > ".join(a.get_text(strip=True) for a in breadcrumbs[1:]) if len(breadcrumbs) > 1 else ""
 
-    # Satuan — coba deteksi dari nama produk (misal: "1kg", "500gr", "per pcs")
-    unit = ""
-    nama_lower = nama.lower()
-    for satuan in ["per kg", "per pcs", "per pack", "per liter", "per buah",
-                   "1kg", "500g", "500gr", "250g", "250gr", "100g", "100gr",
-                   "liter", "ml", "gr", "kg", "pcs", "pack", "btl", "bks"]:
-        if satuan in nama_lower:
-            unit = satuan
-            break
-
-    # Gambar
-    gambar_el = soup.select_one(".woocommerce-product-gallery__image img, .wp-post-image")
+    gambar_el  = soup.select_one(".woocommerce-product-gallery__image img, .wp-post-image")
     gambar_url = ""
     if gambar_el:
         gambar_url = (
@@ -216,9 +222,9 @@ def scrape_product_detail(driver, url):
 
     return {
         "product_name": nama,
-        "price":        harga_int,
+        "price":        parse_price(harga_str),
         "price_str":    harga_str,
-        "unit":         unit,
+        "unit":         _detect_unit(nama),
         "kategori":     kategori,
         "product_url":  url,
         "image_url":    gambar_url,
@@ -226,76 +232,93 @@ def scrape_product_detail(driver, url):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FUNGSI UTAMA: scrape_by_keyword
-# Ini yang dipanggil dari aplikasi Flet saat user klik nama bahan
+# FRESHNESS CHECK
 # ══════════════════════════════════════════════════════════════════════════════
 
-def scrape_by_keyword(driver, keyword, db=None):
+def _is_data_fresh(db_path: str, keyword: str):
+    """
+    True  → fresh (< _FRESH_DAYS hari)
+    False → stale
+    None  → belum ada
+    """
+    try:
+        with _db_lock:
+            db     = TinyDB(db_path, storage=PrettyJSONStorage)
+            result = db.table('aeon_ingredients').get(Query().keyword == keyword)
+            db.close()
+    except Exception:
+        return None
+
+    if result is None:
+        return None
+
+    try:
+        ts = datetime.strptime(result["timestamp"], "%Y-%m-%d %H:%M:%S")
+        return (datetime.today() - ts).days <= _FRESH_DAYS
+    except Exception:
+        return None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FUNGSI UTAMA: scrape_by_keyword
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scrape_by_keyword(driver, keyword):
     """
     Scrape produk AEON berdasarkan keyword bahan.
-    Simpan ke TinyDB dengan struktur tabel ingredients.
 
-    Parameter:
-        driver  : Selenium driver (sudah diinit)
-        keyword : Nama bahan, contoh: "ayam", "bawang putih"
-        db      : TinyDB instance (opsional, jika None akan buat baru)
-
-    Return:
-        list of dict sesuai struktur tabel ingredients
+    CATATAN: Parameter `db` dihapus — fungsi ini buka/tutup TinyDB sendiri
+    di dalam _db_lock agar aman saat dipanggil paralel.
     """
-    if db is None:
-        db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
-
-    table = db.table("aeon_ingredients")
-    Ingredient = Query()
-
     print(f"\n{'='*55}")
     print(f"SCRAPE AEON — keyword: '{keyword}'")
     print(f"{'='*55}")
 
-    # Cek cache — jika keyword sudah ada di DB hari ini, skip scraping
-    # Ganti bagian cek cache:
-    existing = table.search(Query().keyword == keyword)
-    if existing:
-        # cek timestamp masih fresh (< 7 hari), mirip logika tokped
-        from datetime import datetime as dt
-        ts = dt.strptime(existing[0]["timestamp"], "%Y-%m-%d %H:%M:%S")
-        if (dt.today() - ts).days <= 7:
-            print(f"  Cache hit untuk '{keyword}'")
-            return existing
+    # Cek freshness
+    status = _is_data_fresh(DB_PATH, keyword)
+    if status is True:
+        print(f"  Cache hit untuk '{keyword}'")
+        return get_by_keyword(keyword)
+    elif status is False:
+        print(f"  Data stale, hapus dan scraping ulang...")
+        with _db_lock:
+            db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
+            db.table('aeon_ingredients').remove(Query().keyword == keyword)
+            db.close()
 
-    # Scrape hasil pencarian
+    # Scrape
     search_results = search_products(driver, keyword)
-
     if not search_results:
         print(f"  Tidak ada produk ditemukan untuk '{keyword}'")
         return []
 
     saved = []
-
     for i, result in enumerate(search_results, 1):
         print(f"\n  [{i}/{len(search_results)}] {result['url']}")
-
         detail = scrape_product_detail(driver, result["url"])
 
         if not detail or not detail["product_name"]:
             print(f"    ✗ Gagal ambil detail, skip.")
             continue
 
-        # Susun data sesuai struktur tabel ingredients
         row = {
-            "keyword":    keyword,
-            "name":       detail["product_name"],
-            "price":      detail["price"],
-            "url":        detail["product_url"],
-            "timestamp":  datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "keyword"  : keyword,
+            "name"     : detail["product_name"],
+            "price"    : detail["price"],
+            "url"      : detail["product_url"],
+            "unit"     : detail["unit"],
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
-        # Simpan ke TinyDB (upsert: update jika URL sudah ada)
-        table.upsert(row, Query().keyword == row["keyword"])
-        saved.append(row)
+        # Upsert dilindungi lock — tidak ada thread lain yang bisa nulis bersamaan
+        with _db_lock:
+            db    = TinyDB(DB_PATH, storage=PrettyJSONStorage)
+            table = db.table("aeon_ingredients")
+            table.upsert(row, Query().keyword == keyword)
+            db.close()
 
-        print(f"    ✓ {row['product_name']} — {row['price_str']} ({row['unit']})")
+        saved.append(row)
+        print(f"    ✓ {row['name']} — Rp {row['price']:,} ({row['unit']})")
         time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
     print(f"\n  Selesai! {len(saved)} produk disimpan untuk keyword '{keyword}'")
@@ -303,20 +326,28 @@ def scrape_by_keyword(driver, keyword, db=None):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# QUERY HELPER — untuk dipanggil dari UI Flet
+# QUERY HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_by_keyword(keyword, db_path=DB_PATH):
-    db = TinyDB(db_path, encoding="utf-8")
-    return db.table("aeon_ingredients").search(Query().keyword == keyword)
+    with _db_lock:
+        db     = TinyDB(db_path, storage=PrettyJSONStorage)
+        result = db.table("aeon_ingredients").get(Query().keyword == keyword)
+        db.close()
+    return result
 
 def get_all(db_path=DB_PATH):
-    db = TinyDB(db_path, encoding="utf-8")
-    return db.table("aeon_ingredients").all()
+    with _db_lock:
+        db     = TinyDB(db_path, storage=PrettyJSONStorage)
+        result = db.table("aeon_ingredients").all()
+        db.close()
+    return result
 
 def delete_by_keyword(keyword, db_path=DB_PATH):
-    db = TinyDB(db_path, encoding="utf-8")
-    db.table("aeon_ingredients").remove(Query().keyword == keyword)
+    with _db_lock:
+        db = TinyDB(db_path, storage=PrettyJSONStorage)
+        db.table("aeon_ingredients").remove(Query().keyword == keyword)
+        db.close()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -324,24 +355,17 @@ def delete_by_keyword(keyword, db_path=DB_PATH):
 # ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    # Contoh: scrape beberapa bahan sekaligus
     keywords = ["indomie"]
-
-    db = TinyDB(DB_PATH, storage=PrettyJSONStorage)
-    driver = init_driver()
-
+    driver   = init_driver()
     try:
         for kw in keywords:
-            results = scrape_by_keyword(driver, kw, db)
-
+            results = scrape_by_keyword(driver, kw)
             print(f"\nRingkasan '{kw}':")
             for r in results:
-                print(f"  - {r['product_name']:40} Rp {r['price']:>10,}  {r['unit']}")
-
+                print(f"  - {r['name']:40} Rp {r['price']:>10,}  {r['unit']}")
     finally:
         driver.quit()
 
-    # Print semua data tersimpan
     print(f"\n{'='*55}")
     print(f"Total data di DB: {len(get_all())} baris")
     print(f"File: {DB_PATH}")
