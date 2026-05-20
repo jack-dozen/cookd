@@ -72,9 +72,15 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
     loader_label = ft.Text(COOKING_STAGES[0][0], color=ORANGE, size=14, italic=True)
     loader_sub   = ft.Text(COOKING_STAGES[0][1], color=TEXT2(), size=11)
     loader_ring  = ftl.Lottie(
-        src="https://lottie.host/7748923e-58e6-4db0-bff7-7454e10aa489/L8lGN5kMvc.json",
-        width=100, height=100, repeat=True, visible=True,
+        src="https://lottie.host/951d5a98-4858-4102-b673-07db5ab96ce6/uO9Bg1qfo4.json",
+        width=100, height=100, repeat=True, visible=True, background_loading=True,
         scale=ft.Scale(scale=1.2),
+        on_error= lambda e: print(f"[CookD] ⚠️ Lottie load error: {e}"),
+        error_content = ft.Container(
+            width=1, height=1,
+            bgcolor=BG3(),
+            border=ft.Border.all(1, BORDER()),
+        )
     )
     loader_dots = [
         ft.Container(
@@ -99,7 +105,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
         padding=ft.Padding.symmetric(horizontal=24, vertical=15),
         content=ft.Row(
             controls=[
-                loader_ring_bg,
+                loader_ring,
                 ft.Column(controls=[loader_label, loader_sub], spacing=2, expand=True),
                 ft.Column(
                     controls=[ft.Row(controls=loader_dots, spacing=6, tight=True)],
