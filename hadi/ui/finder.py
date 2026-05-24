@@ -671,7 +671,7 @@ def build_finder_page(page: ft.Page, show_detail_fn) -> ft.Container:
 
     # ── Stop / Refresh button ─────────────────────────────────────────────────
     _stop_refresh_btn = ft.IconButton(
-        icon=ft.Icons.STOP_CIRCLE_OUTLINED,
+        icon=ft.Icons.STOP_SHARP,
         icon_color="#ef4444",
         tooltip="Stop",
         visible=False,

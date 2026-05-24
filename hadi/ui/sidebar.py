@@ -138,23 +138,24 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
             item["text"].visible = not is_collapsing
             item["text"].update()
 
-            # ← ADD THIS: fix inner width and alignment on collapse
             if is_collapsing:
                 item["inner"].expand = False
                 item["inner"].width = sidebar.width - 8
                 item["inner"].padding = ft.Padding.symmetric(vertical=10)
                 item["inner"].content.alignment = ft.MainAxisAlignment.CENTER
-                logo_row.width = sidebar.width - 8
-                logo_row.content.alignment = ft.MainAxisAlignment.CENTER
-                logo_row.padding = ft.Padding.symmetric(horizontal=9,vertical=10)
-            else:
+                logo_text.visible = False
+                logo.expand = False
+                logo.width = sidebar.width - 8
+                logo.content.alignment = ft.MainAxisAlignment.CENTER
+            else: #is_expanding
                 item["inner"].expand = True
                 item["inner"].width = None
-                item["inner"].padding = ft.Padding.symmetric(horizontal=9, vertical=10)
+                item["inner"].padding = ft.Padding.only(left=13.5, right=3, top=10, bottom=10)
                 item["inner"].content.alignment = ft.MainAxisAlignment.START
-                logo_row.width = None
-                logo_row.content.alignment = ft.MainAxisAlignment.START
-                logo_row.padding = ft.Padding.symmetric(horizontal=9, vertical=10)
+                logo_text.visible = True
+                logo.width = None
+                logo.expand = True
+                logo.content.alignment = ft.MainAxisAlignment.START
             item["inner"].update()
             logo_row.update()
 
@@ -197,31 +198,28 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
     logo_text = ft.Image(
         src="assets/Cookd-text.png",
         height=logoHeight,
-        width=logoHeight*3,
     )
-    #logo/menu
-    logo_row = ft.Container(
-        content=ft.Row(controls=[logo_icon, logo_text], spacing=4),
-        padding=ft.Padding.symmetric(horizontal=14, vertical=10,),
+    logo = ft.Container(
+        content=ft.Row(controls=[logo_icon, logo_text]),
+        height = 50,
         border_radius=ft.BorderRadius.all(10),
+        padding=ft.Padding.symmetric(horizontal=14, vertical=10),
+        margin=ft.Margin.only(right=3),
         bgcolor=ft.Colors.TRANSPARENT,
-        on_hover=lambda e: (
-            setattr(e.control, "bgcolor", BG3() if e.data else ft.Colors.TRANSPARENT),
-            e.control.update(),
-        ),
+        expand=True,
+    )
+
+    def logo_hover(e):
+        is_hovered = e.data
+        logo_icon.color = ORANGE if is_hovered else TEXT2()
+        logo.bgcolor = BG3() if is_hovered else ft.Colors.TRANSPARENT
+        logo.update()
+
+    logo_row = ft.Container(
+        content=ft.Row(controls=[ft.Container(width=3), logo], spacing=0),
+        on_hover=logo_hover,
         on_click=toggle_sidebar,
     )
-        # inner = ft.Container(
-        #     content=ft.Row(controls=[icon_obj, text_obj], spacing=13),
-        #     padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-        #     margin=ft.Margin.only(right=3),
-        #     border_radius=ft.BorderRadius.all(10),
-        #     gradient=_active_gradient() if is_active else None,
-        #     bgcolor=None if is_active else ft.Colors.TRANSPARENT,
-        #     expand=True,
-        #     #animate=ft.Animation(10, ft.AnimationCurve.EASE_IN),
-        #     scale=ft.Scale(scale=1.0),
-        # )
     _extras = build_sidebar_extras(page, on_import_done=on_import_done)
 
     import_btn = _extras[1]
