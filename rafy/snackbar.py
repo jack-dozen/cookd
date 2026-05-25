@@ -72,9 +72,16 @@ def show_snack(
     """
     cfg = _SNACK_CONFIG.get(type, _SNACK_CONFIG["info"])
 
+    # Garis warna kiri sebagai indikator tipe
     snack = ft.SnackBar(
         content=ft.Row(
             controls=[
+                ft.Container(
+                    width=4,
+                    height=36,
+                    bgcolor=cfg["bar_color"],
+                    border_radius=ft.BorderRadius.all(4),
+                ),
                 ft.Icon(cfg["icon"], color=cfg["icon_color"], size=18),
                 ft.Text(message, color=TEXT(), size=13, expand=True),
             ],
@@ -91,22 +98,8 @@ def show_snack(
         close_icon_color=TEXT2(),
     )
 
-    # Garis warna kiri sebagai indikator tipe
-    snack.content = ft.Row(
-        controls=[
-            ft.Container(
-                width=4,
-                height=36,
-                bgcolor=cfg["bar_color"],
-                border_radius=ft.BorderRadius.all(4),
-            ),
-            ft.Icon(cfg["icon"], color=cfg["icon_color"], size=18),
-            ft.Text(message, color=TEXT(), size=13, expand=True),
-        ],
-        spacing=10,
-        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-    )
-
-    page.snack_bar = snack
-    page.snack_bar.open = True
+    # Tambahkan ke overlay lalu buka — kompatibel dengan Flet 0.85
+    # (page.snack_bar deprecated, page.open() belum ada di versi ini)
+    page.overlay.append(snack)
+    snack.open = True
     page.update()
