@@ -7,6 +7,7 @@ harga per toko dan link beli langsung.
 Dipanggil dari zaky/price_panel.py setelah kalkulasi selesai.
 """
 
+import webbrowser
 import flet as ft
 from rafy.theme import (
     theme_mgr, ORANGE, GREEN, AMBER, WHITE,
@@ -62,9 +63,13 @@ def _build_ingr_popup(page: ft.Page, keyword: str, store_prices: list) -> None:
             visible=is_cheapest,
         )
 
+        # FIX: gunakan webbrowser.open() — page.launch_url() tidak reliable
+        # di desktop mode Flet 0.85; webbrowser dijamin bekerja di semua platform
+        product_url = isp.url  # capture sekarang, bukan saat klik
 
-        def _open_url(e, url=isp.url):
-            page.launch_url(url)
+        def _open_url(e):
+            if product_url:
+                webbrowser.open(product_url)
 
         return ft.Container(
             content=ft.Row([
@@ -124,7 +129,7 @@ def _build_ingr_popup(page: ft.Page, keyword: str, store_prices: list) -> None:
                 *[_store_card(isp) for isp in store_prices],
                 ft.Container(height=4),
             ], spacing=10, tight=True,
-               scroll=ft.ScrollMode.AUTO),   # ← scroll kalau bahan banyak
+               scroll=ft.ScrollMode.AUTO),
             width=500,
         ),
         open=True,
