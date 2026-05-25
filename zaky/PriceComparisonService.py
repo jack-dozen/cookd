@@ -6,6 +6,7 @@ import re
 import sys
 import os
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Optional
@@ -22,8 +23,7 @@ for _p in [_ROOT, _RAFY_DIR, _FADHIL_DIR]:
 from zaky.TokopediaScraper import tokpedia_scraper
 
 try:
-    from rafy.AlfagiftScraper import scrape_by_keyword as _alfa_scrape
-    from rafy.AlfagiftScraper import init_driver as _alfa_init_driver
+    from rafy.AlfagiftScraper import scrape_keywords as _alfa_scrape_keywords
     _ALFA_AVAILABLE = True
 except ImportError:
     _ALFA_AVAILABLE = False
@@ -42,7 +42,7 @@ _DB_PATH = os.path.join(_ROOT, "data", "base.json")
 _db_cache = None
 # RLock (reentrant) — boleh di-acquire berkali-kali oleh thread yang sama,
 # sehingga pola "with _db_lock: ... _get_db() ..." tidak deadlock.
-_db_lock  = threading.RLock()
+from db_lock import DB_LOCK as _db_lock, DRIVER_INIT_LOCK as _driver_init_lock
 
 def _get_db() -> TinyDB:
     global _db_cache
@@ -775,75 +775,96 @@ class PriceComparisonService:
 
         return result
 
-    def _scrape_parallel(self, keywords: list[str], log: Callable):
+    def _scrape_parallel(self, keywords: list[str], log):
+        """
+        Jalankan ketiga scraper paralel sekaligus.
+
+        Race condition yang dijaga:
+        - TinyDB      → semua akses dijaga _db_lock (shared RLock)
+        - uc.Chrome() → dijaga _driver_init_lock (shared Lock)
+                        agar tidak WinError 183 di Windows saat dua
+                        uc.Chrome() init bersamaan
+        - Tokopedia pakai selenium biasa (bukan uc), tidak kena WinError 183,
+          tapi tetap dijaga _browser_sem internal untuk batasi jumlah browser
+        """
         lock   = threading.Lock()
         status = {"tokopedia": "⏳", "alfagift": "⏳", "aeon": "⏳"}
 
         def _progress():
-            log(f"Tokopedia {status['tokopedia']} · "
+            log(
+                f"Tokopedia {status['tokopedia']} · "
                 f"Alfagift {status['alfagift']} · "
-                f"AEON {status['aeon']}")
+                f"AEON {status['aeon']}"
+            )
 
         def _run_tokopedia():
             try:
                 tokpedia_scraper(keywords)
-                with lock: status["tokopedia"] = "✓"
+                with lock:
+                    status["tokopedia"] = "✓"
             except Exception as e:
                 print(f"[Tokopedia] ERROR: {e}")
-                with lock: status["tokopedia"] = "✗"
+                with lock:
+                    status["tokopedia"] = "✗"
             _progress()
 
         def _run_alfagift():
             if not _ALFA_AVAILABLE:
-                with lock: status["alfagift"] = "N/A"
-                _progress(); return
-            driver = None
+                with lock:
+                    status["alfagift"] = "N/A"
+                _progress()
+                return
             try:
-                driver = _alfa_init_driver()
-                for kw in keywords:
-                    _alfa_scrape(driver, kw)
-                with lock: status["alfagift"] = "✓"
+                # scrape_keywords() mengelola driver + DRIVER_INIT_LOCK sendiri
+                # per keyword — tidak perlu init driver di sini.
+                _alfa_scrape_keywords(keywords)
+                with lock:
+                    status["alfagift"] = "✓"
             except Exception as e:
                 print(f"[Alfagift] ERROR: {e}")
-                with lock: status["alfagift"] = "✗"
-            finally:
-                if driver:
-                    try: driver.quit()
-                    except: pass
+                with lock:
+                    status["alfagift"] = "✗"
             _progress()
 
         def _run_aeon():
             if not _AEON_AVAILABLE:
-                with lock: status["aeon"] = "N/A"
-                _progress(); return
+                with lock:
+                    status["aeon"] = "N/A"
+                _progress()
+                return
             driver = None
             try:
-                driver = _aeon_init_driver()
+                # Serialize uc.Chrome() init agar tidak WinError 183
+                with _driver_init_lock:
+                    driver = _aeon_init_driver()
+                    time.sleep(0.5)  # beri jeda sebelum release lock
                 for kw in keywords:
                     _aeon_scrape(driver, kw)
-                with lock: status["aeon"] = "✓"
+                with lock:
+                    status["aeon"] = "✓"
             except Exception as e:
                 print(f"[AEON] ERROR: {e}")
-                with lock: status["aeon"] = "✗"
+                with lock:
+                    status["aeon"] = "✗"
             finally:
                 if driver:
-                    try: driver.quit()
-                    except: pass
+                    try:
+                        driver.quit()
+                    except Exception:
+                        pass
+                    time.sleep(1.5)
             _progress()
 
-        # ── Tahap 1: Tokopedia + Alfagift paralel ─────────────────────────────
         _progress()
-        batch1 = [
+        threads = [
             threading.Thread(target=_run_tokopedia, daemon=True),
             threading.Thread(target=_run_alfagift,  daemon=True),
+            threading.Thread(target=_run_aeon,      daemon=True),
         ]
-        for t in batch1: t.start()
-        for t in batch1: t.join()   # tunggu keduanya selesai nulis ke DB
-
-        # ── Tahap 2: AEON sendiri ──────────────────────────────────────────────
-        batch2 = threading.Thread(target=_run_aeon, daemon=True)
-        batch2.start()
-        batch2.join()
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
     def _calc_store_totals(
         self,
