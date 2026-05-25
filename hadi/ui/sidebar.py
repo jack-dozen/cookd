@@ -15,8 +15,8 @@ def _active_gradient():
     return ft.LinearGradient(
         begin=ft.Alignment(-1, 0),
         end=ft.Alignment(1, 0),
-        colors=["#50f04f23", "#20f04f23", "#00f04f23"],
-        stops=[0.0, 0.5, 1.0],
+        colors=["#40ff7a06", "#00ff7a06"],
+        stops=[0.0, 0.5],
     )
 
 def _sidebar_gradient():
@@ -33,7 +33,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
     PAGE_NAMES = ["home", "finder", "my-recipes", "for-you", "info"]
     nav_items_ref: list = []
     sidebar_ref: list[ft.Container] = []
-    _sidebar_extras_ref: list = []  # import_btn dan theme_toggle — disembunyikan saat collapse
+    _sidebar_extras_ref: list = []  
 
     def build_nav_item(icon, label, index):
         is_active = state["active_index"] == index
@@ -47,6 +47,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
             font_family="Font",
         )
 
+        #orange little bar
         indicator = ft.Container(
             width=3,
             height=28,
@@ -58,23 +59,23 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
         inner = ft.Container(
             content=ft.Row(controls=[icon_obj, text_obj], spacing=13),
             padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-            border_radius=ft.BorderRadius.all(12),
+            margin=ft.Margin.only(right=3),
+            border_radius=ft.BorderRadius.all(10),
             gradient=_active_gradient() if is_active else None,
-            bgcolor=ft.Colors.TRANSPARENT,
+            bgcolor=None if is_active else ft.Colors.TRANSPARENT,
             expand=True,
-            animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
+            #animate=ft.Animation(10, ft.AnimationCurve.EASE_IN),
             scale=ft.Scale(scale=1.0),
-            animate_scale=ft.Animation(120, ft.AnimationCurve.EASE_OUT),
         )
 
         def on_hover(e):
             if state["active_index"] == index:
-                return
-            is_hovered = e.data
+                return  
+            is_hovered = e.data 
             icon_obj.color = ORANGE if is_hovered else TEXT2()
             text_obj.color = ORANGE if is_hovered else TEXT2()
             inner.bgcolor  = BG3() if is_hovered else ft.Colors.TRANSPARENT
-            inner.gradient = None
+            inner.gradient = None          
             icon_obj.update()
             text_obj.update()
             inner.update()
@@ -119,7 +120,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
             is_active = state["active_index"] == item["index"]
             item["indicator"].bgcolor  = ORANGE if is_active else ft.Colors.TRANSPARENT
             item["inner"].gradient     = _active_gradient() if is_active else None
-            item["inner"].bgcolor      = ft.Colors.TRANSPARENT
+            item["inner"].bgcolor      = None if is_active else ft.Colors.TRANSPARENT
             item["icon"].color         = ORANGE if is_active else TEXT2()
             item["text"].color         = ORANGE if is_active else TEXT2()
             item["indicator"].update()
@@ -130,15 +131,35 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
     def toggle_sidebar(e=None):
         sidebar = sidebar_ref[0]
         is_collapsing = sidebar.width == 200
-        sidebar.width = 60 if is_collapsing else 200
+        sidebar.width = 57 if is_collapsing else 200
         logo_text.visible = not is_collapsing
         logo_text.update()
         for item in nav_items_ref:
             item["text"].visible = not is_collapsing
             item["text"].update()
-        # Saat collapse: sembunyikan teks (opacity) + switch, tampilkan icon saja
+
+            if is_collapsing:
+                item["inner"].expand = False
+                item["inner"].width = sidebar.width - 8
+                item["inner"].padding = ft.Padding.symmetric(vertical=10)
+                item["inner"].content.alignment = ft.MainAxisAlignment.CENTER
+                logo_text.visible = False
+                logo.expand = False
+                logo.width = sidebar.width - 8
+                logo.content.alignment = ft.MainAxisAlignment.CENTER
+            else: #is_expanding
+                item["inner"].expand = True
+                item["inner"].width = None
+                item["inner"].padding = ft.Padding.only(left=13.5, right=3, top=10, bottom=10)
+                item["inner"].content.alignment = ft.MainAxisAlignment.START
+                logo_text.visible = True
+                logo.width = None
+                logo.expand = True
+                logo.content.alignment = ft.MainAxisAlignment.START
+            item["inner"].update()
+            logo_row.update()
+
         for item in _sidebar_extras_ref:
-            # label pakai opacity supaya tidak ada layout jump
             item["text"].opacity = 0.0 if is_collapsing else 1.0
             item["text"].update()
             if item.get("switch"):
@@ -155,7 +176,7 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
             item["icon"].color     = ORANGE if is_active else TEXT2()
             item["text"].color     = ORANGE if is_active else TEXT2()
             item["inner"].gradient = _active_gradient() if is_active else None
-            item["inner"].bgcolor  = ft.Colors.TRANSPARENT
+            item["inner"].bgcolor  = None if is_active else ft.Colors.TRANSPARENT
             item["icon"].update()
             item["text"].update()
             item["inner"].update()
@@ -165,7 +186,6 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
 
     logo_icon = ft.Container(
         content=ft.Icon(ft.Icons.MENU, color=TEXT2(), size=22),
-        padding=ft.Padding.all(4),
     )
 
     def _rebuild_logo():
@@ -178,33 +198,36 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
     logo_text = ft.Image(
         src="assets/Cookd-text.png",
         height=logoHeight,
-        width=logoHeight*3,
     )
+    logo = ft.Container(
+        content=ft.Row(controls=[logo_icon, logo_text]),
+        height = 50,
+        border_radius=ft.BorderRadius.all(10),
+        padding=ft.Padding.symmetric(horizontal=14, vertical=10),
+        margin=ft.Margin.only(right=3),
+        bgcolor=ft.Colors.TRANSPARENT,
+        expand=True,
+    )
+
+    def logo_hover(e):
+        is_hovered = e.data
+        logo_icon.color = ORANGE if is_hovered else TEXT2()
+        logo.bgcolor = BG3() if is_hovered else ft.Colors.TRANSPARENT
+        logo.update()
 
     logo_row = ft.Container(
-        content=ft.Row(controls=[logo_icon, logo_text], spacing=4),
-        padding=ft.Padding.symmetric(horizontal=14, vertical=14,),
-        border_radius=10,
-        bgcolor=ft.Colors.TRANSPARENT,
-        on_hover=lambda e: (
-            setattr(e.control, "bgcolor", BG3() if e.data else ft.Colors.TRANSPARENT),
-            e.control.update(),
-        ),
+        content=ft.Row(controls=[ft.Container(width=3), logo], spacing=0),
+        on_hover=logo_hover,
         on_click=toggle_sidebar,
     )
-
-    # Simpan extras dulu sebelum di-unpack ke Column
-    # build_sidebar_extras → [spacer, import_btn, theme_toggle, padding]
     _extras = build_sidebar_extras(page, on_import_done=on_import_done)
 
-    # import_btn (index 1): ambil ft.Text dari Row
     import_btn = _extras[1]
     try:
         import_label = next(c for c in import_btn.content.controls if isinstance(c, ft.Text))
     except Exception:
         import_label = None
 
-    # theme_toggle (index 2): ambil label_text dan switch via attribute
     theme_toggle = _extras[2]
     toggle_label  = getattr(theme_toggle, "_label_text", None)
     toggle_switch = getattr(theme_toggle, "_switch", None)
@@ -221,8 +244,9 @@ def build_sidebar(page: ft.Page, navigate_fn, on_import_done=None) -> ft.Contain
         animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
         content=ft.Column(
             controls=[
-                logo_row,
                 ft.Container(height=4),
+                logo_row,
+                ft.Container(height=2),
                 build_nav_item(ft.Icons.HOME_OUTLINED,   "Home",       1),
                 build_nav_item(ft.Icons.SEARCH_OUTLINED, "Finder",     2),
                 build_nav_item(ft.Icons.BOOK_OUTLINED,   "My Recipes", 3),
