@@ -616,7 +616,6 @@
     border-color: rgba(240,79,35,0.4);
     color: var(--orange);
   }
-  .step-content {}
   .step-title {
     font-size: 17px;
     font-weight: 700;
@@ -1208,6 +1207,156 @@
   .parallax-layer {
     position: absolute;
     pointer-events: none;
+  }
+
+  /* ═══════════════════════════════════════
+     RESPONSIVE — TABLET (≤ 1024px)
+  ═══════════════════════════════════════ */
+  @media (max-width: 1024px) {
+    .container { padding: 0 24px; }
+
+    /* Hero */
+    .hero > .container { gap: 40px; }
+    .hero-title { letter-spacing: -2px; }
+
+    /* How */
+    .how-grid { gap: 48px; }
+
+    /* Features */
+    .features-grid { grid-template-columns: 1fr 1fr; }
+    .feature-card.large { grid-column: span 2; }
+
+    /* Tech */
+    .tech-grid { grid-template-columns: repeat(2, 1fr); }
+
+    /* Team */
+    .team-grid { grid-template-columns: repeat(2, 1fr); }
+
+    /* Price table: hide "Terbaik" column */
+    .price-table th:last-child,
+    .price-table td:last-child { display: none; }
+  }
+
+  /* ═══════════════════════════════════════
+     RESPONSIVE — MOBILE (≤ 768px)
+  ═══════════════════════════════════════ */
+  @media (max-width: 768px) {
+    /* Hide custom cursor on touch */
+    .cursor, .cursor-ring { display: none; }
+    body { cursor: auto; }
+
+    /* Nav */
+    nav { padding: 0 20px; height: 56px; }
+    .nav-links { display: none; }
+    /* Show hamburger placeholder — just CTA button */
+    .nav-cta { display: inline-flex !important; }
+
+    /* Container */
+    .container { padding: 0 20px; }
+
+    /* Hero — stack vertically */
+    .hero {
+      padding: 88px 0 60px;
+      min-height: auto;
+    }
+    .hero > .container {
+      grid-template-columns: 1fr;
+      gap: 48px;
+    }
+    .hero-title { font-size: clamp(38px, 10vw, 56px); letter-spacing: -2px; }
+    .hero-sub { font-size: 16px; }
+    .hero-actions { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
+    .hero-stats { gap: 24px; }
+    .hero-stat-num { font-size: 26px; }
+
+    /* App mockup — reset 3D tilt on mobile */
+    .app-window { transform: none !important; }
+    .app-body { height: 300px; }
+    .app-sidebar { width: 48px; }
+    .sidebar-icon { width: 32px; height: 32px; font-size: 15px; }
+
+    /* Section spacing */
+    .how-section,
+    .features-section,
+    .users-section,
+    .tech-section,
+    .price-section,
+    .team-section,
+    .install-section,
+    .cta-section { padding: 72px 0; }
+
+    /* Section titles */
+    .section-title { font-size: clamp(28px, 7vw, 40px); letter-spacing: -1.5px; }
+    .section-desc { font-size: 15px; }
+
+    /* How it works — stack */
+    .how-grid {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      margin-top: 48px;
+    }
+    .how-visual { min-height: 280px; padding: 24px; }
+    .how-step::before { display: none; }
+
+    /* Features — single column */
+    .features-grid { grid-template-columns: 1fr; }
+    .feature-card.large { grid-column: span 1; }
+
+    /* Users — single column */
+    .users-grid { grid-template-columns: 1fr; margin-top: 40px; }
+
+    /* Tech — 2 columns */
+    .tech-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 40px; }
+
+    /* Price table — scrollable */
+    .price-demo { overflow-x: auto; }
+    .price-demo-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .price-table th, .price-table td { padding: 12px 14px; font-size: 12px; }
+    /* Show only ingredient + cheapest on mobile */
+    .price-table th:nth-child(2),
+    .price-table td:nth-child(2),
+    .price-table th:nth-child(3),
+    .price-table td:nth-child(3),
+    .price-table th:nth-child(4),
+    .price-table td:nth-child(4) { display: none; }
+    .price-table th:last-child,
+    .price-table td:last-child { display: table-cell; }
+
+    /* Team — 2 columns */
+    .team-grid { grid-template-columns: repeat(2, 1fr); margin-top: 40px; }
+    .team-card { padding: 20px; }
+
+    /* Install — stack */
+    .install-grid { grid-template-columns: 1fr; gap: 32px; margin-top: 40px; }
+
+    /* CTA */
+    .cta-title { letter-spacing: -1.5px; }
+    .cta-actions { flex-direction: column; align-items: center; gap: 12px; }
+    .cta-actions .btn-primary,
+    .cta-actions .btn-secondary { width: 100%; max-width: 320px; justify-content: center; }
+
+    /* Footer */
+    .footer-inner { flex-direction: column; gap: 20px; text-align: center; }
+    .footer-links { gap: 16px; }
+
+    /* Parallax off on mobile (performance) */
+    .hero-content, .hero-visual { transform: none !important; }
+  }
+
+  /* ═══════════════════════════════════════
+     RESPONSIVE — SMALL MOBILE (≤ 480px)
+  ═══════════════════════════════════════ */
+  @media (max-width: 480px) {
+    .hero-title { font-size: clamp(34px, 9vw, 44px); }
+    .tech-grid { grid-template-columns: 1fr 1fr; }
+    .team-grid { grid-template-columns: 1fr 1fr; }
+    .hero-stats { flex-wrap: wrap; gap: 16px; }
+    .recipe-cards { grid-template-columns: 1fr 1fr; }
+    .app-body { height: 260px; }
+
+    /* Nav: only show logo + small cta */
+    .nav-logo-text { display: none; }
   }
 </style>
 </head>
@@ -2077,6 +2226,7 @@ for (let i = 0; i < 12; i++) {
 
 // ─── PARALLAX ON SCROLL ───────────────────────────────
 window.addEventListener('scroll', () => {
+  if (window.innerWidth <= 768) return; // skip parallax on mobile
   const sy = window.scrollY;
   const heroContent = document.querySelector('.hero-content');
   const heroVisual = document.querySelector('.hero-visual');
