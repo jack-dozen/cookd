@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/python-3.11+-blue?logo=python)](https://www.python.org/)
 [![Flet](https://img.shields.io/badge/Flet-0.85.0-02569C?logo=flet)](https://flet.dev)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/status-beta-orange)]()
+[![Status](https://img.shields.io/badge/status-no_longer_maintained-orange)]()
 
 [cookd website](https://jack-dozen.github.io/cookd/)
 
