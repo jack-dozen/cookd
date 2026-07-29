@@ -206,13 +206,13 @@ CookD follows a layered architecture with clear separation between UI, business 
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  UI Layer (Flet) — views/, components/, dialogs/  │
-│  ──────────────────────────────────────────────────  │
+│  UI Layer (Flet) — views/, components/, dialogs/    │
+│  ────────────────────────────────────────────────── │
 │  Services Layer — services/price_comparison.py      │
-│  ──────────────────────────────────────────────────  │
-│  Scraper Layer — scrapers/*.py                       │
-│  ──────────────────────────────────────────────────  │
-│  Data Layer — TinyDB (data/base.json) + db_lock.py   │
+│  ────────────────────────────────────────────────── │
+│  Scraper Layer — scrapers/*.py                      │
+│  ────────────────────────────────────────────────── │
+│  Data Layer — TinyDB (data/base.json) + db_lock.py  │
 └─────────────────────────────────────────────────────┘
 ```
 
