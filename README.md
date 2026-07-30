@@ -151,11 +151,9 @@ Click the **♥** button on any recipe card to save it to **My Recipes**. Saved 
 ```
 cookd-app/
 ├── main.py                  # Entry point — launches the Flet GUI
-├── db_lock.py               # Shared thread locks (DB_LOCK, DRIVER_INIT_LOCK)
 ├── requirements.txt         # Python dependencies
 ├── LICENSE                  # MIT license
 ├── README.md                # This file
-├── recipes.json             # Sample recipe data (seed file)
 ├── assets/                  # Images, icons, fonts used by the GUI
 ├── data/
 │   └── base.json            # TinyDB database (recipes, prices, results)
@@ -295,6 +293,9 @@ Copyright (c) 2026 The Cookd Contributors
 - **[recipe-scrapers](https://github.com/summarydev/recipe-scrapers)** — Structured recipe data extraction library
 - **[Scrapling](https://github.com/typomobile/scrapling)** — Stealth web fetching for the Cookpad scraper
 - **[Undetected Chromedriver](https://github.com/ultrafunkamsterdam/undetected-chromedriver)** — Browser automation bypass for anti-bot sites
-- **Tokopedia-Scraper** by crypter70 — Original Tokopedia scraper used as a base (see `src/scrapers/tokopedia_scraper.py`)
+- **[Tokopedia-Scraper](https://github.com/crypter70/Tokopedia-Scraper)** by crypter70 — Original Tokopedia scraper used as a base
 - All recipe authors on Cookpad whose recipes are scraped and showcased in the application
 - The PPLD course instructors and peers who provided feedback during development
+
+---
+> **P.S.** This project is still pretty rough around the edges! Expect bugs, hardcoded HTML selectors, and a non-headless Tokopedia scraper that *will* pop up a Chrome window and gladly eat your RAM for breakfast. Proceed with caution (and enough free memory)!
