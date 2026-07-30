@@ -16,21 +16,26 @@
   --green:#22c55e; --amber:#f59e0b; --red:#ef4444;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
+html{
+  scroll-behavior:smooth;
+  scrollbar-gutter: stable; /* Forces browser to reserve space for scrollbar, preventing layout shift */
+}
 body{
   background:var(--bg); color:var(--text);
   font-family:'Plus Jakarta Sans',sans-serif; font-weight:300;
   overflow-x:hidden; line-height:1.65; letter-spacing:.01em;
   cursor:none;
 }
-/* Dual Canvases for Spatial Layering */
-#webgl-back, #webgl-front {
+/* 4 Canvases for Spatial Layering */
+#webgl-l1, #webgl-l2, #webgl-l3, #webgl-l4 {
   position: fixed; top: 0; left: 0;
   width: 100%; height: 100%;
   pointer-events: none;
 }
-#webgl-back { z-index: 1; }
-#webgl-front { z-index: 3; }
+#webgl-l1 { z-index: 1; } /* Far Back */
+#webgl-l2 { z-index: 2; } /* Near Back */
+#webgl-l3 { z-index: 4; } /* Near Front */
+#webgl-l4 { z-index: 5; } /* Far Front */
 
 .vignette{position:fixed;inset:0;z-index:40;pointer-events:none;
   background:radial-gradient(ellipse at 50% 45%, transparent 35%, rgba(0,0,0,.6) 100%);
@@ -83,8 +88,8 @@ body{
   text-transform:uppercase;cursor:none;transition:all .35s;text-decoration:none;font-weight:600}
 .nav-cta:hover{background:var(--orange);color:var(--bg)}
 
-/* Content (z-index: 2 sits between back and front canvases) */
-.content{position:relative;z-index:2;pointer-events:none}
+/* Content (z-index: 3 sits between l2 and l3) */
+.content{position:relative;z-index:3;pointer-events:none}
 .content a,.content button,.content .card,.content .voice,.content input{pointer-events:auto}
 
 /* Sub-Pages for Footer Links */
@@ -126,7 +131,6 @@ body{
 .page-content p { margin-bottom: 1.2rem; }
 .page-content ul { margin-left: 1.5rem; margin-bottom: 1.2rem; }
 .page-content li { margin-bottom: 0.5rem; }
-.waitlist-form { display: flex; gap: 1rem; margin-top: 2rem; }
 
 /* 1. Reduced Content Container Widths & Prevent Left Collision */
 section{min-height:100vh;padding:8rem 15vw;display:flex;flex-direction:column;
@@ -251,8 +255,10 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
 <div class="cursor-dot" id="cursorDot"></div>
 <div class="cursor-label" id="cursorLabel"></div>
 
-<!-- 6. Spatial Layering Canvases -->
-<canvas id="webgl-back"></canvas>
+<!-- 4-Layer Spatial Canvases -->
+<canvas id="webgl-l1"></canvas>
+<canvas id="webgl-l2"></canvas>
+
 <div class="content">
   <nav class="nav">
     <a href="#" class="logo">Cook<span>D</span></a>
@@ -277,7 +283,7 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
     <p class="hero-sub">CookD is your ultimate kitchen companion that bridges the gap between the ingredients you already have, the best recipes to make, and exactly how much it will cost.</p>
     <div class="hero-cta">
       <a href="#features" class="btn btn-primary">Explore Features</a>
-      <a href="#begin" class="btn">Join the Waitlist</a>
+      <a href="#begin" class="btn">Download Now</a>
     </div>
   </section>
 
@@ -379,11 +385,10 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
   <section class="cta" id="begin">
     <div class="section-label fade-in" style="justify-content:center">Chapter IV — Begin</div>
     <h2 class="fade-in">Cook <em>smarter</em> today</h2>
-    <p class="fade-in">Beautifully designed, incredibly fast, and built to make every meal effortless. Join the waitlist for early access.</p>
-    <form class="fade-in" onsubmit="event.preventDefault();this.querySelector('button').textContent='Welcome Aboard →'">
-      <input type="email" placeholder="your@kitchen.com" required style="padding:1.1rem 1.4rem;background:rgba(26,26,26,.5);backdrop-filter:blur(20px);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:.9rem;cursor:none;outline:none;transition:border-color .35s;min-width:300px;margin-right:1rem" onfocus="this.style.borderColor='var(--orange)'" onblur="this.style.borderColor='var(--border)'">
-      <button type="submit" class="btn btn-primary">Join Waitlist</button>
-    </form>
+    <p class="fade-in">Beautifully designed, incredibly fast, and built to make every meal effortless. Download CookD now and transform your kitchen.</p>
+    <div class="fade-in">
+      <a href="#" class="btn btn-primary" onclick="event.preventDefault(); alert('Download starting soon! Check GitHub for releases.')">⬇ Download for Windows</a>
+    </div>
   </section>
 
   <footer>
@@ -433,7 +438,7 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
         <li><strong>Price Comparison:</strong> Click on any recipe to see a breakdown of ingredient costs across Tokopedia, Alfagift, and AEON Store.</li>
         <li><strong>Save Recipes:</strong> Click the bookmark icon on any recipe to save it to your personal library.</li>
       </ul>
-
+      
       <h2>For Developers</h2>
       <p>Want to contribute to CookD? We welcome pull requests and issues on our GitHub repository.</p>
       <ul>
@@ -449,12 +454,11 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
     <button class="back-btn" onclick="hidePage()">← Back to App</button>
     <h1 class="page-title">Support CookD</h1>
     <div class="page-content">
-      <p>CookD is a free, open-source project built with love. If you find it useful and want to support its development, the best way is to join our waitlist!</p>
-      <p>By joining, you'll get early access to new features, exclusive tips, and a direct line to provide feedback.</p>
-      <form class="waitlist-form" onsubmit="event.preventDefault();this.querySelector('button').textContent='Thank You! →'">
-        <input type="email" placeholder="your@kitchen.com" required style="padding:1.1rem 1.4rem;background:rgba(26,26,26,.5);backdrop-filter:blur(20px);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:.9rem;cursor:none;outline:none;transition:border-color .35s;flex:1;min-width:250px" onfocus="this.style.borderColor='var(--orange)'" onblur="this.style.borderColor='var(--border)'">
-        <button type="submit" class="btn btn-primary">Join Waitlist</button>
-      </form>
+      <p>CookD is a free, open-source project built with love. If you find it useful and want to support its development, the best way is to download the app, share it with friends, and star our GitHub repository!</p>
+      <p>By using CookD, you help us build a community of smarter, more efficient home cooks.</p>
+      <div style="margin-top: 2rem;">
+        <a href="#" class="btn btn-primary" onclick="event.preventDefault(); hidePage();">⬇ Download CookD</a>
+      </div>
     </div>
   </div>
 
@@ -464,15 +468,15 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
     <div class="page-content">
       <p>Last updated: October 12, 2025</p>
       <p>This Privacy Policy describes how CookD ("we", "us", or "our") handles your data. Because CookD runs entirely locally on your machine, your privacy is our top priority.</p>
-
+      
       <h2>Data Collection</h2>
       <p>We do not collect or store any personal data. The ingredients you input, the recipes you save, and your search history are all stored locally on your device. We do not have access to this information.</p>
-
+      
       <h2>Third-Party Services</h2>
       <p>CookD scrapes data from third-party websites (Cookpad, Tokopedia, Alfagift, AEON Store) to provide recipe and price information. When you use these features, your IP address may be visible to these websites as per their own privacy policies. We recommend reviewing their policies if you have concerns.</p>
-
+      
       <h2>Email Waitlist</h2>
-      <p>If you join our waitlist, your email address is stored securely and used solely to send you updates about CookD. We will never sell or share your email with third parties.</p>
+      <p>Since we have fully launched, there is no waitlist. Enjoy the app!</p>
     </div>
   </div>
 
@@ -481,12 +485,14 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
     <h1 class="page-title">Social Media</h1>
     <div class="page-content">
       <p>Currently, CookD doesn't have any official social media accounts.</p>
-      <p>We are focusing entirely on building the best possible kitchen companion. For updates, please check back on our website or join the waitlist!</p>
-      <p>If you need to contact us directly, feel free to open an issue on our <a href="https://github.com/jack-dozen/cookd" target = "_blank" style="color:var(--orange)">GitHub repository</a>.</p>
+      <p>We are focusing entirely on building the best possible kitchen companion. For updates, please check back on our website or visit our GitHub!</p>
+      <p>If you need to contact us directly, feel free to open an issue on our <a href="https://github.com/jack-dozen/cookd" target="_blank" style="color:var(--orange)">GitHub repository</a>.</p>
     </div>
   </div>
 </div>
-<canvas id="webgl-front"></canvas>
+
+<canvas id="webgl-l3"></canvas>
+<canvas id="webgl-l4"></canvas>
 <div class="vignette"></div>
 <div class="grain"></div>
 
@@ -519,7 +525,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 /* ============================================================
-   1. DUAL RENDERERS, SCENES, CAMERAS (Spatial Layering)
+   1. FOUR LAYER RENDERERS, SCENES, CAMERAS
    ============================================================ */
 function createRenderer(canvasId) {
   const renderer = new THREE.WebGLRenderer({
@@ -527,33 +533,42 @@ function createRenderer(canvasId) {
     antialias: true, alpha: true, powerPreference: 'high-performance'
   });
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); // Capped at 1.5 for 4-layer perf
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x000000, 0); // Transparent background
   return renderer;
 }
 
-const rendererBack = createRenderer('webgl-back');
-const rendererFront = createRenderer('webgl-front');
+const renderers = [
+  createRenderer('webgl-l1'),
+  createRenderer('webgl-l2'),
+  createRenderer('webgl-l3'),
+  createRenderer('webgl-l4')
+];
 
-const sceneBack = new THREE.Scene();
-sceneBack.fog = new THREE.FogExp2(0x111111, 0.020);
+const scenes = [
+  new THREE.Scene(),
+  new THREE.Scene(),
+  new THREE.Scene(),
+  new THREE.Scene()
+];
+scenes.forEach(s => s.fog = new THREE.FogExp2(0x111111, 0.020));
 
-const sceneFront = new THREE.Scene();
-
-const cameraBack = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
-cameraBack.position.set(0, 0, 14);
-
-const cameraFront = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
-cameraFront.position.set(0, 0, 14);
+const cameras = [];
+for(let i=0; i<4; i++) {
+  const cam = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
+  cam.position.set(0, 4, 14);
+  cameras.push(cam);
+}
 
 /* ============================================================
    2. ENVIRONMENT MAP (Shared)
    ============================================================ */
-const pmrem = new THREE.PMREMGenerator(rendererBack);
+const pmrem = new THREE.PMREMGenerator(renderers[0]);
 const envCanvas = document.createElement('canvas');
 envCanvas.width = 512; envCanvas.height = 256;
 const ectx = envCanvas.getContext('2d');
@@ -568,8 +583,7 @@ const envTex = new THREE.CanvasTexture(envCanvas);
 envTex.mapping = THREE.EquirectangularReflectionMapping;
 const envMap = pmrem.fromEquirectangular(envTex).texture;
 
-sceneBack.environment = envMap;
-sceneFront.environment = envMap;
+scenes.forEach(s => s.environment = envMap);
 
 /* ============================================================
    3. LIGHTING (Shared Logic)
@@ -579,7 +593,7 @@ function addLights(scene) {
   const key = new THREE.DirectionalLight(0xffd9a0, 2.0);
   key.position.set(6, 10, 8);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(1024, 1024); // Reduced shadow map for 4 layers
   scene.add(key);
   const fill = new THREE.DirectionalLight(0x88a0c8, 0.4);
   fill.position.set(-8, 3, 6);
@@ -591,11 +605,10 @@ function addLights(scene) {
   point.position.set(0, 2, 6);
   scene.add(point);
 }
-addLights(sceneBack);
-addLights(sceneFront);
+scenes.forEach(s => addLights(s));
 
 /* ============================================================
-   4. OBJECT FACTORIES (Photoreal Procedural Assets)
+   4. OBJECT FACTORIES
    ============================================================ */
 const M = {
   steel:    new THREE.MeshPhysicalMaterial({color:0xc8c8d0, metalness:1.0, roughness:.18, clearcoat:.5, envMapIntensity:1.6}),
@@ -617,7 +630,7 @@ const M = {
 const FACTORIES = {
   tomato(){
     const g = new THREE.Group();
-    const bodyGeo = new THREE.SphereGeometry(0.5, 48, 32);
+    const bodyGeo = new THREE.SphereGeometry(0.5, 32, 24);
     const pos = bodyGeo.attributes.position;
     for(let i=0;i<pos.count;i++){
       const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
@@ -630,7 +643,7 @@ const FACTORIES = {
       sheen:.6, sheenColor:new THREE.Color(0xff5544)
     }));
     body.castShadow = body.receiveShadow = true; g.add(body);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,.1,10), M.stem);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,.1,8), M.stem);
     stem.position.y = .41; g.add(stem);
     for(let i=0;i<5;i++){
       const leaf = new THREE.Mesh(new THREE.ConeGeometry(.07,.14,4), M.stem);
@@ -672,29 +685,29 @@ const FACTORIES = {
     const handle = new THREE.Mesh(new THREE.BoxGeometry(.95,.16,.05), M.woodDark);
     handle.position.set(-1.75,0,0); handle.castShadow = true; g.add(handle);
     for(let i=0;i<3;i++){
-      const r = new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,.06,14), M.copper);
+      const r = new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,.06,12), M.copper);
       r.position.set(-1.45 - i*.26, 0, 0); r.rotation.x = Math.PI/2; g.add(r);
     }
     return g;
   },
   pan(){
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(1.0,.95,.18,72,1,false), M.castIron);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(1.0,.95,.18,48,1,false), M.castIron);
     body.castShadow = body.receiveShadow = true; g.add(body);
-    const inner = new THREE.Mesh(new THREE.CylinderGeometry(.92,.82,.14,72,1,true), M.castIron); inner.position.y = .04; g.add(inner);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(1.0,.025,8,72), M.castIron); rim.rotation.x = Math.PI/2; rim.position.y = .09; g.add(rim);
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(.055,.075,1.5,18), M.castIron);
+    const inner = new THREE.Mesh(new THREE.CylinderGeometry(.92,.82,.14,48,1,true), M.castIron); inner.position.y = .04; g.add(inner);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(1.0,.025,8,48), M.castIron); rim.rotation.x = Math.PI/2; rim.position.y = .09; g.add(rim);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(.055,.075,1.5,12), M.castIron);
     handle.position.set(1.7,.05,0); handle.rotation.z = Math.PI/2; handle.castShadow = true; g.add(handle);
     return g;
   },
   oilBottle(){
     const g = new THREE.Group();
     const pts = [new THREE.Vector2(0,0), new THREE.Vector2(.34,0), new THREE.Vector2(.4,.05), new THREE.Vector2(.4,.6), new THREE.Vector2(.34,.72), new THREE.Vector2(.14,.88), new THREE.Vector2(.12,1.2), new THREE.Vector2(.16,1.36), new THREE.Vector2(.14,1.4), new THREE.Vector2(0,1.4)];
-    const bg = new THREE.LatheGeometry(pts, 64);
+    const bg = new THREE.LatheGeometry(pts, 32);
     const bottle = new THREE.Mesh(bg, M.glassGreen); bottle.castShadow = true; g.add(bottle);
     const oilPts = [new THREE.Vector2(0,.1), new THREE.Vector2(.38,.1), new THREE.Vector2(.38,.6), new THREE.Vector2(0,.6)];
-    const oil = new THREE.Mesh(new THREE.LatheGeometry(oilPts, 48), M.oil); g.add(oil);
-    const cork = new THREE.Mesh(new THREE.CylinderGeometry(.13,.14,.1,18), new THREE.MeshStandardMaterial({color:0x6b4a2a, roughness:.9}));
+    const oil = new THREE.Mesh(new THREE.LatheGeometry(oilPts, 24), M.oil); g.add(oil);
+    const cork = new THREE.Mesh(new THREE.CylinderGeometry(.13,.14,.1,12), new THREE.MeshStandardMaterial({color:0x6b4a2a, roughness:.9}));
     cork.position.y = 1.46; g.add(cork);
     return g;
   },
@@ -702,85 +715,122 @@ const FACTORIES = {
     const g = new THREE.Group();
     const board = new THREE.Mesh(new THREE.BoxGeometry(2.6,.13,1.6), M.wood);
     board.castShadow = board.receiveShadow = true; g.add(board);
-    const hole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.15,18), new THREE.MeshBasicMaterial({color:0x000000}));
-    hole.position.set(1.15,0,0); hole.rotation.x = Math.PI/2; g.add(hole);
     return g;
   },
   garlic(){
     const g = new THREE.Group();
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(.35,32,24), new THREE.MeshPhysicalMaterial({color:0xf0e8d0, roughness:.85, metalness:0, clearcoat:.1, sheen:.4, sheenColor:new THREE.Color(0xfff5e0)}));
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(.35,24,20), new THREE.MeshPhysicalMaterial({color:0xf0e8d0, roughness:.85, metalness:0, clearcoat:.1, sheen:.4, sheenColor:new THREE.Color(0xfff5e0)}));
     bulb.scale.y = .92; bulb.castShadow = true; g.add(bulb);
     for(let i=0;i<8;i++){
       const a = (i/8)*Math.PI*2;
-      const bump = new THREE.Mesh(new THREE.SphereGeometry(.08,12,10), bulb.material.clone());
+      const bump = new THREE.Mesh(new THREE.SphereGeometry(.08,10,8), bulb.material.clone());
       bump.position.set(Math.cos(a)*.22,0,Math.sin(a)*.22); bump.scale.y = 1.2; g.add(bump);
     }
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,.18,8), M.stem); stem.position.y = .35; g.add(stem);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,.18,6), M.stem); stem.position.y = .35; g.add(stem);
     return g;
   },
   pepper(){
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.SphereGeometry(.45,40,32), new THREE.MeshPhysicalMaterial({color:0xb8362a, roughness:.32, metalness:0, clearcoat:.5, clearcoatRoughness:.3, sheen:.4, sheenColor:new THREE.Color(0xff5544)}));
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.45,32,24), new THREE.MeshPhysicalMaterial({color:0xb8362a, roughness:.32, metalness:0, clearcoat:.5, clearcoatRoughness:.3, sheen:.4, sheenColor:new THREE.Color(0xff5544)}));
     body.scale.set(1,.95,1); body.castShadow = true; g.add(body);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.06,.09,.25,10), M.stem); stem.position.y = .48; stem.rotation.z = .1; g.add(stem);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.06,.09,.25,8), M.stem); stem.position.y = .48; stem.rotation.z = .1; g.add(stem);
     return g;
   },
   lemon(){
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.SphereGeometry(.42,40,28), new THREE.MeshPhysicalMaterial({color:0xe8c830, roughness:.55, metalness:0, clearcoat:.3, clearcoatRoughness:.4, sheen:.4, sheenColor:new THREE.Color(0xfff080)}));
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.42,32,24), new THREE.MeshPhysicalMaterial({color:0xe8c830, roughness:.55, metalness:0, clearcoat:.3, clearcoatRoughness:.4, sheen:.4, sheenColor:new THREE.Color(0xfff080)}));
     body.scale.set(.95,.88,.95); body.castShadow = true; g.add(body);
     return g;
   },
   egg(){
     const g = new THREE.Group();
-    const egg = new THREE.Mesh(new THREE.SphereGeometry(.32,32,24), new THREE.MeshPhysicalMaterial({color:0xf0e8d0, roughness:.5, metalness:0, clearcoat:.25, clearcoatRoughness:.4, sheen:.4, sheenColor:new THREE.Color(0xfff8e0)}));
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(.32,24,20), new THREE.MeshPhysicalMaterial({color:0xf0e8d0, roughness:.5, metalness:0, clearcoat:.25, clearcoatRoughness:.4, sheen:.4, sheenColor:new THREE.Color(0xfff8e0)}));
     egg.scale.set(.85,1.1,.85); egg.castShadow = true; g.add(egg);
     return g;
   }
 };
 
 /* ============================================================
-   5. OBJECT PLACEMENT & SPATIAL DISTRIBUTION (Fixed Viewport)
+   5. 4-LAYER OBJECT PLACEMENT & SCROLL DISTRIBUTION
    ============================================================ */
-const PLACEMENTS = [
-  {type:'tomato',       x:-6.5, y:2.5,  z:1.5, scale:0.8, ry:0.4, label:'Heirloom Tomato', layer:'front'},
-  {type:'basil',        x: 6.2, y:2.8,  z:2.5, scale:1.1, ry:-0.3, label:'Fresh Basil', layer:'front'},
-  {type:'oilBottle',    x:-6.5, y:-2.5, z:-1.0, scale:0.85, ry:0.2, label:'Olive Oil', layer:'back'},
-  {type:'cuttingBoard', x: 6.5, y:-2.0, z:-1.5, scale:0.75, ry:-0.4, rz:0.2, label:'Walnut Board', layer:'back'},
-  {type:'knife',        x:-5.5, y:0.5, z:1.0, scale:0.6, ry:0.6, rz:0.1, label:"Chef's Knife", layer:'front'},
-  {type:'garlic',       x: 5.0, y:0.0,  z:-0.5, scale:0.9, ry:0.4, label:'Garlic', layer:'back'},
-  {type:'pan',          x:-5.0, y:-1.5, z:-1.0, scale:0.7, ry:0.3, label:'Cast Iron Pan', layer:'back'},
-  {type:'pepper',       x: 5.5, y:1.5, z:1.2, scale:0.7, ry:0.5, label:'Bell Pepper', layer:'front'},
-  {type:'lemon',        x:-4.5, y:1.5, z:1.5, scale:0.8, ry:-0.4, label:'Meyer Lemon', layer:'front'},
-  {type:'egg',          x: 4.5, y:-2.5, z:1.0, scale:0.75, ry:0.5, label:'Egg', layer:'front'},
+// Layer Definitions: Layer 1 is furthest back (smallest), Layer 4 is closest (largest)
+const LAYER_CONFIG = [
+  { z: -3.0, scale: 0.7 }, // L1
+  { z: -1.0, scale: 0.9 }, // L2
+  { z:  1.0, scale: 1.2 }, // L3
+  { z:  3.0, scale: 1.5 }  // L4
 ];
 
-const interactiveObjectsBack = [];
-const interactiveObjectsFront = [];
+const PLACEMENTS = [
+  // HERO (y: 4 to -2)
+  {type:'tomato',       x:-4.5, y:2.5,  layer: 0, label:'Heirloom Tomato'},
+  {type:'basil',        x: 4.2, y:2.0,  layer: 1, label:'Fresh Basil'},
+  {type:'oilBottle',    x:-3.5, y:-1.0, layer: 3, label:'Olive Oil'},
+  {type:'cuttingBoard', x: 4.5, y:0.5,  layer: 2, label:'Walnut Board'},
+  {type:'knife',        x:-3.0, y:1.5,  layer: 3, label:"Chef's Knife"},
+  {type:'garlic',       x: 3.5, y:-1.5, layer: 0, label:'Garlic'},
+
+  // PROCESS (y: -6 to -12)
+  {type:'pan',          x:-4.5, y:-7.0, layer: 3, label:'Cast Iron Pan'},
+  {type:'pepper',       x: 4.0, y:-8.0, layer: 1, label:'Bell Pepper'},
+  {type:'lemon',        x:-3.5, y:-9.0, layer: 2, label:'Meyer Lemon'},
+  {type:'tomato',       x: 4.5, y:-10.0,layer: 3, label:'Roma Tomato'},
+  {type:'garlic',       x:-4.0, y:-11.0,layer: 0, label:'Garlic'},
+  {type:'basil',        x: 3.0, y:-12.0,layer: 2, label:'Fresh Basil'},
+
+  // FEATURES (y: -16 to -22)
+  {type:'knife',        x:-4.5, y:-16.5,layer: 3, label:'Paring Knife'},
+  {type:'pan',          x: 4.5, y:-17.5,layer: 1, label:'Skillet'},
+  {type:'oilBottle',    x:-3.5, y:-18.5,layer: 2, label:'Avocado Oil'},
+  {type:'cuttingBoard', x: 4.0, y:-19.5,layer: 3, label:'Cutting Board'},
+  {type:'egg',          x:-4.0, y:-20.5,layer: 0, label:'Egg'},
+  {type:'lemon',        x: 3.5, y:-21.5,layer: 2, label:'Citrus'},
+
+  // VOICES (y: -26 to -32)
+  {type:'pepper',       x:-4.5, y:-26.5,layer: 3, label:'Bell Pepper'},
+  {type:'garlic',       x: 4.0, y:-27.5,layer: 1, label:'Garlic'},
+  {type:'tomato',       x:-3.5, y:-28.5,layer: 0, label:'Tomato'},
+  {type:'basil',        x: 4.5, y:-29.5,layer: 2, label:'Basil'},
+  {type:'egg',          x:-4.0, y:-30.5,layer: 3, label:'Egg'},
+  {type:'lemon',        x: 3.0, y:-31.5,layer: 1, label:'Lemon'},
+
+  // CTA (y: -36 to -42)
+  {type:'oilBottle',    x:-4.5, y:-36.5,layer: 2, label:'Olive Oil'},
+  {type:'pan',          x: 4.0, y:-37.5,layer: 3, label:'Pan'},
+  {type:'tomato',       x:-3.5, y:-38.5,layer: 0, label:'Tomato'},
+  {type:'garlic',       x: 4.5, y:-39.5,layer: 1, label:'Garlic'},
+  {type:'basil',        x:-4.0, y:-40.5,layer: 2, label:'Basil'},
+  {type:'egg',          x: 3.5, y:-41.5,layer: 3, label:'Egg'},
+];
+
+const interactiveObjectsByLayer = [[], [], [], []];
 
 PLACEMENTS.forEach(p => {
+  const layer = p.layer;
   const obj = FACTORIES[p.type]();
-  obj.position.set(p.x, p.y, p.z);
-  obj.rotation.set(p.rx||0, p.ry||0, p.rz||0);
-
+  const scale = LAYER_CONFIG[layer].scale;
+  const z = LAYER_CONFIG[layer].z;
+  
+  obj.position.set(p.x, p.y, z);
+  obj.rotation.set(Math.random()*0.2, Math.random()*Math.PI, Math.random()*0.2);
+  
   obj.userData = {
     baseX: p.x,
     baseY: p.y,
-    baseZ: p.z,
-    baseScale: p.scale || 1,
+    baseZ: z,
+    baseScale: scale,
     hoverProgress: 0,
     targetHover: 0,
     phase: Math.random() * Math.PI * 2,
     rotSpeed: (Math.random()-.5) * 0.003 + 0.001,
     floatSpeed: 0.5 + Math.random()*0.5,
-    floatAmt: 0.1 + Math.random()*0.15,
+    floatAmt: 0.1 + Math.random()*0.15, 
     mouseDX: 0,
     mouseDY: 0,
     label: p.label,
-    type: p.type,
-    layer: p.layer
+    layer: layer
   };
-  obj.scale.setScalar(p.scale || 1);
+  obj.scale.setScalar(scale);
   obj.traverse(c => {
     if(c.isMesh){
       c.castShadow = true;
@@ -790,14 +840,9 @@ PLACEMENTS.forEach(p => {
       }
     }
   });
-
-  if (p.layer === 'front') {
-    sceneFront.add(obj);
-    interactiveObjectsFront.push(obj);
-  } else {
-    sceneBack.add(obj);
-    interactiveObjectsBack.push(obj);
-  }
+  
+  scenes[layer].add(obj);
+  interactiveObjectsByLayer[layer].push(obj);
 });
 
 /* ============================================================
@@ -816,11 +861,11 @@ const DOFShader = {
   uniforms: {
     tColor:      { value: null },
     tDepth:      { value: null },
-    cameraNear:  { value: cameraBack.near },
-    cameraFar:   { value: cameraBack.far },
-    focusDist:   { value: 18.0 },
-    focusRange:  { value: 10.0 },
-    maxBlur:     { value: 0.015 },
+    cameraNear:  { value: cameras[0].near },
+    cameraFar:   { value: cameras[0].far },
+    focusDist:   { value: 17.0 },  // Focal plane near the back (L1/L2 are sharp)
+    focusRange:  { value: 8.0 },   // Range over which blur falls off
+    maxBlur:     { value: 0.018 }, 
     resolution:  { value: new THREE.Vector2(innerWidth, innerHeight) }
   },
   vertexShader: `
@@ -856,6 +901,8 @@ const DOFShader = {
       }
 
       float dist = linearizeDepth(rawDepth);
+      
+      // Closer to camera (smaller dist) = higher blur
       float blur = smoothstep(focusDist, focusDist - focusRange, dist) * maxBlur;
 
       if(blur < 0.0008){
@@ -866,10 +913,10 @@ const DOFShader = {
       vec2 texel = 1.0 / resolution;
       vec4 color = vec4(0.0);
       float total = 0.0;
-      const int N = 24;
+      const int N = 16; // Reduced from 24 to 16 for 4-layer performance
       for(int i = 0; i < N; i++){
         float fi = float(i);
-        float angle = fi * 2.418;
+        float angle = fi * 2.418; 
         float r = sqrt(fi / float(N));
         vec2 offset = vec2(cos(angle), sin(angle)) * blur * r * 60.0 * texel;
         color += texture2D(tColor, vUv + offset);
@@ -904,24 +951,18 @@ class DOFPass extends Pass {
   }
 }
 
-const composerBack = new EffectComposer(rendererBack);
-composerBack.renderTarget1.depthTexture = makeDepthTexture(innerWidth, innerHeight);
-composerBack.renderTarget2.depthTexture = makeDepthTexture(innerWidth, innerHeight);
-composerBack.setSize(innerWidth, innerHeight);
-composerBack.addPass(new RenderPass(sceneBack, cameraBack));
-const dofPassBack = new DOFPass();
-composerBack.addPass(dofPassBack);
-composerBack.addPass(new OutputPass());
-
-const composerFront = new EffectComposer(rendererFront);
-composerFront.renderTarget1.depthTexture = makeDepthTexture(innerWidth, innerHeight);
-composerFront.renderTarget2.depthTexture = makeDepthTexture(innerWidth, innerHeight);
-composerFront.setSize(innerWidth, innerHeight);
-composerFront.addPass(new RenderPass(sceneFront, cameraFront));
-const dofPassFront = new DOFPass();
-composerFront.addPass(dofPassFront);
-composerFront.addPass(new OutputPass());
-
+const composers = [];
+for(let i=0; i<4; i++) {
+  const composer = new EffectComposer(renderers[i]);
+  composer.renderTarget1.depthTexture = makeDepthTexture(innerWidth, innerHeight);
+  composer.renderTarget2.depthTexture = makeDepthTexture(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+  composer.addPass(new RenderPass(scenes[i], cameras[i]));
+  const dofPass = new DOFPass();
+  composer.addPass(dofPass);
+  composer.addPass(new OutputPass());
+  composers.push(composer);
+}
 
 /* ============================================================
    7. INTERACTION & DRAGGING LOGIC
@@ -932,7 +973,6 @@ const mouseClient = { x: innerWidth/2, y: innerHeight/2 };
 let smoothMouseX = 0, smoothMouseY = 0;
 let hoveredObj = null;
 
-// Drag State
 let isDragging = false;
 let draggedObj = null;
 const dragPlane = new THREE.Plane();
@@ -944,22 +984,17 @@ const cursorDot = document.getElementById('cursorDot');
 const cursorLabel = document.getElementById('cursorLabel');
 
 function getInteractableObj() {
-  // Check Front Scene First
-  raycaster.setFromCamera(mouse, cameraFront);
-  const hitsFront = raycaster.intersectObjects(interactiveObjectsFront, true);
-  if(hitsFront.length){
-    let root = hitsFront[0].object;
-    while(root.parent && !interactiveObjectsFront.includes(root)) root = root.parent;
-    if(interactiveObjectsFront.includes(root)) return { obj: root, cam: cameraFront };
-  }
-
-  // Check Back Scene
-  raycaster.setFromCamera(mouse, cameraBack);
-  const hitsBack = raycaster.intersectObjects(interactiveObjectsBack, true);
-  if(hitsBack.length){
-    let root = hitsBack[0].object;
-    while(root.parent && !interactiveObjectsBack.includes(root)) root = root.parent;
-    if(interactiveObjectsBack.includes(root)) return { obj: root, cam: cameraBack };
+  // Check Front Layers first (L4 -> L3)
+  for(let i=3; i>=0; i--) {
+    // Must update matrix world before raycasting to ensure accuracy
+    cameras[i].updateMatrixWorld();
+    raycaster.setFromCamera(mouse, cameras[i]);
+    const hits = raycaster.intersectObjects(interactiveObjectsByLayer[i], true);
+    if(hits.length){
+      let root = hits[0].object;
+      while(root.parent && !interactiveObjectsByLayer[i].includes(root)) root = root.parent;
+      if(interactiveObjectsByLayer[i].includes(root)) return { obj: root, cam: cameras[i] };
+    }
   }
   return { obj: null, cam: null };
 }
@@ -969,24 +1004,23 @@ window.addEventListener('mousemove', e => {
   mouseClient.y = e.clientY;
   mouse.x = (e.clientX / innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-
-  // Handle dragging position update
+  
   if (isDragging && draggedObj) {
-    const cam = draggedObj.userData.layer === 'front' ? cameraFront : cameraBack;
+    const cam = cameras[draggedObj.userData.layer];
+    cam.updateMatrixWorld();
     raycaster.setFromCamera(mouse, cam);
     raycaster.ray.intersectPlane(dragPlane, intersectPoint);
-
-    // Update object position
+    
     draggedObj.position.x = intersectPoint.x;
     draggedObj.position.y = intersectPoint.y;
+    
+    // Prevent text selection while dragging over DOM
+    e.preventDefault();
   }
 });
 
-// Mouse Down -> Start Drag
+// Use capture phase to intercept clicks before DOM elements get them
 window.addEventListener('mousedown', (e) => {
-  // Ignore if clicking on UI elements
-  if (e.target.closest('a, button, input, .card, .voice, .sub-page, .nav, .scroll-progress, .loader')) return;
-
   const hit = getInteractableObj();
   if (hit.obj) {
     draggedObj = hit.obj;
@@ -994,18 +1028,18 @@ window.addEventListener('mousedown', (e) => {
     cursorEl.classList.add('dragging');
     cursorEl.classList.remove('hover');
     cursorLabel.classList.remove('show');
-
-    // Set drag plane perpendicular to camera at object's Z position
+    
     hit.cam.getWorldDirection(planeNormal);
     dragPlane.setFromNormalAndCoplanarPoint(planeNormal, draggedObj.position);
+    
+    // Stop the event from propagating to any DOM elements underneath
+    e.stopPropagation();
     e.preventDefault();
   }
-});
+}, { capture: true });
 
-// Mouse Up -> End Drag
 window.addEventListener('mouseup', () => {
   if (isDragging && draggedObj) {
-    // Save new base position for floating animation
     draggedObj.userData.baseX = draggedObj.position.x;
     draggedObj.userData.baseY = draggedObj.position.y;
     draggedObj = null;
@@ -1015,8 +1049,16 @@ window.addEventListener('mouseup', () => {
 });
 
 /* ============================================================
-   8. SCROLL (Only affects DOM, NOT 3D)
+   8. HARD SYNC SCROLL (Zero Delay)
    ============================================================ */
+let scrollProgress = 0;
+function updateScroll(){
+  const maxScroll = document.documentElement.scrollHeight - innerHeight;
+  scrollProgress = Math.max(0, Math.min(1, scrollY / Math.max(1, maxScroll)));
+}
+window.addEventListener('scroll', updateScroll, { passive: true });
+updateScroll();
+
 const dots = document.querySelectorAll('.scroll-dot');
 const sections = ['home','process','features','voices','begin'];
 
@@ -1069,25 +1111,29 @@ function animate(){
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
 
-  // Camera Mouse Parallax (No scroll movement)
+  // Hard Sync Scroll (No delay/lerp)
+  const targetY = 4 + scrollProgress * -45; // Synced movement
+  for(let i=0; i<4; i++) {
+    cameras[i].position.y = targetY;
+  }
+  
+  // Mouse Parallax
   smoothMouseX += (mouse.x - smoothMouseX) * 0.05;
   smoothMouseY += (mouse.y - smoothMouseY) * 0.05;
+  
+  for(let i=0; i<4; i++) {
+    cameras[i].position.x += (smoothMouseX * (0.4 + i*0.2) - cameras[i].position.x) * 0.04;
+    cameras[i].lookAt(cameras[i].position.x * 0.3, targetY - 1.5, 0);
+  }
 
-  cameraBack.position.x += (smoothMouseX * 0.6 - cameraBack.position.x) * 0.04;
-  cameraBack.position.y += (smoothMouseY * 0.4 - cameraBack.position.y) * 0.04;
-  cameraBack.lookAt(0, 0, 0);
-
-  cameraFront.position.x += (smoothMouseX * 0.8 - cameraFront.position.x) * 0.04;
-  cameraFront.position.y += (smoothMouseY * 0.6 - cameraFront.position.y) * 0.04;
-  cameraFront.lookAt(0, 0, 0);
-
-  // Hover Detection (Only if not currently dragging)
+  // Hover Detection
   if (!isDragging) {
     const hit = getInteractableObj();
     hoveredObj = hit.obj;
-
-    interactiveObjectsFront.forEach(o => o.userData.targetHover = (o === hoveredObj) ? 1 : 0);
-    interactiveObjectsBack.forEach(o => o.userData.targetHover = (o === hoveredObj) ? 1 : 0);
+    
+    for(let i=0; i<4; i++) {
+      interactiveObjectsByLayer[i].forEach(o => o.userData.targetHover = (o === hoveredObj) ? 1 : 0);
+    }
 
     cursorEl.classList.toggle('hover', !!hoveredObj);
     if(hoveredObj){
@@ -1098,16 +1144,15 @@ function animate(){
     }
   }
 
-  // Update Objects (Full 3D XYZ Animation)
+  // Update Objects
   const updateObj = (obj) => {
     const ud = obj.userData;
-
-    // Skip float animation if actively being dragged
+    
     if (obj === draggedObj) {
-      ud.hoverProgress += (1 - ud.hoverProgress) * 0.12; // Keep hover scale while dragging
+      ud.hoverProgress += (1 - ud.hoverProgress) * 0.12;
       const scale = (1 + ud.hoverProgress * 0.18) * ud.baseScale;
       obj.scale.setScalar(scale);
-      return;
+      return; 
     }
 
     ud.hoverProgress += (ud.targetHover - ud.hoverProgress) * 0.12;
@@ -1116,7 +1161,7 @@ function animate(){
 
     obj.rotation.y += ud.rotSpeed + ud.hoverProgress * 0.012;
 
-    // 5. Full 3D Animation (X, Y, Z axes)
+    // Full 3D Animation (X, Y, Z axes)
     obj.position.x = ud.baseX + Math.sin(t * ud.floatSpeed + ud.phase) * ud.floatAmt;
     obj.position.y = ud.baseY + Math.cos(t * ud.floatSpeed * 0.8 + ud.phase) * ud.floatAmt;
     obj.position.z = ud.baseZ + Math.sin(t * ud.floatSpeed * 1.2 + ud.phase) * ud.floatAmt;
@@ -1137,12 +1182,10 @@ function animate(){
     });
   };
 
-  interactiveObjectsBack.forEach(updateObj);
-  interactiveObjectsFront.forEach(updateObj);
-
-  // Render both scenes
-  composerBack.render();
-  composerFront.render();
+  for(let i=0; i<4; i++) {
+    interactiveObjectsByLayer[i].forEach(updateObj);
+    composers[i].render();
+  }
 }
 
 /* ============================================================
@@ -1160,24 +1203,14 @@ function updateCursor(){
 updateCursor();
 
 window.addEventListener('resize', () => {
-  cameraBack.aspect = innerWidth / innerHeight;
-  cameraBack.updateProjectionMatrix();
-  cameraFront.aspect = innerWidth / innerHeight;
-  cameraFront.updateProjectionMatrix();
-
-  rendererBack.setSize(innerWidth, innerHeight);
-  rendererFront.setSize(innerWidth, innerHeight);
-
-  composerBack.setSize(innerWidth, innerHeight);
-  composerFront.setSize(innerWidth, innerHeight);
-
-  composerBack.renderTarget1.depthTexture.setSize(innerWidth, innerHeight);
-  composerBack.renderTarget2.depthTexture.setSize(innerWidth, innerHeight);
-  composerFront.renderTarget1.depthTexture.setSize(innerWidth, innerHeight);
-  composerFront.renderTarget2.depthTexture.setSize(innerWidth, innerHeight);
-
-  dofPassBack.setSize(innerWidth, innerHeight);
-  dofPassFront.setSize(innerWidth, innerHeight);
+  for(let i=0; i<4; i++) {
+    cameras[i].aspect = innerWidth / innerHeight;
+    cameras[i].updateProjectionMatrix();
+    renderers[i].setSize(innerWidth, innerHeight);
+    composers[i].setSize(innerWidth, innerHeight);
+    composers[i].renderTarget1.depthTexture.setSize(innerWidth, innerHeight);
+    composers[i].renderTarget2.depthTexture.setSize(innerWidth, innerHeight);
+  }
 });
 
 animate();
