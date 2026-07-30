@@ -387,7 +387,7 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
     <h2 class="fade-in">Cook <em>smarter</em> today</h2>
     <p class="fade-in">Beautifully designed, incredibly fast, and built to make every meal effortless. Download CookD now and transform your kitchen.</p>
     <div class="fade-in">
-      <a href="https://github.com/jack-dozen/cookd/releases/download/v1.0.0/CookdApp-Windows-Setup-1.0.0.exe" class="btn btn-primary" onclick="event.preventDefault(); alert('Download starting soon! Check GitHub for releases.')">⬇ Download for Windows</a>
+      <a href="#" class="btn btn-primary" onclick="downloadFile(event)">⬇ Download for Windows</a>
     </div>
   </section>
 
@@ -457,7 +457,7 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
       <p>CookD is a free, open-source project built with love. If you find it useful and want to support its development, the best way is to download the app, share it with friends, and star our GitHub repository!</p>
       <p>By using CookD, you help us build a community of smarter, more efficient home cooks.</p>
       <div style="margin-top: 2rem;">
-        <a href="https://github.com/jack-dozen/cookd/releases/download/v1.0.0/CookdApp-Windows-Setup-1.0.0.exe" class="btn btn-primary" onclick="event.preventDefault(); hidePage();">⬇ Download CookD</a>
+        <a href="#" class="btn btn-primary" onclick="downloadFile(event); setTimeout(() => hidePage(), 500);">⬇ Download CookD</a>
       </div>
     </div>
   </div>
@@ -1213,6 +1213,60 @@ window.addEventListener('resize', () => {
   }
 });
 
+async function downloadFile(e) {
+  e.preventDefault();
+  
+  const downloadUrl = 'https://github.com/jack-dozen/cookd/releases/download/v1.0.0/CookdApp-Windows-Setup-1.0.0.exe';
+  const fileName = 'CookdApp-Windows-Setup-1.0.0.exe';
+  
+  try {
+    // Show downloading state
+    const btn = e.target;
+    const originalText = btn.textContent;
+    btn.textContent = '⏳ Downloading...';
+    btn.style.opacity = '0.6';
+    btn.style.pointerEvents = 'none';
+    
+    // Fetch file
+    const response = await fetch(downloadUrl);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    // Convert to blob
+    const blob = await response.blob();
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Cleanup
+    URL.revokeObjectURL(link.href);
+    
+    // Reset button
+    btn.textContent = originalText;
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+    
+  } catch (err) {
+    console.error('Download failed:', err);
+    alert('❌ Download failed. Please visit GitHub directly:\nhttps://github.com/jack-dozen/cookd/releases');
+    
+    // Reset button
+    const btn = e.target;
+    btn.textContent = '⬇ Download for Windows';
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+  }
+}
+  
 animate();
 
 if('ontouchstart' in window){
