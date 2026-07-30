@@ -7,8 +7,7 @@ Import dari modul lain dengan: from src.core.theme import theme_mgr, T
 import flet as ft
 
 # ─────────────────────────────────────────────────────────────────────
-# DARK THEME (default)
-# ─────────────────────────────────────────────────────────────────────
+
 DARK: dict[str, str] = {
     "BG":     "#111111",
     "BG2":    "#1a1a1a",
@@ -21,8 +20,7 @@ DARK: dict[str, str] = {
 }
 
 # ─────────────────────────────────────────────────────────────────────
-# LIGHT THEME
-# ─────────────────────────────────────────────────────────────────────
+
 LIGHT: dict[str, str] = {
     "BG":     "#f5f0eb",
     "BG2":    "#edeae4",
@@ -35,8 +33,7 @@ LIGHT: dict[str, str] = {
 }
 
 # ─────────────────────────────────────────────────────────────────────
-# ACCENT
-# ─────────────────────────────────────────────────────────────────────
+
 ORANGE      = "#f04f23"
 ORANGE_GLOW = "rgba(240,79,35,0.25)"
 ORANGE_GLOW2= "rgba(240,79,35,0.10)"
@@ -52,15 +49,13 @@ ALFA_COLOR = "#E31E24"
 AEON_COLOR = "#6B3FA0"
 
 # ─────────────────────────────────────────────────────────────────────
-# FONT
-# ─────────────────────────────────────────────────────────────────────
+
 FONT_FAMILY = "Font"
 FONT_PATH   = "fonts/Poppins-Regular.ttf"
 
 
 # ─────────────────────────────────────────────────────────────────────
-# THEME MANAGER
-# ─────────────────────────────────────────────────────────────────────
+
 class ThemeManager:
     """
     Singleton yang menyimpan state tema aktif dan memberitahu semua
@@ -127,7 +122,7 @@ def T(key: str) -> str:
     """Shortcut: T('BG') == theme_mgr.get('BG')"""
     return theme_mgr.get(key)
 # ─────────────────────────────────────────────────────────────────────
-# MATCH SCORE
+
 # ─────────────────────────────────────────────────────────────────────
 def match_color(score: float) -> tuple[str, str]:
     """Return (bg_color, text_color) berdasarkan score 0.0–1.0."""
@@ -139,7 +134,7 @@ def match_color(score: float) -> tuple[str, str]:
     else:
         return "#3D1A1A", RED
 # ─────────────────────────────────────────────────────────────────────
-# THEME TOGGLE WIDGET
+
 # ─────────────────────────────────────────────────────────────────────
 def build_theme_toggle(page: ft.Page, show_label: bool = True) -> ft.Container:
     """

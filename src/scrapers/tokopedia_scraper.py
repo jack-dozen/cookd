@@ -1,5 +1,5 @@
-# BASE: https://github.com/crypter70/Tokopedia-Scraper/blob/main/scraper.py
-# MODIFIED WITH CLAUDE
+
+
 
 from selenium.webdriver.common.by import By
 from selenium import webdriver as wb
@@ -30,7 +30,7 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# HELPERS
+
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _scrolling(driver):
@@ -91,7 +91,7 @@ def _is_valid_keyword(keyword: str) -> bool:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FRESHNESS CHECK
+
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _is_data_fresh(db_path: str, keyword: str) -> bool | None:
@@ -116,7 +116,7 @@ def _is_data_fresh(db_path: str, keyword: str) -> bool | None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SCRAPE SATU KEYWORD
+
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _scrape_keyword(keyword: str, db_path: str) -> None:
@@ -224,7 +224,7 @@ def _scrape_keyword(keyword: str, db_path: str) -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ENTRY POINT
+
 # ══════════════════════════════════════════════════════════════════════════════
 
 def tokpedia_scraper(keywords: list[str]) -> None:
