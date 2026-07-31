@@ -438,7 +438,7 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
         <li><strong>Price Comparison:</strong> Click on any recipe to see a breakdown of ingredient costs across Tokopedia, Alfagift, and AEON Store.</li>
         <li><strong>Save Recipes:</strong> Click the bookmark icon on any recipe to save it to your personal library.</li>
       </ul>
-      
+
       <h2>For Developers</h2>
       <p>Want to contribute to CookD? We welcome pull requests and issues on our GitHub repository.</p>
       <ul>
@@ -457,7 +457,7 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
       <p>CookD is a free, open-source project built with love. If you find it useful and want to support its development, the best way is to download the app, share it with friends, and star our GitHub repository!</p>
       <p>By using CookD, you help us build a community of smarter, more efficient home cooks.</p>
       <div style="margin-top: 2rem;">
-        <a href="#begin" class="btn btn-primary" onclick="event.preventDefault(); hidePage();">⬇ Download CookD</a>
+        <a href="https://github.com/jack-dozen/cookd/releases/download/v1.0.0/CookdApp-Windows-Setup-1.0.0.exe" target="_blank" class="btn btn-primary" onclick=" setTimeout(() => window.focus(), 100)">⬇ Download CookD</a>
       </div>
     </div>
   </div>
@@ -468,13 +468,13 @@ footer{padding:5rem 15vw 2rem;border-top:1px solid var(--border);
     <div class="page-content">
       <p>Last updated: October 12, 2025</p>
       <p>This Privacy Policy describes how CookD ("we", "us", or "our") handles your data. Because CookD runs entirely locally on your machine, your privacy is our top priority.</p>
-      
+
       <h2>Data Collection</h2>
       <p>We do not collect or store any personal data. The ingredients you input, the recipes you save, and your search history are all stored locally on your device. We do not have access to this information.</p>
-      
+
       <h2>Third-Party Services</h2>
       <p>CookD scrapes data from third-party websites (Cookpad, Tokopedia, Alfagift, AEON Store) to provide recipe and price information. When you use these features, your IP address may be visible to these websites as per their own privacy policies. We recommend reviewing their policies if you have concerns.</p>
-      
+
       <h2>Email Waitlist</h2>
       <p>Since we have fully launched, there is no waitlist. Enjoy the app!</p>
     </div>
@@ -810,10 +810,10 @@ PLACEMENTS.forEach(p => {
   const obj = FACTORIES[p.type]();
   const scale = LAYER_CONFIG[layer].scale;
   const z = LAYER_CONFIG[layer].z;
-  
+
   obj.position.set(p.x, p.y, z);
   obj.rotation.set(Math.random()*0.2, Math.random()*Math.PI, Math.random()*0.2);
-  
+
   obj.userData = {
     baseX: p.x,
     baseY: p.y,
@@ -824,7 +824,7 @@ PLACEMENTS.forEach(p => {
     phase: Math.random() * Math.PI * 2,
     rotSpeed: (Math.random()-.5) * 0.003 + 0.001,
     floatSpeed: 0.5 + Math.random()*0.5,
-    floatAmt: 0.1 + Math.random()*0.15, 
+    floatAmt: 0.1 + Math.random()*0.15,
     mouseDX: 0,
     mouseDY: 0,
     label: p.label,
@@ -840,7 +840,7 @@ PLACEMENTS.forEach(p => {
       }
     }
   });
-  
+
   scenes[layer].add(obj);
   interactiveObjectsByLayer[layer].push(obj);
 });
@@ -865,7 +865,7 @@ const DOFShader = {
     cameraFar:   { value: cameras[0].far },
     focusDist:   { value: 17.0 },  // Focal plane near the back (L1/L2 are sharp)
     focusRange:  { value: 8.0 },   // Range over which blur falls off
-    maxBlur:     { value: 0.018 }, 
+    maxBlur:     { value: 0.018 },
     resolution:  { value: new THREE.Vector2(innerWidth, innerHeight) }
   },
   vertexShader: `
@@ -901,7 +901,7 @@ const DOFShader = {
       }
 
       float dist = linearizeDepth(rawDepth);
-      
+
       // Closer to camera (smaller dist) = higher blur
       float blur = smoothstep(focusDist, focusDist - focusRange, dist) * maxBlur;
 
@@ -916,7 +916,7 @@ const DOFShader = {
       const int N = 16; // Reduced from 24 to 16 for 4-layer performance
       for(int i = 0; i < N; i++){
         float fi = float(i);
-        float angle = fi * 2.418; 
+        float angle = fi * 2.418;
         float r = sqrt(fi / float(N));
         vec2 offset = vec2(cos(angle), sin(angle)) * blur * r * 60.0 * texel;
         color += texture2D(tColor, vUv + offset);
@@ -1004,16 +1004,16 @@ window.addEventListener('mousemove', e => {
   mouseClient.y = e.clientY;
   mouse.x = (e.clientX / innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / innerHeight) * 2 + 1;
-  
+
   if (isDragging && draggedObj) {
     const cam = cameras[draggedObj.userData.layer];
     cam.updateMatrixWorld();
     raycaster.setFromCamera(mouse, cam);
     raycaster.ray.intersectPlane(dragPlane, intersectPoint);
-    
+
     draggedObj.position.x = intersectPoint.x;
     draggedObj.position.y = intersectPoint.y;
-    
+
     // Prevent text selection while dragging over DOM
     e.preventDefault();
   }
@@ -1028,10 +1028,10 @@ window.addEventListener('mousedown', (e) => {
     cursorEl.classList.add('dragging');
     cursorEl.classList.remove('hover');
     cursorLabel.classList.remove('show');
-    
+
     hit.cam.getWorldDirection(planeNormal);
     dragPlane.setFromNormalAndCoplanarPoint(planeNormal, draggedObj.position);
-    
+
     // Stop the event from propagating to any DOM elements underneath
     e.stopPropagation();
     e.preventDefault();
@@ -1116,11 +1116,11 @@ function animate(){
   for(let i=0; i<4; i++) {
     cameras[i].position.y = targetY;
   }
-  
+
   // Mouse Parallax
   smoothMouseX += (mouse.x - smoothMouseX) * 0.05;
   smoothMouseY += (mouse.y - smoothMouseY) * 0.05;
-  
+
   for(let i=0; i<4; i++) {
     cameras[i].position.x += (smoothMouseX * (0.4 + i*0.2) - cameras[i].position.x) * 0.04;
     cameras[i].lookAt(cameras[i].position.x * 0.3, targetY - 1.5, 0);
@@ -1130,7 +1130,7 @@ function animate(){
   if (!isDragging) {
     const hit = getInteractableObj();
     hoveredObj = hit.obj;
-    
+
     for(let i=0; i<4; i++) {
       interactiveObjectsByLayer[i].forEach(o => o.userData.targetHover = (o === hoveredObj) ? 1 : 0);
     }
@@ -1147,12 +1147,12 @@ function animate(){
   // Update Objects
   const updateObj = (obj) => {
     const ud = obj.userData;
-    
+
     if (obj === draggedObj) {
       ud.hoverProgress += (1 - ud.hoverProgress) * 0.12;
       const scale = (1 + ud.hoverProgress * 0.18) * ud.baseScale;
       obj.scale.setScalar(scale);
-      return; 
+      return;
     }
 
     ud.hoverProgress += (ud.targetHover - ud.hoverProgress) * 0.12;
@@ -1215,10 +1215,10 @@ window.addEventListener('resize', () => {
 
 async function downloadFile(e) {
   e.preventDefault();
-  
+
   const downloadUrl = 'https://github.com/jack-dozen/cookd/releases/download/v1.0.0/CookdApp-Windows-Setup-1.0.0.exe';
   const fileName = 'CookdApp-Windows-Setup-1.0.0.exe';
-  
+
   try {
     // Show downloading state
     const btn = e.target;
@@ -1226,39 +1226,39 @@ async function downloadFile(e) {
     btn.textContent = '⏳ Downloading...';
     btn.style.opacity = '0.6';
     btn.style.pointerEvents = 'none';
-    
+
     // Fetch file
     const response = await fetch(downloadUrl);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     // Convert to blob
     const blob = await response.blob();
-    
+
     // Create download link
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = fileName;
-    
+
     // Trigger download
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     // Cleanup
     URL.revokeObjectURL(link.href);
-    
+
     // Reset button
     btn.textContent = originalText;
     btn.style.opacity = '1';
     btn.style.pointerEvents = 'auto';
-    
+
   } catch (err) {
     console.error('Download failed:', err);
     alert('❌ Download failed. Please visit GitHub directly:\nhttps://github.com/jack-dozen/cookd/releases');
-    
+
     // Reset button
     const btn = e.target;
     btn.textContent = '⬇ Download for Windows';
@@ -1266,7 +1266,7 @@ async function downloadFile(e) {
     btn.style.pointerEvents = 'auto';
   }
 }
-  
+
 animate();
 
 if('ontouchstart' in window){
